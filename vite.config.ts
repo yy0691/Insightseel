@@ -12,6 +12,7 @@ export default defineConfig({
   server: {
     port: 5000,
     host: '0.0.0.0',
+    strictPort: true, // Don't try other ports if 5000 is busy
     allowedHosts: true as const,
     hmr: {
       clientPort: 5000,
@@ -21,6 +22,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, '.'),
+      '@assets': path.resolve(__dirname, 'attached_assets'),
     }
   }
 });

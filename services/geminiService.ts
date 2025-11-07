@@ -1,5 +1,5 @@
 import { GoogleGenAI, Content } from '@google/genai';
-import { fileToBase64 } from '../utils/helpers';
+import { fileToBase64, extractAudioToBase64 } from '../utils/helpers';
 import { getEffectiveSettings } from './dbService';
 import { APISettings } from '../types';
 
@@ -240,14 +240,28 @@ export async function generateChatResponse(
   }
 }
 
-export async function generateSubtitles(videoFile: File, prompt: string): Promise<string> {
+export async function generateSubtitles(
+  videoFile: File, 
+  prompt: string,
+  onProgress?: (progress: number, stage: string) => void
+): Promise<string> {
     const { ai, settings, apiKey } = await getAIConfig();
-    const base64Video = await fileToBase64(videoFile);
-
-    const videoPart = {
+    
+    // Extract audio only to reduce file size (subtitles only need audio, not video)
+    onProgress?.(0, 'Extracting audio from video...');
+    const audioData = await extractAudioToBase64(videoFile, (audioProgress) => {
+      // Map 0-100% of audio extraction to 0-80% of total progress
+      onProgress?.(Math.round(audioProgress * 0.8), 'Extracting audio from video...');
+    });
+    
+    console.log(`Audio extracted: ${audioData.sizeKB}KB (vs ${Math.round(videoFile.size / 1024)}KB original video)`);
+    
+    onProgress?.(80, 'Generating subtitles...');
+    
+    const audioPart = {
       inlineData: {
-        mimeType: videoFile.type,
-        data: base64Video,
+        mimeType: audioData.mimeType,
+        data: audioData.data,
       },
     };
     const textPart = {
@@ -255,16 +269,16 @@ export async function generateSubtitles(videoFile: File, prompt: string): Promis
     };
     
     if (settings.useProxy) {
-        return await generateContentViaProxy({ parts: [videoPart, textPart] });
+        return await generateContentViaProxy({ parts: [audioPart, textPart] });
     }
     
     if (settings.baseUrl) {
-        return await generateContentWithCustomAPI(settings, apiKey, { parts: [videoPart, textPart] });
+        return await generateContentWithCustomAPI(settings, apiKey, { parts: [audioPart, textPart] });
     }
 
     const response = await ai.models.generateContent({
         model: settings.model,
-        contents: { parts: [videoPart, textPart] }
+        contents: { parts: [audioPart, textPart] }
     });
     
     // The model might wrap the SRT in markdown, so we extract it.

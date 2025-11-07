@@ -147,21 +147,24 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
   const handleGenerateSubtitles = async () => {
     if (!video) return;
     
-    // Check file size - Vercel has 4.5MB limit, and base64 encoding increases size by ~33%
-    // So we limit original video to 3MB to be safe
-    const maxSizeMB = 3;
-    const fileSizeMB = video.file.size / (1024 * 1024);
-    if (fileSizeMB > maxSizeMB) {
-      alert(`视频文件太大（${fileSizeMB.toFixed(1)}MB）。\n\n由于 Vercel 服务器限制（4.5MB），视频文件需要小于 ${maxSizeMB}MB。\n\n建议：\n1. 使用视频压缩工具减小文件大小\n2. 或截取较短的视频片段\n3. 或使用更低的分辨率/比特率`);
-      return;
-    }
-    
     setIsGeneratingSubtitles(true);
     setShowGenerateOptions(false);
+    
+    // Use generation status to show progress
+    setGenerationStatus({ active: true, stage: 'Preparing...', progress: 0 });
+    
     try {
         const targetLanguageName = language === 'zh' ? 'Chinese' : 'English';
         const prompt = t('generateSubtitlesPrompt', sourceLanguage, targetLanguageName);
-        const srtContent = await generateSubtitles(video.file, prompt);
+        
+        const srtContent = await generateSubtitles(
+          video.file, 
+          prompt,
+          (progress, stage) => {
+            setGenerationStatus({ active: true, stage, progress });
+          }
+        );
+        
         const segments = parseSrt(srtContent);
         
         if (segments.length === 0) {
@@ -179,6 +182,7 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
         alert(err instanceof Error ? err.message : 'Failed to generate subtitles.');
     } finally {
         setIsGeneratingSubtitles(false);
+        setGenerationStatus({ active: false, stage: '', progress: 0 });
     }
   };
 

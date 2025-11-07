@@ -12,6 +12,118 @@ export const fileToBase64 = (file: File): Promise<string> =>
     reader.onerror = (error) => reject(error);
   });
 
+/**
+ * Extract audio from video file and convert to base64
+ * This significantly reduces file size for subtitle generation (audio-only vs full video)
+ */
+export const extractAudioToBase64 = async (
+  videoFile: File,
+  onProgress?: (progress: number) => void
+): Promise<{ data: string; mimeType: string; sizeKB: number }> => {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video');
+    video.preload = 'metadata';
+    video.muted = false;
+    
+    const cleanup = () => {
+      if (video.src) {
+        URL.revokeObjectURL(video.src);
+      }
+    };
+
+    video.onloadedmetadata = async () => {
+      try {
+        onProgress?.(10);
+        
+        // Create audio context
+        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const source = audioContext.createMediaElementSource(video);
+        const destination = audioContext.createMediaStreamDestination();
+        source.connect(destination);
+        
+        onProgress?.(20);
+        
+        // Create MediaRecorder to capture audio
+        const mediaRecorder = new MediaRecorder(destination.stream, {
+          mimeType: 'audio/webm;codecs=opus',
+        });
+        
+        const chunks: Blob[] = [];
+        
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) {
+            chunks.push(e.data);
+          }
+        };
+        
+        mediaRecorder.onstop = async () => {
+          onProgress?.(80);
+          
+          const audioBlob = new Blob(chunks, { type: 'audio/webm' });
+          const sizeKB = Math.round(audioBlob.size / 1024);
+          
+          // Convert blob to base64
+          const reader = new FileReader();
+          reader.onload = () => {
+            const base64String = (reader.result as string).split(',')[1];
+            onProgress?.(100);
+            cleanup();
+            audioContext.close();
+            resolve({
+              data: base64String,
+              mimeType: 'audio/webm',
+              sizeKB
+            });
+          };
+          reader.onerror = () => {
+            cleanup();
+            audioContext.close();
+            reject(new Error('Failed to convert audio to base64'));
+          };
+          reader.readAsDataURL(audioBlob);
+        };
+        
+        mediaRecorder.onerror = (e) => {
+          cleanup();
+          audioContext.close();
+          reject(new Error('MediaRecorder error: ' + e));
+        };
+        
+        // Start recording
+        mediaRecorder.start();
+        onProgress?.(30);
+        
+        // Play video to record audio
+        await video.play();
+        
+        // Wait for video to end or just record the audio
+        video.onended = () => {
+          onProgress?.(70);
+          mediaRecorder.stop();
+        };
+        
+        // Safety timeout: stop after video duration + buffer
+        setTimeout(() => {
+          if (mediaRecorder.state === 'recording') {
+            mediaRecorder.stop();
+          }
+        }, (video.duration + 2) * 1000);
+        
+      } catch (err) {
+        cleanup();
+        reject(new Error(`Failed to extract audio: ${err instanceof Error ? err.message : String(err)}`));
+      }
+    };
+
+    video.onerror = () => {
+      cleanup();
+      reject(new Error('Could not load video for audio extraction'));
+    };
+
+    video.src = URL.createObjectURL(videoFile);
+  });
+};
+
 export const getVideoMetadata = (file: File): Promise<{ duration: number; width: number; height: number }> => {
   return new Promise((resolve, reject) => {
     const video = document.createElement('video');

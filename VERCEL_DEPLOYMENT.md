@@ -283,21 +283,27 @@ VITE_USE_PROXY=true
 
 #### 文件大小限制
 
-由于 Vercel Serverless Functions 的限制：
+由于 Vercel Serverless Functions 的限制（最大请求体 4.5MB），不同功能有不同的限制：
 
-- **最大请求体**: 4.5MB
-- **推荐视频大小**: ≤ 3MB（视频经过 base64 编码会增大约 33%）
+**生成字幕（Generate Subtitles）**
+- ✅ **视频大小几乎无限制**
+- 原理：只提取音频发送给 AI，不发送完整视频
+- 音频通常比视频小 10-20 倍
+- 只要视频能在浏览器中播放即可
 
-**如果视频太大：**
-1. 使用视频压缩工具（HandBrake、FFmpeg）
-2. 降低分辨率（720p → 480p）
-3. 截取较短片段
+**AI 分析（无字幕模式）**
+- ✅ **视频大小几乎无限制** 
+- 原理：只提取 40 帧图像（约 1-2MB），不发送完整视频
+- 自动限制分辨率到 720p
+- 只要视频能在浏览器中播放即可
 
-**FFmpeg 压缩示例：**
-```bash
-# 压缩到约 2MB
-ffmpeg -i input.mp4 -vcodec h264 -acodec aac -b:v 500k -b:a 64k -fs 2M output.mp4
-```
+**AI 分析（有字幕模式）**
+- ✅ **无限制**
+- 原理：只发送字幕文本，不发送视频
+
+**总结：**
+- 所有功能都已优化，不需要压缩视频
+- 视频文件可以很大（100MB、500MB 等），只要浏览器能解码
 
 #### 常见错误排查
 
@@ -305,25 +311,16 @@ ffmpeg -i input.mp4 -vcodec h264 -acodec aac -b:v 500k -b:a 64k -fs 2M output.mp
 
 可能原因：
 1. 环境变量未配置或配置错误
-2. 视频文件过大（>3MB）
-3. 中转API地址错误
-4. API密钥无效或配额用尽
-5. 中转API不支持视频输入
+2. 中转API地址错误
+3. API密钥无效或配额用尽
+4. 中转API不支持音频/视频输入
 
 解决方法：
 1. 检查 Vercel 环境变量配置
-2. 检查视频文件大小
-3. 查看 Vercel 函数日志：`Functions → Logs`
-4. 联系中转API服务商确认是否支持视频功能
+2. 查看 Vercel 函数日志：`Functions → Logs`
+3. 联系中转API服务商确认是否支持音频输入功能
 
-**错误：Request too large (XX MB)**
-
-原因：视频 base64 编码后超过 4.5MB 限制
-
-解决方法：
-- 压缩视频文件至 3MB 以下
-- 使用更短的视频片段
-- 降低视频分辨率和比特率
+**注意：** 应用已优化，生成字幕只发送音频（不是完整视频），AI分析只发送视频帧（不是完整视频），所以文件大小通常不会超过限制。
 
 #### 查看详细日志
 
@@ -366,21 +363,27 @@ VITE_USE_PROXY=true
 
 #### File Size Limits
 
-Due to Vercel Serverless Function limits:
+Due to Vercel Serverless Function limits (max 4.5MB request body), different features have different limits:
 
-- **Max request body**: 4.5MB
-- **Recommended video size**: ≤ 3MB (base64 encoding increases size by ~33%)
+**Generate Subtitles**
+- ✅ **Almost no video size limit**
+- How: Only extracts and sends audio to AI, not full video
+- Audio is typically 10-20x smaller than video
+- As long as video plays in browser, it works
 
-**If video is too large:**
-1. Use video compression tools (HandBrake, FFmpeg)
-2. Lower resolution (720p → 480p)
-3. Extract shorter clips
+**AI Analysis (without subtitles)**
+- ✅ **Almost no video size limit**
+- How: Only extracts 40 frames (~1-2MB), not full video
+- Automatically limits resolution to 720p
+- As long as video plays in browser, it works
 
-**FFmpeg compression example:**
-```bash
-# Compress to ~2MB
-ffmpeg -i input.mp4 -vcodec h264 -acodec aac -b:v 500k -b:a 64k -fs 2M output.mp4
-```
+**AI Analysis (with subtitles)**
+- ✅ **No limit**
+- How: Only sends subtitle text, not video
+
+**Summary:**
+- All features optimized, no need to compress videos
+- Video files can be large (100MB, 500MB, etc.) as long as browser can decode
 
 #### Common Error Troubleshooting
 
@@ -388,25 +391,16 @@ ffmpeg -i input.mp4 -vcodec h264 -acodec aac -b:v 500k -b:a 64k -fs 2M output.mp
 
 Possible causes:
 1. Environment variables not configured or incorrect
-2. Video file too large (>3MB)
-3. Incorrect relay API URL
-4. Invalid API key or quota exceeded
-5. Relay API doesn't support video input
+2. Incorrect relay API URL
+3. Invalid API key or quota exceeded
+4. Relay API doesn't support audio/video input
 
 Solutions:
 1. Check Vercel environment variable configuration
-2. Check video file size
-3. View Vercel function logs: `Functions → Logs`
-4. Contact relay API provider to confirm video support
+2. View Vercel function logs: `Functions → Logs`
+3. Contact relay API provider to confirm audio input support
 
-**Error: Request too large (XX MB)**
-
-Cause: Video exceeds 4.5MB limit after base64 encoding
-
-Solutions:
-- Compress video to under 3MB
-- Use shorter video clips
-- Lower video resolution and bitrate
+**Note:** The app is optimized - subtitle generation only sends audio (not full video), AI analysis only sends video frames (not full video), so file size usually won't exceed limits.
 
 #### Viewing Detailed Logs
 

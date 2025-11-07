@@ -278,11 +278,11 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
 
 
   return (
-    <div className="h-full p-5 grid grid-cols-1 lg:grid-cols-9 gap-5">
+    <div className="h-full py-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
       {/* Left Column */}
-      <div className="lg:col-span-6 flex flex-col gap-5 lg:max-h-[calc(100vh-2.5rem)]">
+      <div className="lg:col-span-7 flex flex-col gap-5 lg:max-h-[calc(100vh-3rem)]">
         {/* Video Player Card */}
-        <div className="bg-white/50 text-card-foreground flex flex-col rounded-3xl border border-white/30 overflow-hidden shadow-sm flex-shrink-0 lg:sticky lg:top-5">
+        <div className="bg-white/50 text-card-foreground flex flex-col rounded-3xl border border-white/30 overflow-hidden shadow-sm flex-shrink-0 lg:sticky lg:top-6">
             <div className="p-4 h-14 border-b border-slate-300/50 flex justify-between items-center">
                 <h2 className="font-semibold text-lg truncate" title={video.name}>{video.name}</h2>
                 <button 
@@ -364,7 +364,7 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
       </div>
 
       {/* Right Column */}
-      <div className="lg:col-span-3 flex flex-col bg-white/50 rounded-3xl border border-white/30 shadow-sm lg:sticky lg:top-5 lg:max-h-[calc(100vh-2.5rem)]">
+      <div className="lg:col-span-5 flex flex-col bg-white/50 rounded-3xl border border-white/30 shadow-sm lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)]">
         {/* Tabs */}
         <div className="flex-shrink-0 p-2 border-b border-slate-300/50">
           <div className="bg-slate-200/50 p-1 rounded-xl flex items-center" role="tablist">

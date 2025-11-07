@@ -102,12 +102,12 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   const sidebarWidthClass = isCollapsed ? 'w-16' : 'w-64';
 
-  const controlButtonClasses = "relative group flex w-full items-center justify-center p-2.5 rounded-xl text-slate-600 hover:bg-slate-200/60 transition-colors";
+  const controlButtonClasses = "relative group flex w-full items-center justify-center p-2.5 rounded-lg text-slate-600 hover:bg-slate-200/50 transition-colors";
 
   return (
-    <div className={`h-full flex flex-col backdrop-blur-lg bg-white/50 border border-white/30 transition-all duration-300 ease-in-out ${sidebarWidthClass} rounded-3xl shadow-lg`}>
+    <div className={`h-full flex flex-col backdrop-blur-sm bg-white/40 border border-slate-200/40 transition-all duration-300 ease-in-out ${sidebarWidthClass} rounded-2xl shadow-sm`}>
       {/* Header */}
-      <div className={`p-4 h-[65px] border-b border-white/30 flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
+      <div className={`p-4 h-[65px] border-b border-slate-200/40 flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
         <h1 className="text-xl font-bold text-slate-800 transition-opacity duration-200">
           {isCollapsed ? '💡' : t('appName')}
         </h1>
@@ -167,35 +167,46 @@ const Sidebar: React.FC<SidebarProps> = ({
       </nav>
 
       {/* Footer Controls */}
-      <div className="p-2 border-t border-white/30">
-        <div className={`flex ${isCollapsed ? 'flex-col space-y-2' : 'space-x-2'}`}>
+      <div className="p-3 border-t border-slate-200/50">
+        {/* Import Buttons */}
+        <div className={`grid ${isCollapsed ? 'grid-cols-1 gap-2' : 'grid-cols-2 gap-2'} mb-3`}>
           <button onClick={handleImportClick} className={controlButtonClasses} aria-label={t('importFile')}>
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0 3 3m-3-3-3 3M6.75 19.5a4.5 4.5 0 0 1-1.41-8.775 5.25 5.25 0 0 1 10.233-2.33 3 3 0 0 1 3.758 3.848A3.752 3.752 0 0 1 18 19.5H6.75Z" />
             </svg>
-            <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-opacity duration-200 bg-slate-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-20 shadow-lg">
-              {t('importFile')}
-            </div>
+            {!isCollapsed && <span className="ml-2 text-xs font-medium">{t('importFile')}</span>}
+            {isCollapsed && (
+              <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-opacity duration-200 bg-slate-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-20 shadow-lg">
+                {t('importFile')}
+              </div>
+            )}
           </button>
           <button onClick={handleImportFolderClick} className={controlButtonClasses} aria-label={t('importFolder')}>
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 9.75h16.5m-16.5 0A2.25 2.25 0 0 1 5.25 7.5h13.5a2.25 2.25 0 0 1 2.25 2.25m-16.5 0v1.5A2.25 2.25 0 0 0 5.25 13.5h13.5a2.25 2.25 0 0 0 2.25-2.25v-1.5m-16.5 0a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25h16.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H3.75Z" />
             </svg>
-            <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-opacity duration-200 bg-slate-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-20 shadow-lg">
-              {t('importFolder')}
-            </div>
+            {!isCollapsed && <span className="ml-2 text-xs font-medium">{t('importFolder')}</span>}
+            {isCollapsed && (
+              <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-opacity duration-200 bg-slate-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-20 shadow-lg">
+                {t('importFolder')}
+              </div>
+            )}
           </button>
         </div>
-        <div className="my-2 border-t border-slate-200/80 -mx-2"></div>
-        <div className={`flex ${isCollapsed ? 'flex-col space-y-2' : 'justify-between'}`}>
+
+        {/* Settings and Toggle Buttons */}
+        <div className={`grid ${isCollapsed ? 'grid-cols-1 gap-2' : isMobile ? 'grid-cols-1' : 'grid-cols-2 gap-2'}`}>
           <button onClick={onOpenSettings} className={controlButtonClasses} aria-label={t('settings')}>
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 0 0-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 0 0-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 0 0-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 0 0-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 0 0 1.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
-            <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-opacity duration-200 bg-slate-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-20 shadow-lg">
-              {t('settings')}
-            </div>
+            {!isCollapsed && <span className="ml-2 text-xs font-medium">{t('settings')}</span>}
+            {isCollapsed && (
+              <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-opacity duration-200 bg-slate-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-20 shadow-lg">
+                {t('settings')}
+              </div>
+            )}
           </button>
           {!isMobile && (
             <button
@@ -206,9 +217,12 @@ const Sidebar: React.FC<SidebarProps> = ({
               <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 transition-transform duration-300 ${isCollapsed ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                  <path strokeLinecap="round" strokeLinejoin="round" d="M18.75 19.5l-7.5-7.5 7.5-7.5m-6 15L5.25 12l7.5-7.5" />
               </svg>
-               <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-opacity duration-200 bg-slate-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-20 shadow-lg">
-                 {isCollapsed ? t('expandSidebar') : t('collapseSidebar')}
-               </div>
+              {!isCollapsed && <span className="ml-2 text-xs font-medium">{t('collapseSidebar')}</span>}
+              {isCollapsed && (
+                <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-opacity duration-200 bg-slate-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-20 shadow-lg">
+                  {isCollapsed ? t('expandSidebar') : t('collapseSidebar')}
+                </div>
+              )}
             </button>
           )}
         </div>

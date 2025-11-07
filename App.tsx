@@ -353,7 +353,7 @@ const AppContent: React.FC<{ settings: APISettings, onSettingsChange: (newSettin
           )}
 
           {/* Main Content Area */}
-          <main className={`flex-1 transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'lg:pl-[5.25rem]' : 'lg:pl-[17.25rem]'}`}>
+          <main className={`flex-1 overflow-y-auto transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'lg:pl-[5.25rem]' : 'lg:pl-[17.25rem]'}`}>
             <div className="w-full max-w-[1800px] mx-auto px-4 lg:px-8 xl:px-12 min-h-full flex flex-col">
             {isMobile && (
               <div className="flex-shrink-0 p-2 h-14 border-b border-slate-300/50 flex items-center bg-white/50 backdrop-blur-sm sticky top-0 z-20">

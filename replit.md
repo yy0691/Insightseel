@@ -111,8 +111,8 @@ None configured yet.
   - Fixed critical layout issue causing color break between main content and Footer
   - Moved gradient background from <body> to React root container (App.tsx)
   - Changed from h-screen to min-h-screen to allow natural page flow
-  - Removed overflow-y-auto from main element that was creating separate scroll context
-  - Result: seamless gradient from top to bottom, including Footer area
+  - Restored overflow-y-auto to main element to enable sticky positioning for video and key moments
+  - Result: seamless gradient from top to bottom, with proper sticky behavior for video player and analysis panels
   - Now entire application shares one continuous gradient background
 
 - **2025-11-07**: Welcome screen complete color unification

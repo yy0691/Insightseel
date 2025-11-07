@@ -109,6 +109,7 @@ None configured yet.
 ## Recent Changes
 - **2025-11-07**: Welcome screen redesign
   - Completely refactored WelcomeScreen component with minimalist, premium design
+  - Changed global background from gradient to pure white for unified appearance
   - Increased white space and improved visual hierarchy
   - Enhanced upload area with subtle hover and drag interactions
   - Improved button design with primary/secondary distinction

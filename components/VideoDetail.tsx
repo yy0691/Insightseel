@@ -222,7 +222,7 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
         setTimeout(() => setGenerationStatus(prev => ({...prev, progress: 100})), 100); // Animate progress bar
       } else {
         setGenerationStatus({ active: true, stage: t('insightsPreparingVideo'), progress: 0 });
-        const MAX_FRAMES_FOR_ANALYSIS = 60;
+        const MAX_FRAMES_FOR_ANALYSIS = 40; // Reduced from 60 to stay under 4.5MB limit
         const frames = await extractFramesFromVideo(
           video.file,
           MAX_FRAMES_FOR_ANALYSIS,
@@ -230,6 +230,15 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
             setGenerationStatus(prev => ({ ...prev, progress }));
           }
         );
+        
+        // Check total size before sending
+        const totalSize = frames.reduce((acc, frame) => acc + frame.length, 0) / (1024 * 1024);
+        console.log(`Extracted ${frames.length} frames, total size: ${totalSize.toFixed(2)}MB`);
+        
+        if (totalSize > 3.5) {
+          throw new Error(`提取的视频帧太大（${totalSize.toFixed(1)}MB），超过服务器限制。请使用分辨率较低的视频。`);
+        }
+        
         setGenerationStatus(prev => ({ ...prev, stage: t('insightsAnalyzing') }));
         analysisPayload = { frames };
       }

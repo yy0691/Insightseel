@@ -73,8 +73,28 @@ export const extractFramesFromVideo = (
     };
 
     video.onloadedmetadata = async () => {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+      // Limit canvas size to reduce frame size for API transmission
+      // Max 720p to balance quality and size
+      const maxWidth = 1280;
+      const maxHeight = 720;
+      
+      let width = video.videoWidth;
+      let height = video.videoHeight;
+      
+      // Scale down if necessary
+      if (width > maxWidth || height > maxHeight) {
+        const aspectRatio = width / height;
+        if (width > height) {
+          width = maxWidth;
+          height = Math.round(maxWidth / aspectRatio);
+        } else {
+          height = maxHeight;
+          width = Math.round(maxHeight * aspectRatio);
+        }
+      }
+      
+      canvas.width = width;
+      canvas.height = height;
       const duration = video.duration;
       // Ensure we don't have an interval of 0 for short videos and don't go beyond duration
       const interval = duration > maxFrames ? duration / maxFrames : duration > 1 ? 1 : duration;
@@ -87,8 +107,8 @@ export const extractFramesFromVideo = (
             video.removeEventListener('seeked', onSeeked);
             video.removeEventListener('error', onError);
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            // Request JPEG for smaller size, 0.8 is a good quality/size balance
-            const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+            // Request JPEG for smaller size, 0.6 quality to keep total size under 4.5MB
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
             frames.push(dataUrl.split(',')[1]); // Send only base64 data
             processedFrames++;
             onProgress(Math.round((processedFrames / effectiveMaxFrames) * 100));

@@ -91,7 +91,7 @@ const NotesPanel: React.FC<NotesPanelProps> = ({ video, note }) => {
   };
 
   return (
-    <div className="flex flex-col h-full p-2">
+    <div className="flex flex-col flex-1 p-2">
       <div className="flex-shrink-0 flex justify-between items-center mb-2">
         <p className="text-xs text-slate-500 italic">
           {getStatusText()}

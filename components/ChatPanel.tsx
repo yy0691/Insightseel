@@ -94,7 +94,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ video, subtitles, screenshotDataU
   };
 
   return (
-    <div className="flex flex-col h-full p-2">
+    <div className="flex flex-col flex-1 p-2">
       <div className="flex-1 overflow-y-auto pr-2 space-y-4 p-4 custom-scrollbar">
         {history.map((msg, index) => (
           <div key={index} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>

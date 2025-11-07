@@ -11,13 +11,6 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onImportFiles, onImportFo
   const folderInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const { t } = useLanguage();
-  
-  // Debug: Get environment variables
-  const debugInfo = {
-    VITE_USE_PROXY: import.meta.env.VITE_USE_PROXY,
-    VITE_MODEL: import.meta.env.VITE_MODEL,
-    VITE_BASE_URL: import.meta.env.VITE_BASE_URL,
-  };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files.length > 0) {
@@ -67,41 +60,82 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onImportFiles, onImportFo
   };
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center text-center p-8 relative">
-      <div className="max-w-xl w-full relative">
-        <h1 className="text-6xl font-extrabold tracking-tighter text-slate-900">{t('welcomeTitle')}</h1>
-        <p className="text-slate-500 mt-2 mb-10 text-lg">{t('welcomeSubtitle')}</p>
+    <div className="flex-1 flex flex-col items-center justify-center text-center px-4 py-16 relative">
+      <div className="max-w-2xl w-full">
+        {/* Hero Section */}
+        <div className="mb-16">
+          <h1 className="text-5xl md:text-6xl font-bold tracking-tight text-slate-900 mb-4">
+            {t('welcomeTitle')}
+          </h1>
+          <p className="text-lg md:text-xl text-slate-600 font-light max-w-lg mx-auto">
+            {t('welcomeSubtitle')}
+          </p>
+        </div>
         
+        {/* Upload Area */}
         <div 
-          className={`border border-dashed rounded-3xl p-10 transition-all duration-300 shadow-lg backdrop-blur-md ${isDragging ? 'border-indigo-500 bg-white/50' : 'border-white/30 bg-white/30'}`}
+          className={`relative group transition-all duration-300 ease-out ${isDragging ? 'scale-[1.02]' : ''}`}
           onDragEnter={handleDragEnter}
           onDragLeave={handleDragLeave}
           onDragOver={handleDragOver}
           onDrop={handleDrop}
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-12 h-12 mx-auto text-slate-500 mb-4">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="17 8 12 3 7 8"></polyline>
-            <line x1="12" x2="12" y1="3" y2="15"></line>
-          </svg>
-          <p className="text-slate-700 font-medium mb-2">{t('dropTarget')}</p>
-          <p className="text-slate-500 text-sm mb-6">{t('dropTargetHint')}</p>
-          <div className="flex flex-col items-center">
-             <button 
+          <div className={`relative border-2 rounded-2xl p-12 md:p-16 transition-all duration-300 ${
+            isDragging 
+              ? 'border-slate-900 bg-slate-50' 
+              : 'border-slate-200 bg-white/60 backdrop-blur-sm hover:border-slate-300'
+          }`}>
+            {/* Upload Icon */}
+            <div className="mb-6">
+              <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center transition-all duration-300 ${
+                isDragging ? 'bg-slate-900 scale-110' : 'bg-slate-100 group-hover:bg-slate-200'
+              }`}>
+                <svg 
+                  xmlns="http://www.w3.org/2000/svg" 
+                  width="28" 
+                  height="28" 
+                  viewBox="0 0 24 24" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  strokeWidth={2} 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  className={`transition-colors ${isDragging ? 'text-white' : 'text-slate-600'}`}
+                >
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" x2="12" y1="3" y2="15"></line>
+                </svg>
+              </div>
+            </div>
+            
+            {/* Text */}
+            <p className="text-slate-900 font-medium text-lg mb-2">
+              {t('dropTarget')}
+            </p>
+            <p className="text-slate-500 text-sm mb-8">
+              {t('dropTargetHint')}
+            </p>
+            
+            {/* Buttons */}
+            <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
+              <button 
                 onClick={handleImportClick}
-                className="bg-slate-900 text-slate-50 hover:bg-slate-900/90 inline-flex items-center justify-center rounded-xl text-sm font-medium h-11 px-8 shadow-md"
+                className="w-full sm:w-auto bg-slate-900 text-white hover:bg-slate-800 px-6 py-3 rounded-lg text-sm font-medium transition-all duration-200 hover:scale-105 shadow-sm"
               >
                 {t('browseFile')}
               </button>
-               <button
+              <button
                 onClick={handleImportFolderClick}
-                className="mt-3 bg-slate-800 text-slate-200 hover:bg-slate-800/90 inline-flex items-center justify-center rounded-xl text-sm font-medium h-11 px-8 shadow-md"
+                className="w-full sm:w-auto bg-white text-slate-700 hover:bg-slate-50 px-6 py-3 rounded-lg text-sm font-medium transition-all duration-200 hover:scale-105 border border-slate-200 shadow-sm"
               >
                 {t('importFolder')}
               </button>
+            </div>
           </div>
         </div>
         
+        {/* Hidden Inputs */}
         <input
           type="file"
           ref={fileInputRef}
@@ -120,11 +154,24 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onImportFiles, onImportFo
           multiple
         />
         
-        <div className="mt-8 backdrop-blur-md bg-white/30 p-6 rounded-2xl text-left border border-white/30 shadow-lg">
-            <h3 className="font-semibold text-slate-900 mb-2">{t('welcomeBoxTitle')}</h3>
-            <p className="text-sm text-slate-600">{t('welcomeBoxText')}</p>
+        {/* Feature Box */}
+        <div className="mt-12 text-left max-w-xl mx-auto">
+          <div className="flex items-start gap-3 p-5 rounded-xl bg-white/40 backdrop-blur-sm border border-slate-200/50">
+            <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center">
+              <svg className="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="font-semibold text-slate-900 mb-1 text-sm">
+                {t('welcomeBoxTitle')}
+              </h3>
+              <p className="text-sm text-slate-600 leading-relaxed">
+                {t('welcomeBoxText')}
+              </p>
+            </div>
+          </div>
         </div>
-      
       </div>
     </div>
   );

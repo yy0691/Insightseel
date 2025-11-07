@@ -300,7 +300,7 @@ const AppContent: React.FC<{ settings: APISettings, onSettingsChange: (newSettin
       {videos.length > 0 && selectedVideo ? (
         <>
           {/* Desktop Sidebar */}
-          <div className="hidden lg:block fixed top-0 left-0 h-full z-30">
+          <div className="hidden lg:block fixed top-0 left-0 h-full z-30 p-5 pr-0 pb-5">
             <Sidebar
               videos={videos}
               selectedVideoId={selectedVideoId}
@@ -322,7 +322,7 @@ const AppContent: React.FC<{ settings: APISettings, onSettingsChange: (newSettin
                 className={`fixed inset-0 bg-black/30 z-40 transition-opacity duration-300 ${isMobileSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
                 onClick={() => setIsMobileSidebarOpen(false)}
               ></div>
-              <div className={`fixed top-0 left-0 h-full z-50 transition-transform duration-300 ease-in-out transform ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+              <div className={`fixed top-0 left-0 h-full z-50 p-5 pr-0 pb-5 transition-transform duration-300 ease-in-out transform ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                 <Sidebar
                   videos={videos}
                   selectedVideoId={selectedVideoId}
@@ -352,7 +352,7 @@ const AppContent: React.FC<{ settings: APISettings, onSettingsChange: (newSettin
           )}
 
           {/* Main Content Area */}
-          <main className={`flex-1 overflow-y-auto transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'lg:pl-16' : 'lg:pl-64'}`}>
+          <main className={`flex-1 overflow-y-auto transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'lg:pl-[5.25rem]' : 'lg:pl-[17.25rem]'}`}>
             {isMobile && (
               <div className="flex-shrink-0 p-2 h-14 border-b border-slate-300/50 flex items-center bg-white/50 backdrop-blur-sm sticky top-0 z-20">
                 <button onClick={() => setIsMobileSidebarOpen(true)} className="p-2 rounded-full hover:bg-slate-900/10" aria-label="Open menu">

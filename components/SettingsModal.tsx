@@ -14,10 +14,32 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onSave, onClose
   const [testState, setTestState] = useState<{ status: 'idle' | 'testing' | 'success' | 'error'; message: string }>({ status: 'idle', message: '' });
   const { t } = useLanguage();
 
+  // Check for build-time environment variables to determine UI behavior
+  const systemModel = process.env.MODEL_NAME;
+  const systemBaseUrl = process.env.BASE_URL;
+  const systemApiKey = process.env.API_KEY;
+
+  // Determine if the currently displayed settings are from the system fallback
+  const isModelSystemInUse = !!systemModel && currentSettings.model === systemModel;
+  const isBaseUrlSystemInUse = !!systemBaseUrl && currentSettings.baseUrl === systemBaseUrl;
+  const isApiKeySystemInUse = !!systemApiKey && currentSettings.apiKey === systemApiKey;
+
   useEffect(() => {
-    setCurrentSettings(settings);
+    // We receive the "effective" settings. We don't want to show system values in the input fields.
+    const displaySettings = { ...settings };
+    if (!!systemModel && settings.model === systemModel) {
+      displaySettings.model = '';
+    }
+    if (!!systemBaseUrl && settings.baseUrl === systemBaseUrl) {
+      displaySettings.baseUrl = '';
+    }
+    if (!!systemApiKey && settings.apiKey === systemApiKey) {
+      displaySettings.apiKey = '';
+    }
+
+    setCurrentSettings(displaySettings);
     setTestState({ status: 'idle', message: '' }); // Reset on open
-  }, [settings]);
+  }, [settings, systemApiKey, systemBaseUrl, systemModel]);
 
   const handleSettingChange = (update: Partial<APISettings>) => {
     setCurrentSettings(prev => ({ ...prev, ...update }));
@@ -27,23 +49,27 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onSave, onClose
   };
 
   const handleSave = () => {
+    // When saving, if a field is empty but a system default exists,
+    // we save it as an empty string to ensure the user's choice to override is respected.
     onSave(currentSettings);
   };
   
   const handleTest = async () => {
     setTestState({ status: 'testing', message: t('testingConnection') });
-    const result = await testConnection(currentSettings);
+    // For testing, we must use the effective settings, combining user input with system fallbacks
+    const settingsToTest: APISettings = {
+        ...currentSettings,
+        model: currentSettings.model || systemModel || 'gemini-2.5-flash',
+        baseUrl: currentSettings.baseUrl || systemBaseUrl,
+        apiKey: currentSettings.apiKey || systemApiKey,
+    }
+    const result = await testConnection(settingsToTest);
     if (result.success) {
         setTestState({ status: 'success', message: t('testSuccess') });
     } else {
         setTestState({ status: 'error', message: t('testFailureDetails', result.message) });
     }
   };
-  
-  const env = (import.meta as any).env || {};
-  const modelPlaceholder = env.VITE_MODEL ? t('modelPlaceholderSystem', env.VITE_MODEL) : t('modelNamePlaceholder');
-  const baseUrlPlaceholder = env.VITE_BASE_URL ? t('baseUrlPlaceholderSystem', env.VITE_BASE_URL) : t('baseUrlPlaceholder');
-  const apiKeyPlaceholder = env.VITE_API_KEY ? t('apiKeyPlaceholderSystem') : t('apiKeyPlaceholder');
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -77,7 +103,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onSave, onClose
               id="model-name"
               value={currentSettings.model || ''}
               onChange={(e) => handleSettingChange({ model: e.target.value })}
-              placeholder={modelPlaceholder}
+              placeholder={systemModel ? t('modelPlaceholderSystem', systemModel) : t('modelNamePlaceholder')}
               className="w-full backdrop-blur-sm bg-white/50 border-slate-300/80 border rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
             />
           </div>
@@ -91,7 +117,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onSave, onClose
               id="base-url"
               value={currentSettings.baseUrl || ''}
               onChange={(e) => handleSettingChange({ baseUrl: e.target.value.trim() })}
-              placeholder={baseUrlPlaceholder}
+              placeholder={systemBaseUrl ? t('baseUrlPlaceholderSystem') : t('baseUrlPlaceholder')}
               className="w-full backdrop-blur-sm bg-white/50 border-slate-300/80 border rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
             />
             <p className="text-xs text-slate-500 mt-1">{t('baseUrlHelpText')}</p>
@@ -106,7 +132,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onSave, onClose
               id="api-key"
               value={currentSettings.apiKey || ''}
               onChange={(e) => handleSettingChange({ apiKey: e.target.value })}
-              placeholder={apiKeyPlaceholder}
+              placeholder={systemApiKey ? t('apiKeyPlaceholderSystem') : t('apiKeyPlaceholder')}
               className="w-full backdrop-blur-sm bg-white/50 border-slate-300/80 border rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
             />
             <p className="text-xs text-slate-500 mt-1">{t('apiKeyHelpText')}</p>

@@ -238,16 +238,10 @@ export async function translateSubtitles(srtContent: string, targetLanguage: str
 }
 
 export async function testConnection(settings: APISettings): Promise<{success: boolean, message: string}> {
-    // This is a special case where we use the settings passed directly for the test
-    // In browser environments like Vercel, Vite exposes env variables via import.meta.env
-    // The variables must be prefixed with VITE_ in your .env file or Vercel settings.
-    // FIX: Cast `import.meta` to `any` to access Vite environment variables without TypeScript errors.
-    const env = (import.meta as any).env || {};
-    
-    // Prioritize settings from the UI, then fallback to environment variables
-    const apiKey = settings.apiKey || env.VITE_API_KEY;
-    const modelName = settings.model || env.VITE_MODEL || DEFAULT_MODEL;
-    const baseUrl = settings.baseUrl || env.VITE_BASE_URL;
+    // Use settings passed directly from the UI for the test
+    const apiKey = settings.apiKey;
+    const modelName = settings.model || DEFAULT_MODEL;
+    const baseUrl = settings.baseUrl;
 
     if (!apiKey) {
         return { success: false, message: "API Key is missing." };

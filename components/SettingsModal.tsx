@@ -15,9 +15,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onSave, onClose
   const { t } = useLanguage();
 
   // Check for build-time environment variables to determine UI behavior
-  const systemModel = process.env.MODEL_NAME;
-  const systemBaseUrl = process.env.BASE_URL;
-  const systemApiKey = process.env.API_KEY;
+  // Fix: Cast `import.meta` to `any` to access `env` without Vite client types.
+  const env = (import.meta as any)?.env || {};
+  const systemModel = env.VITE_MODEL;
+  const systemBaseUrl = env.VITE_BASE_URL;
+  const systemApiKey = env.VITE_API_KEY;
 
   // Determine if the currently displayed settings are from the system fallback
   const isModelSystemInUse = !!systemModel && currentSettings.model === systemModel;

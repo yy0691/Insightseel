@@ -131,9 +131,11 @@ export async function getEffectiveSettings(): Promise<APISettings> {
     
     // Fallback to environment variables if user settings are not present.
     // User-saved settings always take priority.
-    const systemApiKey = process.env.API_KEY;
-    const systemBaseUrl = process.env.BASE_URL;
-    const systemModel = process.env.MODEL_NAME;
+    // Fix: Cast `import.meta` to `any` to access `env` without Vite client types.
+    const env = (import.meta as any)?.env || {};
+    const systemApiKey = env.VITE_API_KEY;
+    const systemBaseUrl = env.VITE_BASE_URL;
+    const systemModel = env.VITE_MODEL;
     const DEFAULT_MODEL = 'gemini-2.5-flash';
 
     return {

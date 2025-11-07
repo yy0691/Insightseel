@@ -388,9 +388,9 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
         
         {/* Tab Content */}
         {activeTab === 'Insights' && (
-            <div className="flex-1 overflow-y-auto custom-scrollbar">
+            <div className="flex-1 overflow-y-auto custom-scrollbar flex">
                 {generationStatus.active ? (
-                    <div className="flex flex-col items-center justify-center h-full p-4 text-center">
+                    <div className="flex flex-col items-center justify-center h-full p-4 text-center m-auto">
                         <div className="w-16 h-16 border-4 border-slate-300 border-t-slate-800 rounded-full animate-spin"></div>
                         <p className="mt-4 font-semibold">{generationStatus.stage}</p>
                         {generationStatus.stage === t('insightsPreparingVideo') && (
@@ -430,7 +430,7 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
                         )}
                     </div>
                 ) : (
-                    <div className="flex flex-col items-center justify-center h-full p-6 text-center">
+                    <div className="flex flex-col items-center p-6 text-center m-auto">
                          <div className="w-20 h-20 mb-4">
                             <svg className="w-full h-full text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.375 3.375 0 0114 18.442V21.75a1.5 1.5 0 01-3 0v-3.308c0-.944.345-1.846.945-2.55l.547-.547z" />

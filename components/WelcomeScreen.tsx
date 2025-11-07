@@ -124,37 +124,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onImportFiles, onImportFo
             <h3 className="font-semibold text-slate-900 mb-2">{t('welcomeBoxTitle')}</h3>
             <p className="text-sm text-slate-600">{t('welcomeBoxText')}</p>
         </div>
-        
-        {/* Debug Info - Shows environment variable status */}
-        <div className="mt-4 backdrop-blur-md bg-amber-50/80 p-4 rounded-xl text-left border border-amber-200/50 shadow-sm">
-          <h4 className="font-semibold text-amber-900 text-sm mb-2 flex items-center">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            环境配置状态 / Environment Status
-          </h4>
-          <div className="space-y-1 text-xs font-mono">
-            <div className="flex items-center justify-between">
-              <span className="text-amber-700">VITE_USE_PROXY:</span>
-              <span className={`font-bold ${debugInfo.VITE_USE_PROXY === 'true' ? 'text-green-600' : 'text-red-600'}`}>
-                {debugInfo.VITE_USE_PROXY || 'undefined'}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-amber-700">VITE_MODEL:</span>
-              <span className="text-slate-600">{debugInfo.VITE_MODEL || 'undefined'}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-amber-700">VITE_BASE_URL:</span>
-              <span className="text-slate-600 truncate max-w-[200px]">{debugInfo.VITE_BASE_URL || 'undefined'}</span>
-            </div>
-          </div>
-          <p className="text-xs text-amber-700 mt-2 leading-relaxed">
-            {debugInfo.VITE_USE_PROXY === 'true' 
-              ? '✓ 代理模式已启用，无需配置API密钥即可使用 / Proxy enabled, no API key needed'
-              : '✗ 代理未启用，请在设置中配置API密钥 / Proxy not enabled, please configure API key in settings'}
-          </p>
-        </div>
+      
       </div>
     </div>
   );

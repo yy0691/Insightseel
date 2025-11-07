@@ -69,6 +69,11 @@ export const zh: Translations = {
   exportNotes: "将笔记导出为文本文件",
   notesPlaceholder: "在这里写下您的笔记... 更改将自动保存。",
 
+  // Footer
+  footerInspiredBy: "灵感来源",
+  footerAuthor: "作者",
+  footerFeedback: "反馈意见",
+
   // Settings Modal
   settingsTitle: "设置",
   settingsDescription: "配置您的 AI 模型和偏好。",

@@ -67,6 +67,11 @@ export const en = {
   exportNotes: "Export notes as a text file",
   notesPlaceholder: "Write your notes here... Changes are saved automatically.",
 
+  // Footer
+  footerInspiredBy: "Inspired by",
+  footerAuthor: "Author",
+  footerFeedback: "Feedback",
+
   // Settings Modal
   settingsTitle: "Settings",
   settingsDescription: "Configure your AI model and preferences.",

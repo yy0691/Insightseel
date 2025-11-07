@@ -4,6 +4,7 @@ import VideoDetail from './components/VideoDetail';
 import WelcomeScreen from './components/WelcomeScreen';
 import SettingsModal from './components/SettingsModal';
 import FeedbackModal from './components/FeedbackModal';
+import Footer from './components/Footer';
 import { Video, Subtitles, Analysis, Note, APISettings } from './types';
 import { videoDB, subtitleDB, analysisDB, noteDB, appDB, settingsDB, getEffectiveSettings } from './services/dbService';
 import { getVideoMetadata, parseSubtitleFile } from './utils/helpers';
@@ -353,7 +354,7 @@ const AppContent: React.FC<{ settings: APISettings, onSettingsChange: (newSettin
 
           {/* Main Content Area */}
           <main className={`flex-1 overflow-y-auto transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'lg:pl-[5.25rem]' : 'lg:pl-[17.25rem]'}`}>
-            <div className="w-full max-w-[1800px] mx-auto px-4 lg:px-8 xl:px-12">
+            <div className="w-full max-w-[1800px] mx-auto px-4 lg:px-8 xl:px-12 min-h-full flex flex-col">
             {isMobile && (
               <div className="flex-shrink-0 p-2 h-14 border-b border-slate-300/50 flex items-center bg-white/50 backdrop-blur-sm sticky top-0 z-20">
                 <button onClick={() => setIsMobileSidebarOpen(true)} className="p-2 rounded-full hover:bg-slate-900/10" aria-label="Open menu">
@@ -364,21 +365,29 @@ const AppContent: React.FC<{ settings: APISettings, onSettingsChange: (newSettin
                 <h1 className="text-lg font-semibold text-slate-800 ml-2 truncate">{t('appName')}</h1>
               </div>
             )}
-              <VideoDetail
-                video={selectedVideo}
-                subtitles={subtitles[selectedVideo.id] || null}
-                analyses={analyses[selectedVideo.id] || []}
-                note={notes[selectedVideo.id] || null}
-                onAnalysesChange={loadDataForVideo}
-                onSubtitlesChange={loadDataForVideo}
-                onDeleteVideo={handleDeleteVideo}
-                onFirstInsightGenerated={handleFirstTimeInsightSuccess}
-              />
+              <div className="flex-1">
+                <VideoDetail
+                  video={selectedVideo}
+                  subtitles={subtitles[selectedVideo.id] || null}
+                  analyses={analyses[selectedVideo.id] || []}
+                  note={notes[selectedVideo.id] || null}
+                  onAnalysesChange={loadDataForVideo}
+                  onSubtitlesChange={loadDataForVideo}
+                  onDeleteVideo={handleDeleteVideo}
+                  onFirstInsightGenerated={handleFirstTimeInsightSuccess}
+                />
+              </div>
+              <Footer />
             </div>
           </main>
         </>
       ) : (
-        <WelcomeScreen onImportFiles={handleFileImports} onImportFolderSelection={handleImportFolderSelection} />
+        <div className="flex-1 flex flex-col min-h-full">
+          <div className="flex-1">
+            <WelcomeScreen onImportFiles={handleFileImports} onImportFolderSelection={handleImportFolderSelection} />
+          </div>
+          <Footer />
+        </div>
       )}
     </div>
   );

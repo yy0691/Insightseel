@@ -15,10 +15,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onSave, onClose
   const { t } = useLanguage();
 
   // Check for build-time environment variables to determine UI behavior
-  const env = (import.meta as any)?.env || {};
-  const systemModel = env.VITE_MODEL;
-  const systemBaseUrl = env.VITE_BASE_URL;
-  const proxyAvailable = env.VITE_USE_PROXY === 'true';
+  const systemModel = import.meta.env.VITE_MODEL;
+  const systemBaseUrl = import.meta.env.VITE_BASE_URL;
+  const proxyAvailable = import.meta.env.VITE_USE_PROXY === 'true';
 
   // Determine if the currently displayed settings are from the system fallback
   const isModelSystemInUse = !!systemModel && currentSettings.model === systemModel;
@@ -160,8 +159,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onSave, onClose
                     {t('showDebugInfo')}
                   </summary>
                   <div className="mt-2 p-2 bg-white/60 rounded text-xs font-mono space-y-1">
-                    <div>VITE_USE_PROXY: <span className="font-bold">{env.VITE_USE_PROXY || 'undefined'}</span></div>
-                    <div>VITE_MODEL: {env.VITE_MODEL || 'undefined'}</div>
+                    <div>VITE_USE_PROXY: <span className="font-bold">{import.meta.env.VITE_USE_PROXY || 'undefined'}</span></div>
+                    <div>VITE_MODEL: {import.meta.env.VITE_MODEL || 'undefined'}</div>
+                    <div>VITE_BASE_URL: {import.meta.env.VITE_BASE_URL || 'undefined'}</div>
                     <div>Has API Key: {currentSettings.apiKey ? 'Yes' : 'No'}</div>
                     <div>Using Proxy: {isUsingProxy ? 'Yes' : 'No'}</div>
                   </div>

@@ -130,10 +130,9 @@ export async function getEffectiveSettings(): Promise<APISettings> {
     const userSettings = (await settingsDB.get('user-settings')) as Partial<APISettings> | undefined;
     
     // Check if proxy is available (safe frontend signal)
-    const env = (import.meta as any)?.env || {};
-    const proxyAvailable = env.VITE_USE_PROXY === 'true';
-    const systemBaseUrl = env.VITE_BASE_URL;
-    const systemModel = env.VITE_MODEL;
+    const proxyAvailable = import.meta.env.VITE_USE_PROXY === 'true';
+    const systemBaseUrl = import.meta.env.VITE_BASE_URL;
+    const systemModel = import.meta.env.VITE_MODEL;
     const DEFAULT_MODEL = 'gemini-2.5-flash';
 
     const finalBaseUrl = userSettings?.baseUrl ?? systemBaseUrl;

@@ -13,11 +13,10 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onImportFiles, onImportFo
   const { t } = useLanguage();
   
   // Debug: Get environment variables
-  const env = (import.meta as any)?.env || {};
   const debugInfo = {
-    VITE_USE_PROXY: env.VITE_USE_PROXY,
-    VITE_MODEL: env.VITE_MODEL,
-    VITE_BASE_URL: env.VITE_BASE_URL,
+    VITE_USE_PROXY: import.meta.env.VITE_USE_PROXY,
+    VITE_MODEL: import.meta.env.VITE_MODEL,
+    VITE_BASE_URL: import.meta.env.VITE_BASE_URL,
   };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {

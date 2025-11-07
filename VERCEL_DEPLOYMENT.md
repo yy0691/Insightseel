@@ -251,3 +251,171 @@ You can add additional security measures in `api/proxy.ts`:
 - Usage tracking
 - IP whitelist/blacklist
 - Request validation
+
+---
+
+## 🌐 使用中转API (Using Relay API)
+
+### 中文说明
+
+如果您使用第三方中转API（而非直接访问 Google），需要特殊配置：
+
+#### 环境变量配置
+
+```bash
+# 必需：中转API提供的密钥
+GEMINI_API_KEY=your_relay_api_key_here
+
+# 必需：中转API的基础URL（不包含路径）
+GEMINI_BASE_URL=https://your-relay-api.com
+
+# 推荐：中转API支持的模型
+GEMINI_MODEL=gemini-2.5-flash
+
+# 前端代理标志
+VITE_USE_PROXY=true
+```
+
+**重要提示：**
+- `GEMINI_BASE_URL` 只填写域名部分，例如：`https://api.example.com`
+- **不要**包含路径，如 `/v1beta/models/` 等
+- 确认您的中转API支持视频输入功能
+
+#### 文件大小限制
+
+由于 Vercel Serverless Functions 的限制：
+
+- **最大请求体**: 4.5MB
+- **推荐视频大小**: ≤ 3MB（视频经过 base64 编码会增大约 33%）
+
+**如果视频太大：**
+1. 使用视频压缩工具（HandBrake、FFmpeg）
+2. 降低分辨率（720p → 480p）
+3. 截取较短片段
+
+**FFmpeg 压缩示例：**
+```bash
+# 压缩到约 2MB
+ffmpeg -i input.mp4 -vcodec h264 -acodec aac -b:v 500k -b:a 64k -fs 2M output.mp4
+```
+
+#### 常见错误排查
+
+**错误：Proxy request failed**
+
+可能原因：
+1. 环境变量未配置或配置错误
+2. 视频文件过大（>3MB）
+3. 中转API地址错误
+4. API密钥无效或配额用尽
+5. 中转API不支持视频输入
+
+解决方法：
+1. 检查 Vercel 环境变量配置
+2. 检查视频文件大小
+3. 查看 Vercel 函数日志：`Functions → Logs`
+4. 联系中转API服务商确认是否支持视频功能
+
+**错误：Request too large (XX MB)**
+
+原因：视频 base64 编码后超过 4.5MB 限制
+
+解决方法：
+- 压缩视频文件至 3MB 以下
+- 使用更短的视频片段
+- 降低视频分辨率和比特率
+
+#### 查看详细日志
+
+1. 登录 Vercel Dashboard
+2. 进入项目 → Deployments → 选择最新部署
+3. 点击 Functions → 选择 `api/proxy`
+4. 查看 Logs 获取详细错误信息
+
+现在日志会显示：
+- 请求体大小（MB）
+- API调用详情
+- 详细的错误信息
+
+---
+
+### English
+
+If you're using a third-party relay API (instead of direct Google access), special configuration is needed:
+
+#### Environment Variables
+
+```bash
+# Required: API key from relay service
+GEMINI_API_KEY=your_relay_api_key_here
+
+# Required: Base URL of relay API (domain only, no path)
+GEMINI_BASE_URL=https://your-relay-api.com
+
+# Recommended: Model supported by relay API
+GEMINI_MODEL=gemini-2.5-flash
+
+# Frontend proxy flag
+VITE_USE_PROXY=true
+```
+
+**Important:**
+- `GEMINI_BASE_URL` should only contain the domain, e.g., `https://api.example.com`
+- **Do NOT** include paths like `/v1beta/models/`
+- Confirm your relay API supports video input
+
+#### File Size Limits
+
+Due to Vercel Serverless Function limits:
+
+- **Max request body**: 4.5MB
+- **Recommended video size**: ≤ 3MB (base64 encoding increases size by ~33%)
+
+**If video is too large:**
+1. Use video compression tools (HandBrake, FFmpeg)
+2. Lower resolution (720p → 480p)
+3. Extract shorter clips
+
+**FFmpeg compression example:**
+```bash
+# Compress to ~2MB
+ffmpeg -i input.mp4 -vcodec h264 -acodec aac -b:v 500k -b:a 64k -fs 2M output.mp4
+```
+
+#### Common Error Troubleshooting
+
+**Error: Proxy request failed**
+
+Possible causes:
+1. Environment variables not configured or incorrect
+2. Video file too large (>3MB)
+3. Incorrect relay API URL
+4. Invalid API key or quota exceeded
+5. Relay API doesn't support video input
+
+Solutions:
+1. Check Vercel environment variable configuration
+2. Check video file size
+3. View Vercel function logs: `Functions → Logs`
+4. Contact relay API provider to confirm video support
+
+**Error: Request too large (XX MB)**
+
+Cause: Video exceeds 4.5MB limit after base64 encoding
+
+Solutions:
+- Compress video to under 3MB
+- Use shorter video clips
+- Lower video resolution and bitrate
+
+#### Viewing Detailed Logs
+
+1. Login to Vercel Dashboard
+2. Go to project → Deployments → Select latest deployment
+3. Click Functions → Select `api/proxy`
+4. View Logs for detailed error information
+
+Logs now show:
+- Request body size (MB)
+- API call details
+- Detailed error messages

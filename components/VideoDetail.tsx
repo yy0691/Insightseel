@@ -147,11 +147,12 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
   const handleGenerateSubtitles = async () => {
     if (!video) return;
     
-    // Check file size (Gemini API has ~20MB limit for videos)
-    const maxSizeMB = 20;
+    // Check file size - Vercel has 4.5MB limit, and base64 encoding increases size by ~33%
+    // So we limit original video to 3MB to be safe
+    const maxSizeMB = 3;
     const fileSizeMB = video.file.size / (1024 * 1024);
     if (fileSizeMB > maxSizeMB) {
-      alert(`视频文件太大（${fileSizeMB.toFixed(1)}MB）。Gemini API 限制为 ${maxSizeMB}MB。请使用较小的视频文件。`);
+      alert(`视频文件太大（${fileSizeMB.toFixed(1)}MB）。\n\n由于 Vercel 服务器限制（4.5MB），视频文件需要小于 ${maxSizeMB}MB。\n\n建议：\n1. 使用视频压缩工具减小文件大小\n2. 或截取较短的视频片段\n3. 或使用更低的分辨率/比特率`);
       return;
     }
     

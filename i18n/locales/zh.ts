@@ -112,4 +112,13 @@ export const zh: Translations = {
   expandSidebar: "展开",
   tooltipCollapseSidebar: "收起侧边栏",
   tooltipExpandSidebar: "展开侧边栏",
+  
+  // Environment Status
+  usingProxyMode: "正在使用代理模式",
+  proxyAvailable: "系统代理可用",
+  proxyNotAvailable: "代理未配置",
+  proxyModeExplanation: "您正在使用系统的API配置。无需个人API密钥。",
+  ownKeyExplanation: "您正在使用自己的API密钥。系统代理可作为备选方案。",
+  configureOwnKey: "请配置您自己的API密钥以使用此应用程序。",
+  showDebugInfo: "显示调试信息",
 };

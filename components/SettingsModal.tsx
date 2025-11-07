@@ -136,6 +136,39 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onSave, onClose
             />
             <p className="text-xs text-slate-500 mt-1">{t('apiKeyHelpText')}</p>
           </div>
+          
+          {/* Environment Status */}
+          <div className={`p-3 rounded-lg ${proxyAvailable ? 'bg-green-50 border border-green-200' : 'bg-amber-50 border border-amber-200'}`}>
+            <div className="flex items-start space-x-2">
+              <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 flex-shrink-0 mt-0.5 ${proxyAvailable ? 'text-green-600' : 'text-amber-600'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div className="flex-1">
+                <p className={`text-sm font-semibold ${proxyAvailable ? 'text-green-800' : 'text-amber-800'}`}>
+                  {proxyAvailable ? (isUsingProxy ? t('usingProxyMode') : t('proxyAvailable')) : t('proxyNotAvailable')}
+                </p>
+                <p className={`text-xs mt-1 ${proxyAvailable ? 'text-green-700' : 'text-amber-700'}`}>
+                  {proxyAvailable 
+                    ? (isUsingProxy 
+                        ? t('proxyModeExplanation')
+                        : t('ownKeyExplanation'))
+                    : t('configureOwnKey')}
+                </p>
+                {/* Debug info */}
+                <details className="mt-2">
+                  <summary className={`text-xs cursor-pointer ${proxyAvailable ? 'text-green-600' : 'text-amber-600'} hover:underline`}>
+                    {t('showDebugInfo')}
+                  </summary>
+                  <div className="mt-2 p-2 bg-white/60 rounded text-xs font-mono space-y-1">
+                    <div>VITE_USE_PROXY: <span className="font-bold">{env.VITE_USE_PROXY || 'undefined'}</span></div>
+                    <div>VITE_MODEL: {env.VITE_MODEL || 'undefined'}</div>
+                    <div>Has API Key: {currentSettings.apiKey ? 'Yes' : 'No'}</div>
+                    <div>Using Proxy: {isUsingProxy ? 'Yes' : 'No'}</div>
+                  </div>
+                </details>
+              </div>
+            </div>
+          </div>
         </div>
         <div className="p-4 bg-slate-200/50 flex justify-between items-center rounded-b-2xl">
             <div className="flex items-center space-x-3">

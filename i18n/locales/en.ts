@@ -110,6 +110,15 @@ export const en = {
   expandSidebar: "Expand",
   tooltipCollapseSidebar: "Collapse sidebar",
   tooltipExpandSidebar: "Expand sidebar",
+  
+  // Environment Status
+  usingProxyMode: "Using Proxy Mode",
+  proxyAvailable: "System Proxy Available",
+  proxyNotAvailable: "Proxy Not Configured",
+  proxyModeExplanation: "You're using the system's API configuration. No personal API key needed.",
+  ownKeyExplanation: "You're using your own API key. The system proxy is available as a fallback.",
+  configureOwnKey: "Please configure your own API key to use this application.",
+  showDebugInfo: "Show debug info",
 };
 
 export type Translations = typeof en;

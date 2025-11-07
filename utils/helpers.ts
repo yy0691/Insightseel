@@ -16,18 +16,35 @@ export const getVideoMetadata = (file: File): Promise<{ duration: number; width:
   return new Promise((resolve, reject) => {
     const video = document.createElement('video');
     video.preload = 'metadata';
+    
+    const cleanup = () => {
+      if (video.src) {
+        window.URL.revokeObjectURL(video.src);
+      }
+    };
+    
     video.onloadedmetadata = () => {
-      window.URL.revokeObjectURL(video.src);
+      cleanup();
       resolve({
         duration: video.duration,
         width: video.videoWidth,
         height: video.videoHeight,
       });
     };
+    
     video.onerror = (e) => {
-        reject(new Error('Failed to load video metadata. The file might be corrupt or in an unsupported format.'));
+      cleanup();
+      console.error('Video metadata loading error:', e);
+      console.error('File info:', { name: file.name, type: file.type, size: file.size });
+      reject(new Error(`Failed to load video metadata. File: ${file.name}, Type: ${file.type}. The file might be corrupt or in an unsupported format.`));
     };
-    video.src = URL.createObjectURL(file);
+    
+    try {
+      video.src = URL.createObjectURL(file);
+    } catch (error) {
+      cleanup();
+      reject(new Error(`Failed to create object URL for video file: ${error}`));
+    }
   });
 };
 

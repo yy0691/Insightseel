@@ -282,7 +282,7 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
       {/* Left Column */}
       <div className="lg:col-span-2 flex flex-col gap-5 lg:h-full lg:overflow-hidden">
         {/* Video Player Card */}
-        <div className="bg-white/50 text-card-foreground flex flex-col rounded-3xl border border-white/30 overflow-hidden shadow-sm flex-shrink-0">
+        <div className="bg-white/50 text-card-foreground flex flex-col rounded-3xl border border-white/30 overflow-hidden shadow-sm flex-shrink-0 lg:max-h-[65vh]">
             <div className="p-4 border-b border-slate-300/50 flex justify-between items-center">
                 <h2 className="font-semibold text-lg truncate" title={video.name}>{video.name}</h2>
                 <button 

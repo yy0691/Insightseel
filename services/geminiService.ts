@@ -135,7 +135,9 @@ export async function generateChatResponse(
         const modelName = settings.model;
 
         const userParts: any[] = [];
-        if (history.filter(h => h.role === 'user').length === 0 && media.frames) {
+        const isFirstUserMessage = history.filter(h => h.role === 'user').length === 0;
+
+        if (isFirstUserMessage && media.frames) {
             userParts.push(...media.frames.map(frameData => ({ 
                 inlineData: { mimeType: 'image/jpeg', data: frameData }
             })));
@@ -146,13 +148,15 @@ export async function generateChatResponse(
             const mimeType = meta.split(';')[0].split(':')[1];
             userParts.push({ inlineData: { mimeType, data } });
         }
-        userParts.push({ text: userMessage.text });
+        
+        // Prepare user text, adding context only for the first message to avoid oversized instructions.
+        let userText = userMessage.text;
+        if (isFirstUserMessage && subtitlesText) {
+            userText = `Please use the following transcript as the primary source of information for your answers.\n\nTRANSCRIPT:\n${subtitlesText}\n\n---\n\nQUESTION:\n${userMessage.text}`;
+        }
+        userParts.push({ text: userText });
 
         const contents = [...history, { role: 'user', parts: userParts }];
-        
-        if (subtitlesText) {
-            systemInstruction += `\n\nUse the following transcript as the primary source of information for your answers, but verify with the video content if necessary:\n\nTRANSCRIPT:\n${subtitlesText}`;
-        }
         
         if (settings.baseUrl) {
             return generateContentWithCustomAPI(settings, apiKey, contents, systemInstruction);
@@ -259,9 +263,10 @@ export async function translateSubtitles(
 
 export async function testConnection(settings: APISettings): Promise<{ success: boolean; message: string }> {
     // For testing, we use the provided settings from the UI, but fallback to environment variables if a field is empty.
-    const apiKey = settings.apiKey || process.env.API_KEY;
-    const baseUrl = settings.baseUrl || process.env.BASE_URL;
-    const modelName = settings.model || process.env.MODEL || DEFAULT_MODEL;
+    const env = (import.meta as any).env || {};
+    const apiKey = settings.apiKey || env.VITE_API_KEY;
+    const baseUrl = settings.baseUrl || env.VITE_BASE_URL;
+    const modelName = settings.model || env.VITE_MODEL || DEFAULT_MODEL;
 
     if (!apiKey) {
         return { success: false, message: 'API Key is missing from both settings and environment variables.' };

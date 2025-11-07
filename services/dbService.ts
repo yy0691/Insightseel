@@ -130,12 +130,14 @@ export async function getEffectiveSettings(): Promise<APISettings> {
     const userSettings = await settingsDB.get('user-settings') || {};
     const DEFAULT_MODEL = 'gemini-2.5-flash';
     
+    const env = (import.meta as any).env || {};
+
     return {
         id: 'user-settings',
         provider: 'gemini',
         language: userSettings.language || (navigator.language.startsWith('zh') ? 'zh' : 'en'),
-        model: userSettings.model || process.env.MODEL || DEFAULT_MODEL,
-        baseUrl: userSettings.baseUrl !== undefined ? userSettings.baseUrl : process.env.BASE_URL,
-        apiKey: userSettings.apiKey !== undefined ? userSettings.apiKey : process.env.API_KEY,
+        model: userSettings.model || env.VITE_MODEL || DEFAULT_MODEL,
+        baseUrl: userSettings.baseUrl !== undefined ? userSettings.baseUrl : env.VITE_BASE_URL,
+        apiKey: userSettings.apiKey !== undefined ? userSettings.apiKey : env.VITE_API_KEY,
     };
 }

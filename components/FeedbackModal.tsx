@@ -53,7 +53,7 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ onClose, feedbackUrl }) =
 
           <h3 className="text-md font-medium mb-3">{t('feedbackModalQuestion')}</h3>
           <div className="flex justify-center space-x-6 mb-8">
-            <label className="flex items-center space-x-2 cursor-pointer p-2 rounded-md hover:bg-slate-200/50 transition-colors">
+            <label className="flex items-center space-x-2 cursor-pointer p-2 rounded-lg hover:bg-slate-200/50 transition-colors">
               <input 
                 type="radio" 
                 name="feedback-detailed" 
@@ -63,7 +63,7 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ onClose, feedbackUrl }) =
               />
               <span className="text-sm font-medium">{t('feedbackModalYes')}</span>
             </label>
-            <label className="flex items-center space-x-2 cursor-pointer p-2 rounded-md hover:bg-slate-200/50 transition-colors">
+            <label className="flex items-center space-x-2 cursor-pointer p-2 rounded-lg hover:bg-slate-200/50 transition-colors">
               <input 
                 type="radio" 
                 name="feedback-detailed" 
@@ -78,14 +78,14 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ onClose, feedbackUrl }) =
         <div className="p-4 bg-slate-200/50 flex justify-end space-x-3 rounded-b-2xl">
             <button
                 onClick={onClose}
-                className="h-10 px-5 text-sm font-medium rounded-lg transition-colors bg-transparent text-slate-700 hover:bg-slate-900/10"
+                className="h-10 px-5 text-sm font-medium rounded-xl transition-colors bg-transparent text-slate-700 hover:bg-slate-900/10"
             >
                 {t('cancel')}
             </button>
             <button
                 onClick={handleSubmit}
                 disabled={rating === 0}
-                className="h-10 px-5 text-sm font-medium rounded-lg transition-colors bg-slate-900 text-slate-50 hover:bg-slate-900/90 shadow-sm disabled:opacity-50"
+                className="h-10 px-5 text-sm font-medium rounded-xl transition-colors bg-slate-900 text-slate-50 hover:bg-slate-900/90 shadow-sm disabled:opacity-50"
             >
                 {t('feedbackModalSubmit')}
             </button>

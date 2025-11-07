@@ -99,7 +99,7 @@ const NotesPanel: React.FC<NotesPanelProps> = ({ video, note }) => {
          <button
             onClick={handleExport}
             disabled={!content}
-            className="text-xs backdrop-blur-sm bg-white/50 hover:bg-white/80 border border-white/20 text-slate-800 font-medium p-1.5 rounded-lg transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            className="text-xs backdrop-blur-sm bg-white/50 hover:bg-white/80 border border-white/20 text-slate-800 font-medium p-1.5 rounded-xl transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
             aria-label={t('exportNotes')}
             title={t('exportNotes')}
         >
@@ -112,7 +112,7 @@ const NotesPanel: React.FC<NotesPanelProps> = ({ video, note }) => {
         value={content}
         onChange={handleChange}
         placeholder={t('notesPlaceholder')}
-        className="flex-1 w-full bg-white/40 rounded-lg p-3 text-sm border border-white/20 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition resize-none backdrop-blur-sm custom-scrollbar"
+        className="flex-1 w-full bg-white/40 rounded-xl p-3 text-sm border border-white/20 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition resize-none backdrop-blur-sm custom-scrollbar"
         aria-label="Video notes"
       />
     </div>

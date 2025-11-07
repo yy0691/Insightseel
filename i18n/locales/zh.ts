@@ -43,6 +43,7 @@ export const zh: Translations = {
   insightsPreparingVideo: "正在准备视频...",
   insightsAnalyzing: "正在使用 AI 分析...",
   noSubtitles: "未加载字幕。",
+  importSubtitles: "导入 SRT/VTT",
   generateWithAI: "使用 AI 生成",
   generatingSubtitles: "正在生成字幕...",
   subtitleGenerationWarning: "对于较大的视频文件，这可能需要几分钟时间。请耐心等待。",

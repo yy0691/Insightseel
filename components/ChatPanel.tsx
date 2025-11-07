@@ -125,8 +125,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ video, subtitles, screenshotDataU
       </div>
       <div className="mt-auto p-4 border-t border-gray-200">
         {screenshotDataUrl && (
-            <div className="p-1 border bg-white rounded-lg mb-2 relative inline-block shadow-md">
-                <img src={screenshotDataUrl} alt="Screenshot to send" className="w-16 h-16 object-cover rounded"/>
+            <div className="p-1 border bg-white rounded-xl mb-2 relative inline-block shadow-md">
+                <img src={screenshotDataUrl} alt="Screenshot to send" className="w-16 h-16 object-cover rounded-md"/>
                 <button
                     onClick={onClearScreenshot}
                     className="absolute -top-2 -right-2 bg-slate-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-sm leading-none hover:bg-black"

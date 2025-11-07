@@ -41,6 +41,7 @@ export const en = {
   insightsPreparingVideo: "Preparing video...",
   insightsAnalyzing: "Analyzing with AI...",
   noSubtitles: "No subtitles loaded.",
+  importSubtitles: "Import SRT/VTT",
   generateWithAI: "Generate with AI",
   generatingSubtitles: "Generating subtitles...",
   subtitleGenerationWarning: "This can take several minutes for large video files. Please be patient.",

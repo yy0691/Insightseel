@@ -88,228 +88,192 @@ export async function analyzeVideo(params: {
       contents = {
         role: 'user',
         parts: [
-          ...frames.map(frameData => ({
+          ...frames.map(frame => ({
             inlineData: {
               mimeType: 'image/jpeg',
-              data: frameData,
+              data: frame,
             },
           })),
           { text: fullPrompt },
         ],
       };
     } else {
-      throw new Error("Either frames or subtitlesText must be provided for analysis.");
+      throw new Error("Either frames or subtitles must be provided for analysis.");
     }
     
     if (settings.baseUrl) {
-        return generateContentWithCustomAPI(settings, apiKey, contents);
+        return await generateContentWithCustomAPI(settings, apiKey, contents);
     }
 
     const response = await ai.models.generateContent({
-      model: modelName,
-      contents,
+        model: modelName,
+        contents: contents,
     });
-
+    
     return response.text;
-  } catch (error) {
-    console.error('Error analyzing video with AI:', error);
-    if (error instanceof Error) {
-        if (error.message.includes('API key not valid') || error.message.includes('API request failed')) {
-             throw new Error("The provided API Key or Base URL is invalid. Please check your settings.");
-        }
-        throw error;
-    }
-    throw new Error('An unknown error occurred during analysis.');
+  } catch (err) {
+    console.error('Error analyzing video:', err);
+    const message = err instanceof Error ? err.message : "An unknown error occurred during analysis.";
+    throw new Error(`Analysis failed: ${message}`);
   }
 }
 
 export async function generateChatResponse(
-    history: Content[],
-    userMessage: { text: string; imageB64DataUrl?: string },
-    media: { frames?: string[] },
-    subtitlesText: string | null,
-    systemInstruction: string,
-): Promise<string> {
-    try {
-        const { ai, settings, apiKey } = await getAIConfig();
-        const modelName = settings.model;
-
-        const userParts: any[] = [];
-        const isFirstUserMessage = history.filter(h => h.role === 'user').length === 0;
-
-        if (isFirstUserMessage && media.frames) {
-            userParts.push(...media.frames.map(frameData => ({ 
-                inlineData: { mimeType: 'image/jpeg', data: frameData }
-            })));
-            systemInstruction += "\n\nYou will be analyzing a video based on sampled frames. These frames will be provided in the user's first message.";
-        }
-        if (userMessage.imageB64DataUrl) {
-            const [meta, data] = userMessage.imageB64DataUrl.split(',');
-            const mimeType = meta.split(';')[0].split(':')[1];
-            userParts.push({ inlineData: { mimeType, data } });
-        }
-        
-        // Prepare user text, adding context only for the first message to avoid oversized instructions.
-        let userText = userMessage.text;
-        if (isFirstUserMessage && subtitlesText) {
-            userText = `Please use the following transcript as the primary source of information for your answers.\n\nTRANSCRIPT:\n${subtitlesText}\n\n---\n\nQUESTION:\n${userMessage.text}`;
-        }
-        userParts.push({ text: userText });
-
-        const contents = [...history, { role: 'user', parts: userParts }];
-        
-        if (settings.baseUrl) {
-            return generateContentWithCustomAPI(settings, apiKey, contents, systemInstruction);
-        }
-        
-        const response = await ai.models.generateContent({
-            model: modelName,
-            contents,
-            config: { systemInstruction },
-        });
-        return response.text;
-    } catch (error) {
-        console.error('Error in chat response with AI:', error);
-        if (error instanceof Error) {
-            if (error.message.includes('API key not valid') || error.message.includes('API request failed')) {
-                throw new Error("The provided API Key or Base URL is invalid. Please check your settings.");
-            }
-            throw error;
-        }
-        throw new Error('An unknown error occurred during chat response generation.');
-    }
-}
-
-
-export async function generateSubtitles(
-  videoFile: File,
-  prompt: string
+  history: Content[],
+  newMessage: { text: string; imageB64DataUrl?: string },
+  videoContext: { frames?: string[] },
+  subtitlesText: string | null,
+  systemInstruction: string,
 ): Promise<string> {
   try {
     const { ai, settings, apiKey } = await getAIConfig();
-    const modelName = settings.model;
-    
-    const videoBase64 = await fileToBase64(videoFile);
-    
-    const contents = {
-        parts: [
-          {
-            inlineData: {
-              mimeType: videoFile.type,
-              data: videoBase64,
-            },
-          },
-          { text: prompt },
-        ],
-    };
 
-    if (settings.baseUrl) {
-        return generateContentWithCustomAPI(settings, apiKey, contents);
+    const userParts = [{ text: newMessage.text }];
+    if (newMessage.imageB64DataUrl) {
+        userParts.unshift({
+            inlineData: {
+                mimeType: 'image/jpeg',
+                data: newMessage.imageB64DataUrl.split(',')[1]
+            }
+        } as any);
     }
     
+    const newUserMessage: Content = { role: 'user', parts: userParts };
+
+    let contents: Content[];
+    
+    // If it's the first user message, prepend context
+    if (history.length === 0) {
+        let contextText = "This is the context for our conversation. I have a video for you to analyze.";
+        const contextParts: any[] = [];
+        
+        if (videoContext.frames && videoContext.frames.length > 0) {
+             contextParts.push(...videoContext.frames.map(frame => ({
+                inlineData: {
+                  mimeType: 'image/jpeg',
+                  data: frame,
+                },
+            })));
+        }
+
+        if (subtitlesText) {
+            contextText += `\n\nHere is the full transcript of the video:\n${subtitlesText}`;
+        }
+        
+        contextParts.push({ text: contextText });
+
+        contents = [
+            { role: 'user', parts: contextParts },
+            { role: 'model', parts: [{ text: 'Great! I have the video context. What would you like to know?' }]},
+            ...history,
+            newUserMessage,
+        ];
+    } else {
+        contents = [...history, newUserMessage];
+    }
+
+    if (settings.baseUrl) {
+        return await generateContentWithCustomAPI(settings, apiKey, contents, systemInstruction);
+    }
+
     const response = await ai.models.generateContent({
-      model: modelName,
-      contents,
+        model: settings.model,
+        contents: contents,
+        config: { systemInstruction }
     });
 
     return response.text;
-  } catch (error) {
-    console.error('Error generating subtitles with AI:', error);
-     if (error instanceof Error) {
-        if (error.message.includes('API key not valid') || error.message.includes('API request failed')) {
-             throw new Error("The provided API Key or Base URL is invalid. Please check your settings.");
-        }
-        throw new Error(`An error occurred during subtitle generation: ${error.message}`);
-    }
-    throw new Error('An unknown error occurred during subtitle generation.');
+  } catch (err) {
+    console.error('Error in chat response:', err);
+    const message = err instanceof Error ? err.message : "An unknown error occurred in chat.";
+    throw new Error(`Chat failed: ${message}`);
   }
 }
 
-export async function translateSubtitles(
-  srtContent: string,
-  targetLanguage: string
-): Promise<string> {
-  try {
+export async function generateSubtitles(videoFile: File, prompt: string): Promise<string> {
     const { ai, settings, apiKey } = await getAIConfig();
-    const modelName = settings.model;
+    const base64Video = await fileToBase64(videoFile);
 
-    const prompt = `Translate the following SRT content to ${targetLanguage}. Preserve the SRT format perfectly, including timestamps and numbering. The final output must be only the translated SRT content, with no extra text, explanations, or code fences.\n\nSRT Content:\n${srtContent}`;
+    const videoPart = {
+      inlineData: {
+        mimeType: videoFile.type,
+        data: base64Video,
+      },
+    };
+    const textPart = {
+        text: prompt,
+    };
     
-    const contents = { parts: [{ text: prompt }] };
+    if (settings.baseUrl) {
+        return await generateContentWithCustomAPI(settings, apiKey, { parts: [videoPart, textPart] });
+    }
+
+    const response = await ai.models.generateContent({
+        model: settings.model,
+        contents: { parts: [videoPart, textPart] }
+    });
+    
+    // The model might wrap the SRT in markdown, so we extract it.
+    const srtContent = response.text.match(/```srt\n([\s\S]*?)```/);
+    if (srtContent && srtContent[1]) {
+        return srtContent[1].trim();
+    }
+    return response.text.trim();
+}
+
+export async function translateSubtitles(srtContent: string, targetLanguage: string): Promise<string> {
+    const { ai, settings, apiKey } = await getAIConfig();
+    const prompt = `Translate the following SRT content into ${targetLanguage}. Maintain the SRT format, including timestamps and numbering, perfectly. Only output the translated SRT content, with no extra explanations or markdown formatting.\n\n${srtContent}`;
 
     if (settings.baseUrl) {
-        return generateContentWithCustomAPI(settings, apiKey, contents);
+        return await generateContentWithCustomAPI(settings, apiKey, { parts: [{ text: prompt }] });
     }
-    
+
     const response = await ai.models.generateContent({
-      model: modelName,
-      contents,
+        model: settings.model,
+        contents: prompt
     });
 
-    // Clean up potential markdown code fences from the response
-    const cleanedText = response.text.replace(/```srt\n|```/g, '').trim();
-    return cleanedText;
-  } catch (error) {
-    console.error('Error translating subtitles with AI:', error);
-     if (error instanceof Error) {
-        if (error.message.includes('API key not valid') || error.message.includes('API request failed')) {
-             throw new Error("The provided API Key or Base URL is invalid. Please check your settings.");
-        }
-        throw new Error(`An error occurred during subtitle translation: ${error.message}`);
-    }
-    throw new Error('An unknown error occurred during subtitle translation.');
-  }
+    return response.text.trim();
 }
 
-export async function testConnection(settings: APISettings): Promise<{ success: boolean; message: string }> {
-    // For testing, we use the provided settings from the UI, but fallback to environment variables if a field is empty.
-    const env = (import.meta as any).env || {};
-    const apiKey = settings.apiKey || env.VITE_API_KEY;
-    const baseUrl = settings.baseUrl || env.VITE_BASE_URL;
-    const modelName = settings.model || env.VITE_MODEL || DEFAULT_MODEL;
+export async function testConnection(settings: APISettings): Promise<{success: boolean, message: string}> {
+    // This is a special case where we use the settings passed directly for the test
+    const env = (typeof process !== 'undefined' ? process.env : {}) as any;
+    
+    // Prioritize settings from the UI, then fallback to environment variables
+    const apiKey = settings.apiKey !== undefined ? settings.apiKey : env.API_KEY;
+    const modelName = settings.model || env.MODEL || DEFAULT_MODEL;
+    const baseUrl = settings.baseUrl !== undefined ? settings.baseUrl : env.BASE_URL;
 
     if (!apiKey) {
-        return { success: false, message: 'API Key is missing from both settings and environment variables.' };
+        return { success: false, message: "API Key is missing." };
     }
 
     try {
         if (baseUrl) {
+            // Test custom API endpoint
             const url = `${baseUrl.replace(/\/$/, '')}/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
             const response = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: "test" }] }],
-                    generationConfig: { maxOutputTokens: 1 }
-                }),
+                body: JSON.stringify({ contents: [{ parts: [{ text: "Hello" }] }] }),
             });
-
             if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ error: { message: `Request failed with status ${response.status}` } }));
-                throw new Error(errorData.error?.message || `Request failed with status ${response.status}`);
+                 const errorData = await response.json().catch(() => ({}));
+                 throw new Error(errorData.error?.message || `Request failed with status ${response.status}`);
             }
         } else {
+            // Test official Google GenAI API
             const ai = new GoogleGenAI({ apiKey });
             await ai.models.generateContent({
                 model: modelName,
-                contents: 'test',
-                config: { maxOutputTokens: 1 },
+                contents: 'Hello'
             });
         }
-        return { success: true, message: 'Connection successful!' };
-
-    } catch (error) {
-        let errorMessage = 'An unknown error occurred.';
-        if (error instanceof Error) {
-            errorMessage = error.message;
-             if (errorMessage.includes('API key not valid')) {
-                errorMessage = "The provided API Key is invalid.";
-            } else if (errorMessage.includes('fetch failed') || errorMessage.includes('Failed to fetch') || errorMessage.includes('CORS')) {
-                 errorMessage = "Could not connect to the Base URL. Check the URL, network, and CORS policy.";
-            } else if (errorMessage.includes('404')) {
-                errorMessage = "Model not found. Please check the Model Name and Base URL.";
-            }
-        }
-        return { success: false, message: errorMessage };
+        return { success: true, message: "Successfully connected!" };
+    } catch (err) {
+        const message = err instanceof Error ? err.message : 'An unknown error occurred.';
+        return { success: false, message };
     }
 }

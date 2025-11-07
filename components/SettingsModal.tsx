@@ -40,10 +40,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onSave, onClose
     }
   };
   
-  const env = (import.meta as any).env || {};
-  const modelPlaceholder = env.VITE_MODEL ? t('modelPlaceholderSystem', env.VITE_MODEL) : t('modelNamePlaceholder');
-  const baseUrlPlaceholder = env.VITE_BASE_URL ? t('baseUrlPlaceholderSystem', env.VITE_BASE_URL) : t('baseUrlPlaceholder');
-  const apiKeyPlaceholder = env.VITE_API_KEY ? t('apiKeyPlaceholderSystem') : t('apiKeyPlaceholder');
+  const env = (typeof process !== 'undefined' ? process.env : {}) as any;
+  const modelPlaceholder = env.MODEL ? t('modelPlaceholderSystem', env.MODEL) : t('modelNamePlaceholder');
+  const baseUrlPlaceholder = env.BASE_URL ? t('baseUrlPlaceholderSystem', env.BASE_URL) : t('baseUrlPlaceholder');
+  const apiKeyPlaceholder = env.API_KEY ? t('apiKeyPlaceholderSystem') : t('apiKeyPlaceholder');
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -61,7 +61,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onSave, onClose
               id="language-select"
               value={currentSettings.language}
               onChange={(e) => handleSettingChange({ language: e.target.value as 'en' | 'zh' })}
-              className="w-full backdrop-blur-sm bg-white/50 border-slate-300/80 border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+              className="w-full backdrop-blur-sm bg-white/50 border-slate-300/80 border rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
             >
               <option value="en">English</option>
               <option value="zh">中文</option>
@@ -78,7 +78,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onSave, onClose
               value={currentSettings.model || ''}
               onChange={(e) => handleSettingChange({ model: e.target.value })}
               placeholder={modelPlaceholder}
-              className="w-full backdrop-blur-sm bg-white/50 border-slate-300/80 border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+              className="w-full backdrop-blur-sm bg-white/50 border-slate-300/80 border rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
             />
           </div>
           
@@ -92,7 +92,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onSave, onClose
               value={currentSettings.baseUrl || ''}
               onChange={(e) => handleSettingChange({ baseUrl: e.target.value.trim() })}
               placeholder={baseUrlPlaceholder}
-              className="w-full backdrop-blur-sm bg-white/50 border-slate-300/80 border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+              className="w-full backdrop-blur-sm bg-white/50 border-slate-300/80 border rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
             />
             <p className="text-xs text-slate-500 mt-1">{t('baseUrlHelpText')}</p>
           </div>
@@ -107,7 +107,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onSave, onClose
               value={currentSettings.apiKey || ''}
               onChange={(e) => handleSettingChange({ apiKey: e.target.value })}
               placeholder={apiKeyPlaceholder}
-              className="w-full backdrop-blur-sm bg-white/50 border-slate-300/80 border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+              className="w-full backdrop-blur-sm bg-white/50 border-slate-300/80 border rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
             />
             <p className="text-xs text-slate-500 mt-1">{t('apiKeyHelpText')}</p>
           </div>
@@ -117,7 +117,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onSave, onClose
                  <button
                     onClick={handleTest}
                     disabled={testState.status === 'testing'}
-                    className="h-10 px-5 text-sm font-medium rounded-lg transition-colors bg-white/80 text-slate-700 hover:bg-white border border-slate-300/80 shadow-sm disabled:opacity-50"
+                    className="h-10 px-5 text-sm font-medium rounded-xl transition-colors bg-white/80 text-slate-700 hover:bg-white border border-slate-300/80 shadow-sm disabled:opacity-50"
                 >
                     {testState.status === 'testing' ? t('testingConnection') : t('testConnection')}
                 </button>
@@ -134,13 +134,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onSave, onClose
             <div className="flex items-center space-x-3">
                 <button
                     onClick={onClose}
-                    className="h-10 px-5 text-sm font-medium rounded-lg transition-colors bg-transparent text-slate-700 hover:bg-slate-900/10"
+                    className="h-10 px-5 text-sm font-medium rounded-xl transition-colors bg-transparent text-slate-700 hover:bg-slate-900/10"
                 >
                     {t('cancel')}
                 </button>
                 <button
                     onClick={handleSave}
-                    className="h-10 px-5 text-sm font-medium rounded-lg transition-colors bg-slate-900 text-slate-50 hover:bg-slate-900/90 shadow-sm"
+                    className="h-10 px-5 text-sm font-medium rounded-xl transition-colors bg-slate-900 text-slate-50 hover:bg-slate-900/90 shadow-sm"
                 >
                     {t('saveChanges')}
                 </button>

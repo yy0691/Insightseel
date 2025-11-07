@@ -130,14 +130,16 @@ export async function getEffectiveSettings(): Promise<APISettings> {
     const userSettings = await settingsDB.get('user-settings') || {};
     const DEFAULT_MODEL = 'gemini-2.5-flash';
     
-    const env = (import.meta as any).env || {};
+    // In environments like Vercel, environment variables are available on process.env.
+    // We assume this is available in the execution environment as per project requirements.
+    const env = (typeof process !== 'undefined' ? process.env : {}) as any;
 
     return {
         id: 'user-settings',
         provider: 'gemini',
         language: userSettings.language || (navigator.language.startsWith('zh') ? 'zh' : 'en'),
-        model: userSettings.model || env.VITE_MODEL || DEFAULT_MODEL,
-        baseUrl: userSettings.baseUrl !== undefined ? userSettings.baseUrl : env.VITE_BASE_URL,
-        apiKey: userSettings.apiKey !== undefined ? userSettings.apiKey : env.VITE_API_KEY,
+        model: userSettings.model || env.MODEL || DEFAULT_MODEL,
+        baseUrl: userSettings.baseUrl !== undefined ? userSettings.baseUrl : env.BASE_URL,
+        apiKey: userSettings.apiKey !== undefined ? userSettings.apiKey : env.API_KEY,
     };
 }

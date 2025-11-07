@@ -346,7 +346,7 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
                             return (
                                 <li 
                                     key={index}
-                                    className={`flex items-start cursor-pointer rounded-md p-1.5 transition-all duration-300 ${itemOpacity} ${isHighlighted ? 'bg-amber-200/80' : 'hover:bg-slate-100/80'}`}
+                                    className={`flex items-start cursor-pointer rounded-lg p-1.5 transition-all duration-300 ${itemOpacity} ${isHighlighted ? 'bg-amber-200/80' : 'hover:bg-slate-100/80'}`}
                                     onClick={() => handleSeekTo(info.timestamp)}
                                 >
                                     <span className="font-mono text-xs text-slate-500 mr-2">[{formatTimestamp(info.timestamp)}]</span>
@@ -391,7 +391,7 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
                             {summaryAnalysis && (
                                 <div>
                                     <h3 className="font-semibold mb-2">{t('summary')}</h3>
-                                    <div className="p-3 bg-slate-100/70 rounded-lg text-sm max-h-96 overflow-y-auto custom-scrollbar">
+                                    <div className="p-3 bg-slate-100/70 rounded-xl text-sm max-h-96 overflow-y-auto custom-scrollbar">
                                         <MarkdownRenderer content={summaryAnalysis.result} />
                                     </div>
                                 </div>
@@ -427,7 +427,7 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
                                 <>
                                  <h3 className="font-semibold text-lg">{t('unlockInsights')}</h3>
                                  <p className="text-sm text-slate-500 mb-4">{t('unlockInsightsDesc')}</p>
-                                 <button onClick={handleGenerateInsights} disabled={generationStatus.active} className="h-10 px-5 text-sm font-medium rounded-lg transition-colors bg-slate-900 text-slate-50 hover:bg-slate-900/90 shadow-sm disabled:opacity-50">
+                                 <button onClick={handleGenerateInsights} disabled={generationStatus.active} className="h-10 px-5 text-sm font-medium rounded-xl transition-colors bg-slate-900 text-slate-50 hover:bg-slate-900/90 shadow-sm disabled:opacity-50">
                                     {t('generateInsights')}
                                  </button>
                                 </>
@@ -445,12 +445,12 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
                                 <button
                                     onClick={handleTranslateSubtitles}
                                     disabled={isTranslating}
-                                    className="text-xs backdrop-blur-sm bg-white/50 hover:bg-white/80 border border-white/20 text-slate-800 font-medium p-1.5 rounded-lg transition shadow-sm disabled:opacity-50"
+                                    className="text-xs backdrop-blur-sm bg-white/50 hover:bg-white/80 border border-white/20 text-slate-800 font-medium p-1.5 rounded-xl transition shadow-sm disabled:opacity-50"
                                 >
                                     {isTranslating ? t('translatingSubtitles') : t('translateSubtitles')}
                                 </button>
                                 <button onClick={() => downloadFile(segmentsToSrt(subtitles.segments), `${video.name}.srt`, 'text/srt')}
-                                    className="text-xs backdrop-blur-sm bg-white/50 hover:bg-white/80 border border-white/20 text-slate-800 font-medium p-1.5 rounded-lg transition shadow-sm">
+                                    className="text-xs backdrop-blur-sm bg-white/50 hover:bg-white/80 border border-white/20 text-slate-800 font-medium p-1.5 rounded-xl transition shadow-sm">
                                     Export SRT
                                 </button>
                             </div>
@@ -459,7 +459,7 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
                                     key={index}
                                     ref={index === activeSegmentIndex ? activeSegmentRef : null}
                                     onClick={() => handleSeekTo(segment.startTime)}
-                                    className={`p-2 rounded-lg cursor-pointer transition-colors ${
+                                    className={`p-2 rounded-xl cursor-pointer transition-colors ${
                                         index === activeSegmentIndex
                                             ? 'bg-blue-200/80'
                                             : 'hover:bg-slate-100/70'
@@ -476,16 +476,16 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
                         <div className="text-center p-8 flex flex-col items-center justify-center h-full">
                             <h3 className="font-semibold text-lg">{t('noSubtitles')}</h3>
                             {isGeneratingSubtitles && <p className="text-xs text-slate-500 my-2">{t('subtitleGenerationWarning')}</p>}
-                            <div className="mt-4 space-y-2">
-                                <button onClick={handleImportSubtitlesClick} className="h-10 px-5 text-sm font-medium rounded-lg transition-colors bg-slate-200 text-slate-800 hover:bg-slate-300 shadow-sm">
-                                    Import SRT/VTT
+                            <div className="mt-2 p-1 inline-flex items-center bg-slate-200/70 rounded-xl border border-slate-300/50 shadow-inner space-x-2">
+                                <button onClick={handleImportSubtitlesClick} className="h-10 px-5 text-sm font-medium rounded-lg transition-colors bg-white text-slate-800 hover:bg-slate-50 shadow-sm">
+                                    {t('importSubtitles')}
                                 </button>
                                 <input type="file" ref={subtitleInputRef} onChange={handleSubtitleFileChange} className="hidden" accept=".srt,.vtt" />
                                 
                                 {showGenerateOptions ? (
-                                    <div className="p-4 bg-slate-100/80 rounded-lg text-left w-64 shadow-inner">
+                                    <div className="p-4 bg-slate-100/80 rounded-xl text-left w-64 shadow-inner">
                                         <label className="text-sm font-medium block mb-1">{t('spokenLanguage')}</label>
-                                        <select value={sourceLanguage} onChange={(e) => setSourceLanguage(e.target.value)} className="w-full border-slate-300 border rounded-lg px-3 py-2 text-sm mb-3">
+                                        <select value={sourceLanguage} onChange={(e) => setSourceLanguage(e.target.value)} className="w-full border-slate-300 border rounded-xl px-3 py-2 text-sm mb-3">
                                             <option>English</option>
                                             <option>Chinese</option>
                                             <option>Spanish</option>
@@ -495,8 +495,8 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
                                             <option>Korean</option>
                                         </select>
                                         <div className="flex justify-end space-x-2">
-                                            <button onClick={() => setShowGenerateOptions(false)} className="px-3 py-1 text-sm rounded-md hover:bg-slate-200">{t('cancel')}</button>
-                                            <button onClick={handleGenerateSubtitles} disabled={isGeneratingSubtitles} className="px-3 py-1 text-sm rounded-md bg-slate-800 text-white hover:bg-slate-700 disabled:opacity-50">
+                                            <button onClick={() => setShowGenerateOptions(false)} className="px-3 py-1 text-sm rounded-lg hover:bg-slate-200">{t('cancel')}</button>
+                                            <button onClick={handleGenerateSubtitles} disabled={isGeneratingSubtitles} className="px-3 py-1 text-sm rounded-lg bg-slate-800 text-white hover:bg-slate-700 disabled:opacity-50">
                                                 {isGeneratingSubtitles ? t('generatingSubtitles') : t('generate')}
                                             </button>
                                         </div>

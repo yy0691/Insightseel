@@ -139,7 +139,7 @@ export async function getEffectiveSettings(): Promise<APISettings> {
         provider: 'gemini',
         language: userSettings.language || (navigator.language.startsWith('zh') ? 'zh' : 'en'),
         model: userSettings.model || env.MODEL || DEFAULT_MODEL,
-        baseUrl: userSettings.baseUrl !== undefined ? userSettings.baseUrl : env.BASE_URL,
-        apiKey: userSettings.apiKey !== undefined ? userSettings.apiKey : env.API_KEY,
+        baseUrl: userSettings.baseUrl || env.BASE_URL,
+        apiKey: userSettings.apiKey || env.API_KEY,
     };
 }

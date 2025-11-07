@@ -285,7 +285,7 @@ const AppContent: React.FC<{ settings: APISettings, onSettingsChange: (newSettin
   const selectedVideo = videos.find(v => v.id === selectedVideoId);
 
   return (
-    <div className="h-screen w-screen flex font-sans relative overflow-hidden">
+    <div className="h-screen w-screen flex font-sans relative">
       {error && (
         <div className="absolute top-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg shadow-lg z-50" role="alert">
           <strong className="font-bold">Error: </strong>
@@ -308,7 +308,7 @@ const AppContent: React.FC<{ settings: APISettings, onSettingsChange: (newSettin
       {videos.length > 0 && selectedVideo ? (
          <>
             {/* Desktop Sidebar */}
-            <div className="hidden lg:flex">
+            <div className="hidden lg:block fixed top-0 left-0 h-full z-30">
                  <Sidebar
                     videos={videos}
                     selectedVideoId={selectedVideoId}
@@ -359,9 +359,9 @@ const AppContent: React.FC<{ settings: APISettings, onSettingsChange: (newSettin
                 </>
             )}
 
-            <main className="flex-1 flex flex-col overflow-y-auto">
+            <main className="flex-1 overflow-y-auto lg:pl-20">
                  {isMobile && (
-                     <div className="flex-shrink-0 p-2 h-[65px] border-b border-white/30 flex items-center bg-white/50 backdrop-blur-sm z-10">
+                     <div className="flex-shrink-0 p-2 h-14 border-b border-slate-300/50 flex items-center bg-white/50 backdrop-blur-sm sticky top-0 z-20">
                         <button onClick={() => setIsMobileSidebarOpen(true)} className="p-2 rounded-full hover:bg-slate-900/10" aria-label="Open menu">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />

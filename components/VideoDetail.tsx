@@ -278,12 +278,12 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
 
 
   return (
-    <div className="flex-1 p-5 grid grid-cols-1 lg:grid-cols-3 gap-5 lg:h-full lg:overflow-hidden">
+    <div className="flex-1 p-5 grid grid-cols-1 lg:grid-cols-3 gap-5">
       {/* Left Column */}
-      <div className="lg:col-span-2 flex flex-col gap-5 lg:h-full lg:overflow-hidden">
+      <div className="lg:col-span-2 flex flex-col gap-5">
         {/* Video Player Card */}
-        <div className="bg-white/50 text-card-foreground flex flex-col rounded-3xl border border-white/30 overflow-hidden shadow-sm flex-shrink-0 lg:max-h-[65vh]">
-            <div className="p-4 border-b border-slate-300/50 flex justify-between items-center">
+        <div className="bg-white/50 text-card-foreground flex flex-col rounded-3xl border border-white/30 overflow-hidden shadow-sm flex-shrink-0 lg:sticky lg:top-[6.5rem]">
+            <div className="p-4 h-14 border-b border-slate-300/50 flex justify-between items-center">
                 <h2 className="font-semibold text-lg truncate" title={video.name}>{video.name}</h2>
                 <button 
                     onClick={() => onDeleteVideo(video.id)} 
@@ -364,170 +364,201 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
       </div>
 
       {/* Right Column */}
-      <div className="lg:col-span-1 flex flex-col bg-white/50 rounded-3xl border border-white/30 overflow-hidden shadow-sm lg:h-full">
+      <div className="lg:col-span-1 flex flex-col bg-white/50 rounded-3xl border border-white/30 shadow-sm lg:sticky lg:top-[6.5rem] lg:max-h-[calc(100vh-7.75rem)]">
         {/* Tabs */}
-        <div className="flex border-b border-slate-300/50 flex-shrink-0">
-            {TABS.map(tab => (
-                <button
-                    key={tab}
-                    onClick={() => setActiveTab(tab)}
-                    className={`flex-1 p-3 text-sm font-semibold transition-colors ${
-                        activeTab === tab
-                            ? 'text-slate-900 border-b-2 border-slate-900 bg-slate-200/30'
-                            : 'text-slate-500 hover:bg-slate-200/20'
-                    }`}
-                >
-                    {TABS_MAP[tab]}
-                </button>
-            ))}
+        <div className="flex-shrink-0 p-2 border-b border-slate-300/50">
+          <div className="bg-slate-200/50 p-1 rounded-xl flex items-center" role="tablist">
+              {TABS.map(tab => (
+                  <button
+                      key={tab}
+                      onClick={() => setActiveTab(tab)}
+                      role="tab"
+                      aria-selected={activeTab === tab}
+                      className={`flex-1 py-1.5 text-sm font-semibold transition-all duration-200 rounded-lg ${
+                          activeTab === tab
+                              ? 'bg-white text-slate-900 shadow-sm'
+                              : 'text-slate-500 hover:bg-white/50'
+                      }`}
+                  >
+                      {TABS_MAP[tab]}
+                  </button>
+              ))}
+          </div>
         </div>
         
         {/* Tab Content */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar">
-            {activeTab === 'Insights' && (
-                <div className="p-4 space-y-4">
-                    {summaryAnalysis || topicsAnalysis ? (
-                        <>
-                            {summaryAnalysis && (
-                                <div>
-                                    <h3 className="font-semibold mb-2">{t('summary')}</h3>
-                                    <div className="p-3 bg-slate-100/70 rounded-xl text-sm max-h-96 overflow-y-auto custom-scrollbar">
-                                        <MarkdownRenderer content={summaryAnalysis.result} />
-                                    </div>
-                                </div>
-                            )}
-                            {topicsAnalysis && (
-                                <div>
-                                    <h3 className="font-semibold mb-2">{t('topics')}</h3>
-                                    {parsedTopics.length > 0 ? (
-                                      <div className="flex flex-wrap gap-2">
-                                          {parsedTopics.map(topic => (
-                                              <button key={topic} onClick={() => setActiveTopic(activeTopic === topic ? null : topic)}
-                                                  className={`px-2 py-1 text-xs rounded-full transition-colors ${activeTopic === topic ? 'bg-slate-800 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}`}>
-                                                  {topic}
-                                              </button>
-                                          ))}
-                                      </div>
-                                    ) : (
-                                      <p className="text-sm text-slate-500 italic">{t('noTopicsGenerated')}</p>
-                                    )}
-                                </div>
-                            )}
-                        </>
-                    ) : (
-                        <div className="text-center p-8 flex flex-col items-center h-full justify-center">
-                            {generationStatus.active ? (
-                                <div className="w-full max-w-xs">
-                                    <p className="text-sm font-medium mb-2">{generationStatus.stage}</p>
-                                    <div className="w-full bg-slate-200 rounded-full h-2.5">
-                                        <div className="bg-slate-700 h-2.5 rounded-full transition-all duration-300" style={{ width: `${generationStatus.progress}%` }}></div>
-                                    </div>
-                                </div>
-                             ) : (
-                                <>
-                                 <h3 className="font-semibold text-lg">{t('unlockInsights')}</h3>
-                                 <p className="text-sm text-slate-500 mb-4">{t('unlockInsightsDesc')}</p>
-                                 <button onClick={handleGenerateInsights} disabled={generationStatus.active} className="h-10 px-5 text-sm font-medium rounded-xl transition-colors bg-slate-900 text-slate-50 hover:bg-slate-900/90 shadow-sm disabled:opacity-50">
-                                    {t('generateInsights')}
-                                 </button>
-                                </>
-                             )}
-                        </div>
-                    )}
-                </div>
-            )}
-            
-            {activeTab === 'Transcript' && (
-                <div className="p-2 flex-1 flex flex-col h-full">
-                    {subtitles && subtitles.segments.length > 0 ? (
-                        <div className="space-y-1 overflow-y-auto flex-1 p-2 custom-scrollbar">
-                            <div className="flex justify-end sticky top-0 bg-white/50 backdrop-blur-sm pb-2 z-10 space-x-2">
-                                <button
-                                    onClick={handleTranslateSubtitles}
-                                    disabled={isTranslating}
-                                    className="text-xs backdrop-blur-sm bg-white/50 hover:bg-white/80 border border-white/20 text-slate-800 font-medium p-1.5 rounded-xl transition shadow-sm disabled:opacity-50"
-                                >
-                                    {isTranslating ? t('translatingSubtitles') : t('translateSubtitles')}
-                                </button>
-                                <button onClick={() => downloadFile(segmentsToSrt(subtitles.segments), `${video.name}.srt`, 'text/srt')}
-                                    className="text-xs backdrop-blur-sm bg-white/50 hover:bg-white/80 border border-white/20 text-slate-800 font-medium p-1.5 rounded-xl transition shadow-sm">
-                                    Export SRT
-                                </button>
+        {activeTab === 'Insights' && (
+            <div className="flex-1 overflow-y-auto custom-scrollbar">
+                {generationStatus.active ? (
+                    <div className="flex flex-col items-center justify-center h-full p-4 text-center">
+                        <div className="w-16 h-16 border-4 border-slate-300 border-t-slate-800 rounded-full animate-spin"></div>
+                        <p className="mt-4 font-semibold">{generationStatus.stage}</p>
+                        {generationStatus.stage === t('insightsPreparingVideo') && (
+                            <div className="w-full bg-slate-200 rounded-full h-2.5 mt-2">
+                                <div className="bg-slate-600 h-2.5 rounded-full" style={{width: `${generationStatus.progress}%`}}></div>
                             </div>
-                            {subtitles.segments.map((segment, index) => (
-                                <div
-                                    key={index}
-                                    ref={index === activeSegmentIndex ? activeSegmentRef : null}
-                                    onClick={() => handleSeekTo(segment.startTime)}
-                                    className={`p-2 rounded-xl cursor-pointer transition-colors ${
-                                        index === activeSegmentIndex
-                                            ? 'bg-blue-200/80'
-                                            : 'hover:bg-slate-100/70'
+                        )}
+                        <p className="text-xs text-slate-500 mt-2">{t('generatingInsights')}</p>
+                    </div>
+                ) : summaryAnalysis ? (
+                    <div className="p-4 space-y-6">
+                        <div>
+                            <h3 className="font-semibold mb-2">{t('summary')}</h3>
+                            <div className="text-sm text-slate-700 leading-relaxed"><MarkdownRenderer content={summaryAnalysis.result} /></div>
+                        </div>
+                        {topicsAnalysis && (
+                          <div>
+                            <h3 className="font-semibold mb-2">{t('topics')}</h3>
+                            {parsedTopics.length > 0 ? (
+                            <div className="flex flex-wrap gap-2">
+                                {parsedTopics.map((topic, i) => (
+                                <button 
+                                    key={i} 
+                                    onClick={() => setActiveTopic(prev => prev === topic ? null : topic)}
+                                    className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
+                                        activeTopic === topic ? 'bg-slate-800 text-white' : 'bg-slate-200/80 hover:bg-slate-300/80 text-slate-700'
                                     }`}
                                 >
-                                    <p className="text-xs text-slate-500 font-mono">
-                                        {formatTimestamp(segment.startTime)}
-                                    </p>
-                                    <p className="text-sm">{segment.text}</p>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="text-center p-8 flex flex-col items-center justify-center h-full">
-                            <h3 className="font-semibold text-lg">{t('noSubtitles')}</h3>
-                            {isGeneratingSubtitles && <p className="text-xs text-slate-500 my-2">{t('subtitleGenerationWarning')}</p>}
-                            <div className="mt-2 p-1 inline-flex items-center bg-slate-200/70 rounded-xl border border-slate-300/50 shadow-inner space-x-2">
-                                <button onClick={handleImportSubtitlesClick} className="h-10 px-5 text-sm font-medium rounded-lg transition-colors bg-white text-slate-800 hover:bg-slate-50 shadow-sm">
-                                    {t('importSubtitles')}
+                                    {topic}
                                 </button>
-                                <input type="file" ref={subtitleInputRef} onChange={handleSubtitleFileChange} className="hidden" accept=".srt,.vtt" />
-                                
-                                {showGenerateOptions ? (
-                                    <div className="p-4 bg-slate-100/80 rounded-xl text-left w-64 shadow-inner">
-                                        <label className="text-sm font-medium block mb-1">{t('spokenLanguage')}</label>
-                                        <select value={sourceLanguage} onChange={(e) => setSourceLanguage(e.target.value)} className="w-full border-slate-300 border rounded-xl px-3 py-2 text-sm mb-3">
-                                            <option>English</option>
-                                            <option>Chinese</option>
-                                            <option>Spanish</option>
-                                            <option>French</option>
-                                            <option>German</option>
-                                            <option>Japanese</option>
-                                            <option>Korean</option>
-                                        </select>
-                                        <div className="flex justify-end space-x-2">
-                                            <button onClick={() => setShowGenerateOptions(false)} className="px-3 py-1 text-sm rounded-lg hover:bg-slate-200">{t('cancel')}</button>
-                                            <button onClick={handleGenerateSubtitles} disabled={isGeneratingSubtitles} className="px-3 py-1 text-sm rounded-lg bg-slate-800 text-white hover:bg-slate-700 disabled:opacity-50">
-                                                {isGeneratingSubtitles ? t('generatingSubtitles') : t('generate')}
-                                            </button>
-                                        </div>
-                                    </div>
-                                ) : (
-                                     <button onClick={() => setShowGenerateOptions(true)} disabled={isGeneratingSubtitles} className="h-10 px-5 text-sm font-medium rounded-lg transition-colors bg-slate-900 text-slate-50 hover:bg-slate-900/90 shadow-sm disabled:opacity-50">
-                                        {isGeneratingSubtitles ? t('generatingSubtitles') : t('generateWithAI')}
-                                    </button>
-                                )}
+                                ))}
                             </div>
+                             ) : (
+                                <p className="text-sm text-slate-500 italic">{t('noTopicsGenerated')}</p>
+                            )}
+                          </div>
+                        )}
+                    </div>
+                ) : (
+                    <div className="flex flex-col items-center justify-center h-full p-6 text-center">
+                         <div className="w-20 h-20 mb-4">
+                            <svg className="w-full h-full text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.375 3.375 0 0114 18.442V21.75a1.5 1.5 0 01-3 0v-3.308c0-.944.345-1.846.945-2.55l.547-.547z" />
+                            </svg>
+                         </div>
+                        <h3 className="font-semibold text-lg">{t('unlockInsights')}</h3>
+                        <p className="text-sm text-slate-500 mb-4">{t('unlockInsightsDesc')}</p>
+                        <button
+                            onClick={handleGenerateInsights}
+                            className="w-full h-10 px-4 py-2 inline-flex items-center justify-center rounded-xl text-sm font-medium transition-colors bg-slate-900 text-slate-50 hover:bg-slate-900/90 shadow-sm"
+                        >
+                            {t('generateInsights')}
+                        </button>
+                    </div>
+                )}
+            </div>
+        )}
+        {activeTab === 'Transcript' && (
+             <div className="flex-1 overflow-y-auto custom-scrollbar p-4">
+                {isGeneratingSubtitles || isTranslating ? (
+                    <div className="flex flex-col items-center justify-center h-full text-center">
+                        <div className="w-16 h-16 border-4 border-slate-300 border-t-slate-800 rounded-full animate-spin"></div>
+                        <p className="mt-4 font-semibold">{isTranslating ? t('translatingSubtitles') : t('generatingSubtitles')}</p>
+                        <p className="text-xs text-slate-500 mt-2">{t('subtitleGenerationWarning')}</p>
+                    </div>
+                ) : subtitles && subtitles.segments.length > 0 ? (
+                  <>
+                    <div className="flex items-center justify-end space-x-2 mb-2">
+                        <button onClick={handleTranslateSubtitles} className="text-xs backdrop-blur-sm bg-white/50 hover:bg-white/80 border border-white/20 text-slate-800 font-medium px-2.5 py-1 rounded-xl transition shadow-sm">
+                            {t('translateSubtitles')}
+                        </button>
+                        <button 
+                            onClick={() => downloadFile(segmentsToSrt(subtitles.segments), `${video.name}.srt`, 'text/plain')}
+                            className="text-xs backdrop-blur-sm bg-white/50 hover:bg-white/80 border border-white/20 text-slate-800 font-medium p-1.5 rounded-xl transition shadow-sm"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div className="space-y-3 text-sm pr-2">
+                        {subtitles.segments.map((segment, index) => (
+                        <div
+                            key={index}
+                            ref={index === activeSegmentIndex ? activeSegmentRef : null}
+                            onClick={() => handleSeekTo(segment.startTime)}
+                            className={`p-1.5 rounded-lg cursor-pointer transition-colors duration-200 ${
+                                index === activeSegmentIndex
+                                ? 'bg-slate-800/10'
+                                : 'hover:bg-slate-800/5'
+                            }`}
+                        >
+                            <span
+                                className={`font-mono text-xs ${
+                                    index === activeSegmentIndex
+                                    ? 'text-slate-800'
+                                    : 'text-slate-500'
+                                }`}
+                            >
+                                {formatTimestamp(segment.startTime)}
+                            </span>
+                            <p
+                                className={`mt-0.5 ${
+                                    index === activeSegmentIndex
+                                    ? 'text-slate-900'
+                                    : 'text-slate-700'
+                                }`}
+                            >
+                                {segment.text}
+                            </p>
                         </div>
-                    )}
-                </div>
-            )}
-
-            {activeTab === 'Chat' && (
-                <ChatPanel
-                    video={video}
-                    subtitles={subtitles}
-                    screenshotDataUrl={screenshotDataUrl}
-                    onClearScreenshot={() => setScreenshotDataUrl(null)}
-                />
-            )}
-
-            {activeTab === 'Notes' && (
-                <NotesPanel
-                    video={video}
-                    note={note}
-                />
-            )}
-        </div>
+                        ))}
+                    </div>
+                  </>
+                ) : (
+                    <div className="flex flex-col items-center justify-center h-full p-4 text-center">
+                        <div className="w-16 h-16 mb-4 text-slate-400">
+                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1} stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-9h3.375c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 0 1-2.25 2.25M16.5 7.5V18a2.25 2.25 0 0 0 2.25 2.25M16.5 7.5V4.875c0-.621-.504-1.125-1.125-1.125H4.125C3.504 3.75 3 4.254 3 4.875V18a2.25 2.25 0 0 0 2.25 2.25h13.5M6 7.5h3v3H6v-3Z" />
+                             </svg>
+                        </div>
+                        <p className="text-sm text-slate-500 mb-4">{t('noSubtitles')}</p>
+                        <div className="flex space-x-2 w-full">
+                            <button onClick={handleImportSubtitlesClick} className="flex-1 h-9 text-xs font-semibold rounded-lg bg-white/80 text-slate-700 hover:bg-white border border-slate-300/80 shadow-sm transition">
+                                {t('importSubtitles')}
+                            </button>
+                            <button onClick={() => setShowGenerateOptions(true)} className="flex-1 h-9 text-xs font-semibold rounded-lg bg-slate-800 text-slate-200 hover:bg-slate-700 shadow-sm transition">
+                                {t('generateWithAI')}
+                            </button>
+                        </div>
+                        
+                        {showGenerateOptions && (
+                            <div className="mt-4 p-4 bg-slate-200/50 rounded-xl w-full text-left text-sm space-y-3 animate-fade-in">
+                                <div>
+                                    <label htmlFor="lang-select" className="font-medium text-slate-800 text-xs">{t('spokenLanguage')}:</label>
+                                     <select
+                                        id="lang-select"
+                                        value={sourceLanguage}
+                                        onChange={e => setSourceLanguage(e.target.value)}
+                                        className="mt-1 w-full bg-white/80 border-slate-300 border rounded-lg px-2 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                                    >
+                                        <option>English</option>
+                                        <option>Chinese</option>
+                                        <option>Spanish</option>
+                                        <option>French</option>
+                                        <option>German</option>
+                                        <option>Japanese</option>
+                                        <option>Korean</option>
+                                        <option>Russian</option>
+                                    </select>
+                                </div>
+                                <div className="flex justify-end space-x-2">
+                                     <button onClick={() => setShowGenerateOptions(false)} className="px-3 py-1 text-xs rounded-lg hover:bg-slate-900/10">{t('cancel')}</button>
+                                     <button onClick={handleGenerateSubtitles} className="px-3 py-1 text-xs rounded-lg bg-slate-900 text-white hover:bg-slate-800">{t('generate')}</button>
+                                </div>
+                            </div>
+                        )}
+                        <input type="file" ref={subtitleInputRef} onChange={handleSubtitleFileChange} className="hidden" accept=".srt,.vtt" />
+                    </div>
+                )}
+            </div>
+        )}
+        {activeTab === 'Chat' && (
+            <ChatPanel video={video} subtitles={subtitles} screenshotDataUrl={screenshotDataUrl} onClearScreenshot={() => setScreenshotDataUrl(null)} />
+        )}
+        {activeTab === 'Notes' && (
+            <NotesPanel video={video} note={note} />
+        )}
       </div>
     </div>
   );

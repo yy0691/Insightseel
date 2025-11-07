@@ -242,9 +242,9 @@ export async function testConnection(settings: APISettings): Promise<{success: b
     const env = (typeof process !== 'undefined' ? process.env : {}) as any;
     
     // Prioritize settings from the UI, then fallback to environment variables
-    const apiKey = settings.apiKey !== undefined ? settings.apiKey : env.API_KEY;
+    const apiKey = settings.apiKey || env.API_KEY;
     const modelName = settings.model || env.MODEL || DEFAULT_MODEL;
-    const baseUrl = settings.baseUrl !== undefined ? settings.baseUrl : env.BASE_URL;
+    const baseUrl = settings.baseUrl || env.BASE_URL;
 
     if (!apiKey) {
         return { success: false, message: "API Key is missing." };

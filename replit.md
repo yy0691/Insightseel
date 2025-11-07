@@ -107,6 +107,13 @@ All video processing happens locally in the browser. Only the necessary data (fr
 None configured yet.
 
 ## Recent Changes
+- **2025-11-07**: Footer and scrollbar improvements
+  - Added global Footer component with TLDW attribution, author info, and feedback form
+  - Modified global scrollbar styles to only show color on hover/scroll
+  - Fixed Vercel environment variable issue with explicit define in vite.config.ts
+  - Created .env.example template for environment variables
+  - Updated VERCEL_DEPLOYMENT.md with deployment troubleshooting
+
 - **2025-11-07**: Initial Replit setup
   - Configured Vite to run on port 5000
   - Set up dev-server workflow

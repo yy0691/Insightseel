@@ -57,6 +57,65 @@ async function generateContentViaProxy(
     return text;
 }
 
+async function generateContentStreamViaProxy(
+    contents: any,
+    onStreamText?: (text: string) => void,
+    systemInstruction?: string,
+): Promise<string> {
+    const payload: any = {
+        contents: Array.isArray(contents) ? contents : [contents],
+        stream: true
+    };
+
+    if (systemInstruction) {
+        payload.systemInstruction = systemInstruction;
+    }
+
+    const response = await fetch('/api/proxy', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Proxy request failed' }));
+        throw new Error(`Proxy request failed: ${errorData.error || response.statusText}`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) {
+        throw new Error('No response body');
+    }
+
+    const decoder = new TextDecoder();
+    let fullText = '';
+
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+            if (line.startsWith('data: ')) {
+                try {
+                    const data = JSON.parse(line.slice(6));
+                    const text = data.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join('') ?? '';
+                    fullText += text;
+                    onStreamText?.(fullText);
+                } catch (e) {
+                    // Skip invalid JSON
+                }
+            }
+        }
+    }
+
+    return fullText;
+}
+
 async function generateContentWithCustomAPI(
     settings: APISettings,
     apiKey: string,
@@ -238,6 +297,63 @@ export async function generateChatResponse(
     const message = err instanceof Error ? err.message : "An unknown error occurred in chat.";
     throw new Error(`Chat failed: ${message}`);
   }
+}
+
+/**
+ * Generate subtitles with streaming support
+ */
+export async function generateSubtitlesStreaming(
+  videoFile: File,
+  prompt: string,
+  onProgress?: (progress: number, stage: string) => void,
+  onStreamText?: (text: string) => void
+): Promise<string> {
+    const { ai, settings, apiKey } = await getAIConfig();
+    
+    // Extract audio only to reduce file size (subtitles only need audio, not video)
+    onProgress?.(0, 'Extracting audio from video...');
+    const audioData = await extractAudioToBase64(videoFile, (audioProgress) => {
+      // Map 0-100% of audio extraction to 0-80% of total progress
+      onProgress?.(Math.round(audioProgress * 0.8), 'Extracting audio from video...');
+    });
+    
+    console.log(`Audio extracted: ${audioData.sizeKB}KB (vs ${Math.round(videoFile.size / 1024)}KB original video)`);
+    
+    onProgress?.(80, 'Generating subtitles...');
+    
+    const audioPart = {
+      inlineData: {
+        mimeType: audioData.mimeType,
+        data: audioData.data,
+      },
+    };
+    const textPart = {
+        text: prompt,
+    };
+    
+    if (settings.useProxy) {
+        return await generateContentStreamViaProxy({ parts: [audioPart, textPart] }, onStreamText);
+    }
+    
+    if (settings.baseUrl) {
+        // Custom API doesn't support streaming, fallback to regular
+        return await generateContentWithCustomAPI(settings, apiKey, { parts: [audioPart, textPart] });
+    }
+
+    // Use streaming API
+    const stream = await ai.models.generateContentStream({
+        model: settings.model,
+        contents: { parts: [audioPart, textPart] }
+    });
+    
+    let fullText = '';
+    for await (const chunk of stream) {
+      const chunkText = chunk.text ?? '';
+      fullText += chunkText;
+      onStreamText?.(fullText);
+    }
+    
+    return fullText;
 }
 
 export async function generateSubtitles(

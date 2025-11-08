@@ -55,4 +55,6 @@ export interface APISettings {
   model: string;
   language?: 'en' | 'zh';
   useProxy?: boolean;
+  openaiApiKey?: string; // For Whisper API (speech-to-text)
+  useWhisper?: boolean; // Prefer Whisper for subtitle generation
 }

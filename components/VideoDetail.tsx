@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Video, Subtitles, Analysis, AnalysisType, Note } from '../types';
-import { parseSubtitleFile, formatTimestamp, parseSrt, segmentsToSrt, downloadFile, parseTimestampToSeconds, extractFramesFromVideo } from '../utils/helpers';
+import { parseSubtitleFile, formatTimestamp, parseSrt, segmentsToSrt, downloadFile, parseTimestampToSeconds, extractFramesFromVideo, extractAudioToBase64 } from '../utils/helpers';
 import { subtitleDB, analysisDB } from '../services/dbService';
-import { generateSubtitles, analyzeVideo, translateSubtitles } from '../services/geminiService';
+import { generateSubtitles, generateSubtitlesStreaming, analyzeVideo, translateSubtitles } from '../services/geminiService';
+import { isWhisperAvailable, generateSubtitlesWithWhisper, whisperToSrt } from '../services/whisperService';
 import ChatPanel from './ChatPanel';
 import NotesPanel from './NotesPanel';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -45,10 +46,17 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
   const [sourceLanguage, setSourceLanguage] = useState('English');
   
   const [generationStatus, setGenerationStatus] = useState({ active: false, stage: '', progress: 0 });
+  const [streamingSubtitles, setStreamingSubtitles] = useState(''); // For real-time subtitle display
+  const [whisperEnabled, setWhisperEnabled] = useState(false); // Check if Whisper is available
   const summaryAnalysis = analyses.find(a => a.type === 'summary');
   const topicsAnalysis = analyses.find(a => a.type === 'topics');
   const keyInfoAnalysis = analyses.find(a => a.type === 'key-info');
   const [activeTopic, setActiveTopic] = useState<string | null>(null);
+  
+  // Check Whisper availability on mount
+  useEffect(() => {
+    isWhisperAvailable().then(setWhisperEnabled);
+  }, []);
   
   const TABS_MAP: Record<TabType, string> = useMemo(() => ({
     'Insights': t('insights'),
@@ -149,21 +157,61 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
     
     setIsGeneratingSubtitles(true);
     setShowGenerateOptions(false);
+    setStreamingSubtitles('');
     
     // Use generation status to show progress
     setGenerationStatus({ active: true, stage: 'Preparing...', progress: 0 });
     
     try {
-        const targetLanguageName = language === 'zh' ? 'Chinese' : 'English';
-        const prompt = t('generateSubtitlesPrompt', sourceLanguage, targetLanguageName);
+        let srtContent: string;
         
-        const srtContent = await generateSubtitles(
-          video.file, 
-          prompt,
-          (progress, stage) => {
-            setGenerationStatus({ active: true, stage, progress });
-          }
-        );
+        // Try Whisper first if available (faster and more accurate)
+        if (whisperEnabled) {
+          setGenerationStatus({ active: true, stage: 'Extracting audio...', progress: 10 });
+          
+          // Extract audio from video
+          const audioData = await extractAudioToBase64(video.file, (progress) => {
+            setGenerationStatus({ active: true, stage: 'Extracting audio...', progress: 10 + progress * 0.4 });
+          });
+          
+          // Convert to Blob
+          const audioBlob = new Blob(
+            [Uint8Array.from(atob(audioData.data), c => c.charCodeAt(0))],
+            { type: audioData.mimeType }
+          );
+          
+          setGenerationStatus({ active: true, stage: 'Generating subtitles with Whisper API...', progress: 50 });
+          
+          // Use Whisper API
+          const whisperResult = await generateSubtitlesWithWhisper(
+            audioBlob,
+            sourceLanguage === 'Auto-Detect' ? undefined : sourceLanguage.toLowerCase().split(' ')[0],
+            (progress) => {
+              setGenerationStatus({ active: true, stage: 'Generating subtitles...', progress: 50 + progress * 0.5 });
+            }
+          );
+          
+          srtContent = whisperToSrt(whisperResult);
+          console.log('Whisper API used for subtitle generation');
+        } else {
+          // Fallback to Gemini with streaming
+          console.log('Using Gemini for subtitle generation (Whisper not available)');
+          
+          const targetLanguageName = language === 'zh' ? 'Chinese' : 'English';
+          const prompt = t('generateSubtitlesPrompt', sourceLanguage, targetLanguageName);
+          
+          srtContent = await generateSubtitlesStreaming(
+            video.file, 
+            prompt,
+            (progress, stage) => {
+              setGenerationStatus({ active: true, stage, progress });
+            },
+            (streamedText) => {
+              // Real-time streaming display
+              setStreamingSubtitles(streamedText);
+            }
+          );
+        }
         
         const segments = parseSrt(srtContent);
         
@@ -171,6 +219,7 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
             throw new Error("The model was unable to generate valid subtitles. The video might not contain clear speech, or the language was incorrect.");
         }
 
+        // Save subtitles
         const newSubtitles: Subtitles = {
             id: video.id,
             videoId: video.id,
@@ -178,11 +227,16 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
         };
         await subtitleDB.put(newSubtitles);
         onSubtitlesChange(video.id);
+        
+        setGenerationStatus({ active: true, stage: 'Complete!', progress: 100 });
     } catch (err) {
         alert(err instanceof Error ? err.message : 'Failed to generate subtitles.');
     } finally {
         setIsGeneratingSubtitles(false);
-        setGenerationStatus({ active: false, stage: '', progress: 0 });
+        setStreamingSubtitles('');
+        setTimeout(() => {
+          setGenerationStatus({ active: false, stage: '', progress: 0 });
+        }, 1000);
     }
   };
 
@@ -476,8 +530,20 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
                 {isGeneratingSubtitles || isTranslating ? (
                     <div className="flex flex-col items-center justify-center h-full text-center">
                         <div className="w-16 h-16 border-4 border-slate-300 border-t-slate-800 rounded-full animate-spin"></div>
-                        <p className="mt-4 font-semibold">{isTranslating ? t('translatingSubtitles') : t('generatingSubtitles')}</p>
-                        <p className="text-xs text-slate-500 mt-2">{t('subtitleGenerationWarning')}</p>
+                        <p className="mt-4 font-semibold">{isTranslating ? t('translatingSubtitles') : generationStatus.stage || t('generatingSubtitles')}</p>
+                        {generationStatus.progress > 0 && (
+                          <div className="w-full max-w-xs bg-slate-200 rounded-full h-2 mt-3">
+                            <div className="bg-slate-600 h-2 rounded-full transition-all" style={{width: `${generationStatus.progress}%`}}></div>
+                          </div>
+                        )}
+                        <p className="text-xs text-slate-500 mt-2">
+                          {whisperEnabled ? '✨ Using Whisper API for professional transcription' : t('subtitleGenerationWarning')}
+                        </p>
+                        {streamingSubtitles && (
+                          <div className="mt-4 p-3 bg-white/50 rounded-lg border border-slate-200 text-left max-w-lg max-h-48 overflow-y-auto text-xs whitespace-pre-wrap">
+                            <p className="text-slate-600 font-mono">{streamingSubtitles}</p>
+                          </div>
+                        )}
                     </div>
                 ) : subtitles && subtitles.segments.length > 0 ? (
                   <>

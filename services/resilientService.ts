@@ -71,6 +71,8 @@ export class IncrementalSaver {
       try {
         await this.saveFn(this.savedData);
         this.lastSaveTime = now;
+        // Clear saved data after successful save to prevent unbounded growth
+        this.savedData = [];
       } catch (error) {
         console.error('Failed to save incrementally:', error);
         // Don't throw - we'll retry on next add
@@ -83,16 +85,23 @@ export class IncrementalSaver {
    */
   async flush(): Promise<void> {
     if (this.savedData.length > 0) {
-      await retryWithBackoff(
-        () => this.saveFn(this.savedData),
-        {
-          maxRetries: 3,
-          onRetry: (attempt, error) => {
-            console.log(`Retrying save (attempt ${attempt}):`, error.message);
+      const dataToSave = [...this.savedData];
+      try {
+        await retryWithBackoff(
+          () => this.saveFn(dataToSave),
+          {
+            maxRetries: 3,
+            onRetry: (attempt, error) => {
+              console.log(`Retrying save (attempt ${attempt}):`, error.message);
+            }
           }
-        }
-      );
-      this.savedData = [];
+        );
+        // Only clear if save was successful
+        this.savedData = [];
+      } catch (error) {
+        // Keep data for potential retry
+        throw error;
+      }
     }
   }
 

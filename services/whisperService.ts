@@ -53,17 +53,29 @@ export async function isWhisperAvailable(): Promise<boolean> {
 /**
  * Generate subtitles using OpenAI Whisper API
  * Much faster and more accurate than using LLM for transcription
+ * Accepts video or audio files - Whisper will extract audio automatically
  */
 export async function generateSubtitlesWithWhisper(
-  audioBlob: Blob,
+  file: File | Blob,
   language?: string,
   onProgress?: (progress: number) => void
 ): Promise<WhisperResponse> {
   const settings = await getEffectiveSettings();
   
+  // Determine filename and extension
+  let fileName = 'media.webm';
+  if (file instanceof File) {
+    fileName = file.name;
+  } else if (file.type) {
+    // Infer extension from MIME type
+    const extension = file.type.split('/')[1] || 'webm';
+    fileName = `media.${extension}`;
+  }
+  
   // Create form data
   const formData = new FormData();
-  formData.append('file', audioBlob, 'audio.webm');
+  // Whisper API can handle video files - it will extract audio server-side
+  formData.append('file', file, fileName);
   formData.append('model', 'whisper-1');
   
   if (language && language !== 'auto') {

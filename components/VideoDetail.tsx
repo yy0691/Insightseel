@@ -170,32 +170,27 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
         srtContent = await retryWithBackoff(async () => {
           // Try Whisper first if available (faster and more accurate)
           if (whisperEnabled) {
-            setGenerationStatus({ active: true, stage: 'Extracting audio...', progress: 10 });
+            // Check file size - Whisper API has a 25MB limit
+            const fileSizeMB = video.file.size / (1024 * 1024);
+            if (fileSizeMB > 25) {
+              console.warn(`Video file is ${fileSizeMB.toFixed(1)}MB, exceeding Whisper's 25MB limit. Falling back to Gemini.`);
+              throw new Error('File too large for Whisper API');
+            }
             
-            // Extract audio from video
-            const audioData = await extractAudioToBase64(video.file, (progress) => {
-              setGenerationStatus({ active: true, stage: 'Extracting audio...', progress: 10 + progress * 0.4 });
-            });
+            setGenerationStatus({ active: true, stage: 'Uploading to Whisper API...', progress: 10 });
             
-            // Convert to Blob
-            const audioBlob = new Blob(
-              [Uint8Array.from(atob(audioData.data), c => c.charCodeAt(0))],
-              { type: audioData.mimeType }
-            );
-            
-            setGenerationStatus({ active: true, stage: 'Generating subtitles with Whisper API...', progress: 50 });
-            
-            // Use Whisper API
+            // Use Whisper API - send video file directly (Whisper extracts audio)
+            // This eliminates the need for browser-side audio extraction
             const whisperResult = await generateSubtitlesWithWhisper(
-              audioBlob,
+              video.file,
               sourceLanguage === 'Auto-Detect' ? undefined : sourceLanguage.toLowerCase().split(' ')[0],
               (progress) => {
-                setGenerationStatus({ active: true, stage: 'Generating subtitles...', progress: 50 + progress * 0.5 });
+                setGenerationStatus({ active: true, stage: 'Generating subtitles with Whisper...', progress: 10 + progress * 0.9 });
               }
             );
             
             const result = whisperToSrt(whisperResult);
-            console.log('Whisper API used for subtitle generation');
+            console.log('Whisper API used for subtitle generation (video sent directly)');
             return result;
           } else {
             // Fallback to Gemini with streaming

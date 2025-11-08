@@ -4,6 +4,7 @@ import { parseSubtitleFile, formatTimestamp, parseSrt, segmentsToSrt, downloadFi
 import { subtitleDB, analysisDB } from '../services/dbService';
 import { generateSubtitles, generateSubtitlesStreaming, analyzeVideo, translateSubtitles } from '../services/geminiService';
 import { isWhisperAvailable, generateSubtitlesWithWhisper, whisperToSrt } from '../services/whisperService';
+import { retryWithBackoff, IncrementalSaver } from '../services/resilientService';
 import ChatPanel from './ChatPanel';
 import NotesPanel from './NotesPanel';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -165,53 +166,84 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
     try {
         let srtContent: string;
         
-        // Try Whisper first if available (faster and more accurate)
-        if (whisperEnabled) {
-          setGenerationStatus({ active: true, stage: 'Extracting audio...', progress: 10 });
-          
-          // Extract audio from video
-          const audioData = await extractAudioToBase64(video.file, (progress) => {
-            setGenerationStatus({ active: true, stage: 'Extracting audio...', progress: 10 + progress * 0.4 });
-          });
-          
-          // Convert to Blob
-          const audioBlob = new Blob(
-            [Uint8Array.from(atob(audioData.data), c => c.charCodeAt(0))],
-            { type: audioData.mimeType }
-          );
-          
-          setGenerationStatus({ active: true, stage: 'Generating subtitles with Whisper API...', progress: 50 });
-          
-          // Use Whisper API
-          const whisperResult = await generateSubtitlesWithWhisper(
-            audioBlob,
-            sourceLanguage === 'Auto-Detect' ? undefined : sourceLanguage.toLowerCase().split(' ')[0],
-            (progress) => {
-              setGenerationStatus({ active: true, stage: 'Generating subtitles...', progress: 50 + progress * 0.5 });
-            }
-          );
-          
-          srtContent = whisperToSrt(whisperResult);
-          console.log('Whisper API used for subtitle generation');
-        } else {
-          // Fallback to Gemini with streaming
-          console.log('Using Gemini for subtitle generation (Whisper not available)');
-          
-          const targetLanguageName = language === 'zh' ? 'Chinese' : 'English';
-          const prompt = t('generateSubtitlesPrompt', sourceLanguage, targetLanguageName);
-          
-          srtContent = await generateSubtitlesStreaming(
-            video.file, 
-            prompt,
-            (progress, stage) => {
-              setGenerationStatus({ active: true, stage, progress });
-            },
-            (streamedText) => {
-              // Real-time streaming display
-              setStreamingSubtitles(streamedText);
-            }
-          );
-        }
+        // Wrap the entire operation in retry logic
+        srtContent = await retryWithBackoff(async () => {
+          // Try Whisper first if available (faster and more accurate)
+          if (whisperEnabled) {
+            setGenerationStatus({ active: true, stage: 'Extracting audio...', progress: 10 });
+            
+            // Extract audio from video
+            const audioData = await extractAudioToBase64(video.file, (progress) => {
+              setGenerationStatus({ active: true, stage: 'Extracting audio...', progress: 10 + progress * 0.4 });
+            });
+            
+            // Convert to Blob
+            const audioBlob = new Blob(
+              [Uint8Array.from(atob(audioData.data), c => c.charCodeAt(0))],
+              { type: audioData.mimeType }
+            );
+            
+            setGenerationStatus({ active: true, stage: 'Generating subtitles with Whisper API...', progress: 50 });
+            
+            // Use Whisper API
+            const whisperResult = await generateSubtitlesWithWhisper(
+              audioBlob,
+              sourceLanguage === 'Auto-Detect' ? undefined : sourceLanguage.toLowerCase().split(' ')[0],
+              (progress) => {
+                setGenerationStatus({ active: true, stage: 'Generating subtitles...', progress: 50 + progress * 0.5 });
+              }
+            );
+            
+            const result = whisperToSrt(whisperResult);
+            console.log('Whisper API used for subtitle generation');
+            return result;
+          } else {
+            // Fallback to Gemini with streaming
+            console.log('Using Gemini for subtitle generation (Whisper not available)');
+            
+            const targetLanguageName = language === 'zh' ? 'Chinese' : 'English';
+            const prompt = t('generateSubtitlesPrompt', sourceLanguage, targetLanguageName);
+            
+            return await generateSubtitlesStreaming(
+              video.file, 
+              prompt,
+              (progress, stage) => {
+                setGenerationStatus({ active: true, stage, progress });
+              },
+              (streamedText) => {
+                // Real-time streaming display
+                setStreamingSubtitles(streamedText);
+                
+                // Try to parse and save partial results incrementally
+                try {
+                  const partialSegments = parseSrt(streamedText);
+                  if (partialSegments.length > 0) {
+                    const partialSubtitles: Subtitles = {
+                      id: video.id,
+                      videoId: video.id,
+                      segments: partialSegments,
+                    };
+                    // Save partial results (fire-and-forget)
+                    subtitleDB.put(partialSubtitles).catch(() => {});
+                  }
+                } catch {
+                  // Ignore parse errors for partial content
+                }
+              }
+            );
+          }
+        }, {
+          maxRetries: 3,
+          delayMs: 2000,
+          onRetry: (attempt, error) => {
+            console.log(`Retrying subtitle generation (attempt ${attempt}):`, error.message);
+            setGenerationStatus({ 
+              active: true, 
+              stage: `Retrying... (attempt ${attempt}/3)`, 
+              progress: 0 
+            });
+          }
+        });
         
         const segments = parseSrt(srtContent);
         
@@ -219,7 +251,7 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
             throw new Error("The model was unable to generate valid subtitles. The video might not contain clear speech, or the language was incorrect.");
         }
 
-        // Save subtitles
+        // Save final subtitles
         const newSubtitles: Subtitles = {
             id: video.id,
             videoId: video.id,
@@ -230,7 +262,8 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
         
         setGenerationStatus({ active: true, stage: 'Complete!', progress: 100 });
     } catch (err) {
-        alert(err instanceof Error ? err.message : 'Failed to generate subtitles.');
+        const errorMessage = err instanceof Error ? err.message : 'Failed to generate subtitles.';
+        alert(`${errorMessage}\n\nPartial results may have been saved. Try reloading the page.`);
     } finally {
         setIsGeneratingSubtitles(false);
         setStreamingSubtitles('');

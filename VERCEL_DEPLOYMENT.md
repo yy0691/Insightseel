@@ -59,9 +59,12 @@ VITE_MODEL=gemini-2.5-flash
 | Key | Value | Environment |
 |-----|-------|-------------|
 | `GEMINI_API_KEY` | `AIza...` | Production, Preview, Development |
+| `OPENAI_API_KEY` | `sk-...` (optional) | Production, Preview, Development |
 | `GEMINI_MODEL` | `gemini-2.5-flash` | Production, Preview, Development |
 | `VITE_USE_PROXY` | `true` | Production, Preview, Development |
 | `VITE_MODEL` | `gemini-2.5-flash` | Production, Preview, Development |
+
+**💡 Whisper API Recommendation:** Adding `OPENAI_API_KEY` enables professional subtitle generation that is 10x faster and more accurate than LLM-based transcription.
 
 ### 用户体验
 
@@ -151,6 +154,11 @@ In your Vercel project settings, configure the following environment variables:
 # Required: Gemini API key (backend secure storage, frontend cannot access)
 GEMINI_API_KEY=your_actual_api_key_here
 
+# Optional but Recommended: OpenAI API key for Whisper (speech-to-text)
+# Using Whisper API provides ~10x faster and more accurate subtitle generation
+# Cost: Only $0.006/minute (much cheaper than using Gemini for transcription)
+OPENAI_API_KEY=your_openai_api_key_here
+
 # Optional: Custom model (default: gemini-2.5-flash)
 GEMINI_MODEL=gemini-2.5-flash
 
@@ -186,9 +194,12 @@ Frontend `VITE_` environment variables are compiled into JavaScript code. We onl
 | Key | Value | Environment |
 |-----|-------|-------------|
 | `GEMINI_API_KEY` | `AIza...` | Production, Preview, Development |
+| `OPENAI_API_KEY` | `sk-...` (optional) | Production, Preview, Development |
 | `GEMINI_MODEL` | `gemini-2.5-flash` | Production, Preview, Development |
 | `VITE_USE_PROXY` | `true` | Production, Preview, Development |
 | `VITE_MODEL` | `gemini-2.5-flash` | Production, Preview, Development |
+
+**💡 Whisper API Recommendation:** Adding `OPENAI_API_KEY` enables professional subtitle generation that is 10x faster and more accurate than LLM-based transcription.
 
 ### User Experience
 

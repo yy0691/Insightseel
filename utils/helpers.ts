@@ -36,6 +36,14 @@ export const extractAudioToBase64 = async (
       try {
         onProgress?.(10);
         
+        const videoDurationMin = video.duration / 60;
+        const MAX_EXTRACT_DURATION_MIN = 30; // Maximum 30 minutes of audio to extract
+        
+        // For very long videos, warn user and limit extraction
+        if (videoDurationMin > MAX_EXTRACT_DURATION_MIN) {
+          console.warn(`Video is ${videoDurationMin.toFixed(1)} minutes long. Will extract first ${MAX_EXTRACT_DURATION_MIN} minutes only to ensure reasonable processing time.`);
+        }
+        
         // Create audio context with lower sample rate for better compression
         const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({
           sampleRate: 16000, // Lower sample rate (16kHz is sufficient for speech recognition)
@@ -69,16 +77,24 @@ export const extractAudioToBase64 = async (
         const chunks: Blob[] = [];
         let totalChunkSize = 0;
         const MAX_AUDIO_SIZE_MB = 20; // Target max audio size in MB
+        let audioLimitReached = false;
         
         mediaRecorder.ondataavailable = (e) => {
           if (e.data.size > 0) {
             chunks.push(e.data);
             totalChunkSize += e.data.size;
             
-            // Monitor audio size and warn if getting too large
+            // Monitor audio size and stop if getting too large
             const currentSizeMB = totalChunkSize / (1024 * 1024);
-            if (currentSizeMB > MAX_AUDIO_SIZE_MB) {
-              console.warn(`Audio extraction size (${currentSizeMB.toFixed(1)}MB) exceeds recommended limit`);
+            if (currentSizeMB > MAX_AUDIO_SIZE_MB && !audioLimitReached) {
+              audioLimitReached = true;
+              console.warn(`Audio extraction size (${currentSizeMB.toFixed(1)}MB) exceeds ${MAX_AUDIO_SIZE_MB}MB limit. Stopping extraction early.`);
+              
+              // Stop recording early to prevent excessive audio size
+              if (mediaRecorder.state === 'recording') {
+                video.pause();
+                mediaRecorder.stop();
+              }
             }
           }
         };
@@ -129,9 +145,17 @@ export const extractAudioToBase64 = async (
         mediaRecorder.start(10000);
         onProgress?.(30);
         
-        // Increase playback rate slightly to speed up extraction (1.5x)
-        // This is safe for audio extraction and reduces processing time
-        video.playbackRate = 1.5;
+        // Adaptive playback rate based on video duration
+        // For long videos, use higher speed to reduce extraction time
+        let playbackRate = 2.0; // Default: 2x speed
+        if (video.duration > 600) {
+          playbackRate = 4.0; // 4x for videos > 10min
+        } else if (video.duration > 300) {
+          playbackRate = 3.0; // 3x for videos > 5min
+        }
+        
+        console.log(`Using ${playbackRate}x playback speed for ${(video.duration / 60).toFixed(1)}min video (extraction time: ~${(video.duration / playbackRate / 60).toFixed(1)}min)`);
+        video.playbackRate = playbackRate;
         
         // Play video to record audio
         await video.play();
@@ -151,14 +175,30 @@ export const extractAudioToBase64 = async (
           mediaRecorder.stop();
         };
         
-        // Safety timeout: stop after video duration + buffer
+        // Calculate max extraction time
+        const MAX_EXTRACT_DURATION_SEC = 30 * 60; // 30 minutes max
+        const maxExtractionTime = Math.min(video.duration, MAX_EXTRACT_DURATION_SEC);
+        const actualExtractionTime = maxExtractionTime / playbackRate;
+        
+        // Timer to stop after max duration
+        const maxDurationTimer = setTimeout(() => {
+          if (mediaRecorder.state === 'recording') {
+            console.log(`Reached max extraction duration (${(maxExtractionTime / 60).toFixed(1)}min of video). Stopping...`);
+            clearInterval(progressInterval);
+            video.pause();
+            mediaRecorder.stop();
+          }
+        }, actualExtractionTime * 1000);
+        
+        // Safety timeout: stop after calculated time + buffer
         setTimeout(() => {
           clearInterval(progressInterval);
+          clearTimeout(maxDurationTimer);
           if (mediaRecorder.state === 'recording') {
             console.log('Audio extraction timeout reached, stopping...');
             mediaRecorder.stop();
           }
-        }, (video.duration / video.playbackRate + 5) * 1000);
+        }, (actualExtractionTime + 5) * 1000);
         
       } catch (err) {
         cleanup();

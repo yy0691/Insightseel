@@ -148,5 +148,7 @@ export async function getEffectiveSettings(): Promise<APISettings> {
         baseUrl: finalBaseUrl,
         apiKey: userSettings?.apiKey,
         useProxy,
+        openaiApiKey: userSettings?.openaiApiKey,
+        useWhisper: userSettings?.useWhisper,
     };
 }

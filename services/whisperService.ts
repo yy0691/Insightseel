@@ -5,6 +5,8 @@
 
 import { getEffectiveSettings } from './dbService';
 
+export const WHISPER_SIZE_LIMIT_MB = 25;
+
 interface WhisperResponse {
   text: string;
   segments?: Array<{
@@ -65,8 +67,6 @@ export async function generateSubtitlesWithWhisper(
   
   // Check file size - Whisper API has a 25MB limit
   const fileSizeMB = file.size / (1024 * 1024);
-  const WHISPER_SIZE_LIMIT_MB = 25;
-  
   // If file is too large, we need to chunk it
   if (fileSizeMB > WHISPER_SIZE_LIMIT_MB) {
     console.log(`File size ${fileSizeMB.toFixed(1)}MB exceeds Whisper limit. Chunking not implemented yet.`);

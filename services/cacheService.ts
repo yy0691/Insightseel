@@ -4,18 +4,27 @@
  */
 
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
+import { SubtitleSegment } from '../types';
+import { segmentsToSrt } from '../utils/helpers';
+
+export type SubtitleCacheStatus = 'partial' | 'complete';
+
+export interface SubtitleCacheEntry {
+  hash: string;
+  content: string;
+  language: string;
+  timestamp: number;
+  videoSize: number;
+  videoDuration: number;
+  status?: SubtitleCacheStatus;
+  partialSegments?: number;
+  provider?: 'gemini' | 'whisper' | 'visual';
+}
 
 interface CacheSchema extends DBSchema {
   'subtitle-cache': {
     key: string; // videoHash
-    value: {
-      hash: string;
-      content: string; // SRT content
-      language: string;
-      timestamp: number;
-      videoSize: number;
-      videoDuration: number;
-    };
+    value: SubtitleCacheEntry;
   };
   'analysis-cache': {
     key: string; // videoHash-analysisType
@@ -91,15 +100,28 @@ export async function generateVideoHash(file: File): Promise<string> {
 /**
  * Check if subtitles are cached for this video
  */
-export async function getCachedSubtitles(videoHash: string): Promise<string | null> {
+export async function getCachedSubtitles(
+  videoHash: string,
+  options: { includePartial?: boolean } = {},
+): Promise<SubtitleCacheEntry | null> {
   const db = await getDB();
   const cached = await db.get('subtitle-cache', videoHash);
-  
+
   if (cached) {
-    console.log('✅ Cache hit: Subtitles found for this video');
-    return cached.content;
+    const status = cached.status ?? 'complete';
+    if (status === 'partial' && !options.includePartial) {
+      console.log('ℹ️ Cache hit contains partial subtitles - waiting for completion.');
+      return null;
+    }
+
+    console.log(
+      status === 'complete'
+        ? '✅ Cache hit: Subtitles found for this video'
+        : '✅ Cache hit: Partial subtitles available for this video',
+    );
+    return cached;
   }
-  
+
   console.log('❌ Cache miss: Subtitles not found, will generate');
   return null;
 }
@@ -112,10 +134,11 @@ export async function cacheSubtitles(
   content: string,
   language: string,
   videoSize: number,
-  videoDuration: number
+  videoDuration: number,
+  options: { provider?: 'gemini' | 'whisper' | 'visual'; segmentCount?: number } = {},
 ): Promise<void> {
   const db = await getDB();
-  
+
   await db.put('subtitle-cache', {
     hash: videoHash,
     content,
@@ -123,9 +146,42 @@ export async function cacheSubtitles(
     timestamp: Date.now(),
     videoSize,
     videoDuration,
+    status: 'complete',
+    partialSegments: options.segmentCount,
+    provider: options.provider,
   });
-  
+
   console.log('💾 Subtitles cached successfully');
+}
+
+export async function cacheSubtitleProgress(
+  videoHash: string,
+  segments: SubtitleSegment[],
+  language: string,
+  videoSize: number,
+  videoDuration: number,
+  provider: 'gemini' | 'whisper',
+): Promise<void> {
+  if (segments.length === 0) {
+    return;
+  }
+
+  const db = await getDB();
+  const partialSrt = segmentsToSrt(segments);
+
+  await db.put('subtitle-cache', {
+    hash: videoHash,
+    content: partialSrt,
+    language,
+    timestamp: Date.now(),
+    videoSize,
+    videoDuration,
+    status: 'partial',
+    partialSegments: segments.length,
+    provider,
+  });
+
+  console.log(`💾 Cached ${segments.length} partial subtitle segments (${provider})`);
 }
 
 /**

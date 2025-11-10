@@ -2,9 +2,11 @@ import { Video, Analysis, AnalysisType, Subtitles, SubtitleSegment } from '../ty
 import { parseSrt, formatTimestamp, extractFramesFromVideo } from '../utils/helpers';
 import {
   cacheSubtitles,
+  cacheSubtitleProgress,
   getCachedSubtitles,
   cacheAnalysis,
   getCachedAnalysis,
+  SubtitleCacheStatus,
 } from './cacheService';
 import {
   retryWithBackoff,
@@ -20,6 +22,8 @@ import {
   whisperToSrt,
 } from './whisperService';
 import { analysisDB, getEffectiveSettings } from './dbService';
+import { analyzeVideoMetadata, VideoMetadataProfile } from './videoMetadataService';
+import { generateVisualTranscript } from './visualTranscriptService';
 
 interface StatusUpdate {
   stage: string;
@@ -40,7 +44,7 @@ interface SubtitleGenerationResult {
   segments: SubtitleSegment[];
   srt: string;
   fromCache: boolean;
-  provider: 'cache' | 'gemini' | 'whisper';
+  provider: 'cache' | 'gemini' | 'whisper' | 'visual';
 }
 
 const LANGUAGE_CODE_MAP: Record<string, string> = {
@@ -54,21 +58,78 @@ const LANGUAGE_CODE_MAP: Record<string, string> = {
   Russian: 'ru',
 };
 
+function normalizeSubtitleSegments(segments: SubtitleSegment[]): SubtitleSegment[] {
+  if (segments.length === 0) {
+    return segments;
+  }
+
+  const normalized: SubtitleSegment[] = [];
+  let lastEnd = Math.max(0, segments[0].startTime);
+
+  for (const segment of segments) {
+    const sanitizedText = segment.text.replace(/\s+/g, ' ').trim();
+    const safeStart = Math.max(segment.startTime, normalized.length > 0 ? normalized[normalized.length - 1].endTime : 0);
+    const minEnd = safeStart + 0.1;
+    const safeEnd = Math.max(segment.endTime, minEnd);
+
+    normalized.push({
+      startTime: Number.isFinite(safeStart) ? safeStart : lastEnd,
+      endTime: Number.isFinite(safeEnd) ? safeEnd : minEnd,
+      text: sanitizedText,
+    });
+
+    lastEnd = normalized[normalized.length - 1].endTime;
+  }
+
+  return normalized;
+}
+
 async function runGeminiSubtitleGeneration(
   options: SubtitleGenerationOptions,
 ): Promise<SubtitleGenerationResult> {
-  const { video, prompt, onStatus, onStreamText, onPartialSubtitles, videoHash } = options;
+  const { video, prompt, onStatus, onStreamText, onPartialSubtitles, videoHash, sourceLanguage } = options;
 
   onStatus?.({ stage: 'Extracting audio from video...', progress: 0 });
 
   let lastPartialCount = 0;
-  const saver = onPartialSubtitles
+  let lastCachedCount = 0;
+  const saver = onPartialSubtitles || videoHash
     ? new IncrementalSaver(async (batches: SubtitleSegment[][]) => {
         const latest = batches[batches.length - 1];
-        if (latest) {
-          await onPartialSubtitles(latest);
+        if (!latest) {
+          return;
         }
-      }, 2000)
+
+        const newCount = latest.length;
+        if (newCount <= lastCachedCount) {
+          return;
+        }
+        lastCachedCount = newCount;
+
+        const tasks: Promise<void>[] = [];
+        const normalized = normalizeSubtitleSegments(latest);
+
+        if (onPartialSubtitles) {
+          tasks.push(Promise.resolve(onPartialSubtitles(normalized)));
+        }
+
+        if (videoHash) {
+          tasks.push(
+            cacheSubtitleProgress(
+              videoHash,
+              normalized,
+              sourceLanguage,
+              video.file.size,
+              video.duration,
+              'gemini',
+            ),
+          );
+        }
+
+        if (tasks.length) {
+          await Promise.allSettled(tasks);
+        }
+      }, 1500)
     : null;
 
   const srtContent = await retryWithBackoff(async () => {
@@ -83,7 +144,7 @@ async function runGeminiSubtitleGeneration(
           const segments = parseSrt(streamedText);
           if (segments.length > lastPartialCount) {
             lastPartialCount = segments.length;
-            saver.add(segments);
+            void saver.add(segments);
           }
         } catch {
           // Ignore parse errors for partial content
@@ -100,10 +161,12 @@ async function runGeminiSubtitleGeneration(
   });
 
   if (saver) {
-    await saver.flush().catch(() => {});
+    await saver.flush().catch((error) => {
+      console.warn('Failed to flush incremental subtitle saver:', error);
+    });
   }
 
-  const segments = parseSrt(srtContent);
+  const segments = normalizeSubtitleSegments(parseSrt(srtContent));
   if (segments.length === 0) {
     throw new Error('The AI service returned content that could not be parsed as subtitles.');
   }
@@ -112,9 +175,10 @@ async function runGeminiSubtitleGeneration(
     await cacheSubtitles(
       videoHash,
       srtContent,
-      options.sourceLanguage,
+      sourceLanguage,
       video.file.size,
       video.duration,
+      { provider: 'gemini', segmentCount: segments.length },
     );
   }
 
@@ -124,7 +188,7 @@ async function runGeminiSubtitleGeneration(
 async function runWhisperSubtitleGeneration(
   options: SubtitleGenerationOptions,
 ): Promise<SubtitleGenerationResult> {
-  const { video, sourceLanguage, onStatus, videoHash } = options;
+  const { video, sourceLanguage, onStatus, videoHash, onPartialSubtitles } = options;
 
   onStatus?.({ stage: 'Uploading audio to Whisper...', progress: 10 });
 
@@ -136,10 +200,51 @@ async function runWhisperSubtitleGeneration(
   );
 
   const srtContent = whisperToSrt(whisperResult);
-  const segments = parseSrt(srtContent);
+  const segments = normalizeSubtitleSegments(parseSrt(srtContent));
 
   if (segments.length === 0) {
     throw new Error('Whisper returned an empty transcription.');
+  }
+
+  if ((videoHash || onPartialSubtitles) && segments.length > 0) {
+    const step = Math.max(3, Math.ceil(segments.length / 6));
+    let emitted = 0;
+    const counts: number[] = [];
+
+    while (emitted < segments.length) {
+      emitted = Math.min(segments.length, emitted + step);
+      counts.push(emitted);
+    }
+
+    for (const count of counts) {
+      const partialSegments = segments.slice(0, count);
+      const tasks: Promise<void>[] = [];
+
+      if (onPartialSubtitles) {
+        tasks.push(Promise.resolve(onPartialSubtitles(partialSegments)));
+      }
+
+      if (videoHash) {
+        tasks.push(
+          cacheSubtitleProgress(
+            videoHash,
+            partialSegments,
+            sourceLanguage,
+            video.file.size,
+            video.duration,
+            'whisper',
+          ),
+        );
+      }
+
+      if (tasks.length) {
+        await Promise.allSettled(tasks);
+      }
+
+      if (count < segments.length) {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+    }
   }
 
   if (videoHash) {
@@ -149,6 +254,7 @@ async function runWhisperSubtitleGeneration(
       sourceLanguage,
       video.file.size,
       video.duration,
+      { provider: 'whisper', segmentCount: segments.length },
     );
   }
 
@@ -157,21 +263,119 @@ async function runWhisperSubtitleGeneration(
   return { segments, srt: srtContent, fromCache: false, provider: 'whisper' };
 }
 
+function resolveMetadataFallback(video: Video, metadata?: VideoMetadataProfile | null): VideoMetadataProfile {
+  if (metadata) {
+    return metadata;
+  }
+
+  return {
+    duration: video.duration || 0,
+    width: video.width || 0,
+    height: video.height || 0,
+    hasAudioTrack: false,
+    averageLoudness: 0,
+    peakLoudness: 0,
+    silenceRatio: 1,
+    recommendedPipeline: 'visual',
+    sampledWindowSeconds: 0,
+  };
+}
+
+async function runVisualSubtitleGeneration(
+  options: SubtitleGenerationOptions & { metadata: VideoMetadataProfile },
+): Promise<SubtitleGenerationResult> {
+  const { video, prompt, onStatus, onPartialSubtitles, videoHash, sourceLanguage, metadata } = options;
+
+  onStatus?.({ stage: 'Launching visual analysis pipeline...', progress: 28 });
+
+  const { srt, segments } = await generateVisualTranscript({
+    video,
+    metadata,
+    prompt,
+    sourceLanguage,
+    onStatus,
+    onPartialSubtitles,
+  });
+
+  if (videoHash) {
+    await cacheSubtitles(
+      videoHash,
+      srt,
+      sourceLanguage,
+      video.file.size,
+      metadata.duration || video.duration,
+    );
+  }
+
+  onStatus?.({ stage: 'Visual subtitles ready.', progress: 96 });
+
+  return { segments, srt, fromCache: false, provider: 'visual' };
+}
+
 export async function generateResilientSubtitles(
   options: SubtitleGenerationOptions,
 ): Promise<SubtitleGenerationResult> {
-  const { video, videoHash, onStatus } = options;
+  const { video, videoHash, onStatus, onPartialSubtitles } = options;
 
   onStatus?.({ stage: 'Checking cache...', progress: 5 });
   if (videoHash) {
-    const cached = await getCachedSubtitles(videoHash);
+    const cached = await getCachedSubtitles(videoHash, { includePartial: true });
     if (cached) {
-      const segments = parseSrt(cached);
-      if (segments.length > 0) {
+      const status: SubtitleCacheStatus = cached.status ?? 'complete';
+      const segments = normalizeSubtitleSegments(parseSrt(cached.content));
+
+      if (segments.length > 0 && status === 'complete') {
         onStatus?.({ stage: 'Loaded subtitles from cache.', progress: 100 });
-        return { segments, srt: cached, fromCache: true, provider: 'cache' };
+        return { segments, srt: cached.content, fromCache: true, provider: 'cache' };
+      }
+
+      if (segments.length > 0 && status === 'partial') {
+        onStatus?.({ stage: 'Resuming from cached subtitle progress...', progress: 12 });
+        if (onPartialSubtitles) {
+          try {
+            await onPartialSubtitles(segments);
+          } catch (error) {
+            console.warn('Failed to deliver cached subtitle progress to UI:', error);
+          }
+        }
       }
     }
+  }
+
+  onStatus?.({ stage: 'Inspecting media tracks...', progress: 8 });
+  let metadata: VideoMetadataProfile | null = null;
+  try {
+    metadata = await analyzeVideoMetadata(video.file);
+    console.log('Media profile:', {
+      duration: metadata.duration,
+      averageLoudness: metadata.averageLoudness.toFixed(3),
+      silenceRatio: metadata.silenceRatio,
+      pipeline: metadata.recommendedPipeline,
+    });
+  } catch (error) {
+    console.warn('Failed to analyse video metadata. Continuing with default pipeline.', error);
+  }
+
+  const pipelineRecommendation = metadata?.recommendedPipeline ?? 'audio';
+  let visualAttempted = false;
+
+  const attemptVisual = async (message: string): Promise<SubtitleGenerationResult> => {
+    visualAttempted = true;
+    onStatus?.({ stage: message, progress: 20 });
+    return await runVisualSubtitleGeneration({ ...options, metadata: resolveMetadataFallback(video, metadata) });
+  };
+
+  if (pipelineRecommendation === 'visual') {
+    try {
+      return await attemptVisual('Audio track appears silent. Switching to visual analysis...');
+    } catch (error) {
+      console.warn('Visual pipeline primary attempt failed, trying audio-based methods.', error);
+      onStatus?.({ stage: 'Visual analysis failed. Falling back to audio transcription...', progress: 35 });
+    }
+  } else if (pipelineRecommendation === 'hybrid') {
+    onStatus?.({ stage: 'Audio quality marginal. Preparing hybrid strategy...', progress: 12 });
+  } else {
+    onStatus?.({ stage: 'Audio track detected. Using speech pipeline...', progress: 12 });
   }
 
   const settings = await getEffectiveSettings();
@@ -194,6 +398,17 @@ export async function generateResilientSubtitles(
   try {
     return await runGeminiSubtitleGeneration(options);
   } catch (geminiError) {
+    const shouldAttemptVisualFallback =
+      !visualAttempted && (pipelineRecommendation !== 'audio' || !whisperAvailable);
+
+    if (shouldAttemptVisualFallback) {
+      try {
+        return await attemptVisual('Audio pipeline failed. Switching to visual analysis...');
+      } catch (visualError) {
+        console.warn('Visual fallback after Gemini failure also failed:', visualError);
+      }
+    }
+
     if (!whisperAvailable) {
       throw geminiError instanceof Error
         ? geminiError
@@ -201,7 +416,20 @@ export async function generateResilientSubtitles(
     }
 
     onStatus?.({ stage: 'Gemini failed. Switching to Whisper fallback...', progress: 60 });
-    return await runWhisperSubtitleGeneration(options);
+    try {
+      return await runWhisperSubtitleGeneration(options);
+    } catch (whisperError) {
+      console.warn('Whisper fallback failed:', whisperError);
+
+      if (!visualAttempted) {
+        onStatus?.({ stage: 'Audio services failed. Attempting visual analysis...', progress: 70 });
+        return await attemptVisual('Attempting visual analysis after audio failures...');
+      }
+
+      throw whisperError instanceof Error
+        ? whisperError
+        : new Error('Subtitle generation failed.');
+    }
   }
 }
 
@@ -233,9 +461,19 @@ async function prepareAnalysisPayload(
     return { subtitlesText, usedTranscript: true };
   }
 
-  onStatus?.({ stage: 'Extracting key frames from video...', progress: 10 });
+  onStatus?.({ stage: 'Transcript unavailable. Extracting key frames...', progress: 12 });
 
-  const frameAttempts = [40, 30, 20, 12];
+  const lastSubtitle = subtitles?.segments.length
+    ? subtitles.segments[subtitles.segments.length - 1]
+    : null;
+  const duration = video.duration || lastSubtitle?.endTime || 0;
+  const frameAttempts = (() => {
+    if (duration > 1800) return [75, 60, 45, 30];
+    if (duration > 900) return [60, 45, 32, 24];
+    if (duration > 600) return [55, 40, 28, 20];
+    if (duration > 300) return [48, 36, 24, 16];
+    return [40, 30, 20, 12];
+  })();
   let frames: string[] | null = null;
 
   for (const maxFrames of frameAttempts) {

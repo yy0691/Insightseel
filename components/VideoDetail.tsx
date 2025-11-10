@@ -1,12 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Video, Subtitles, Analysis, AnalysisType, Note } from '../types';
-import { parseSubtitleFile, formatTimestamp, parseSrt, segmentsToSrt, downloadFile, parseTimestampToSeconds, extractFramesFromVideo, extractAudioToBase64 } from '../utils/helpers';
-import { subtitleDB, analysisDB } from '../services/dbService';
-import { generateSubtitles, generateSubtitlesStreaming, analyzeVideo, translateSubtitles } from '../services/geminiService';
-import { retryWithBackoff, IncrementalSaver } from '../services/resilientService';
-import { generateVideoHash, getCachedSubtitles, cacheSubtitles, getCachedAnalysis, cacheAnalysis } from '../services/cacheService';
-import { taskQueue } from '../services/taskQueue';
-import { processVideoInSegments, estimateProcessingTime } from '../services/segmentedProcessor';
+import { parseSubtitleFile, formatTimestamp, parseSrt, segmentsToSrt, downloadFile, parseTimestampToSeconds } from '../utils/helpers';
+import { subtitleDB } from '../services/dbService';
+import { translateSubtitles } from '../services/geminiService';
+import { generateVideoHash } from '../services/cacheService';
+import { generateResilientSubtitles, generateResilientInsights } from '../services/videoProcessingService';
 import ChatPanel from './ChatPanel';
 import NotesPanel from './NotesPanel';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -25,8 +23,6 @@ interface VideoDetailProps {
 }
 
 type TabType = 'Insights' | 'Transcript' | 'Chat' | 'Notes';
-
-const INSIGHTS_TO_GENERATE: AnalysisType[] = ['summary', 'key-info', 'topics'];
 
 const HEATMAP_COLORS = [
     'bg-sky-400', 'bg-lime-400', 'bg-amber-400', 'bg-violet-400', 'bg-rose-400', 
@@ -51,7 +47,6 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
   const [generationStatus, setGenerationStatus] = useState({ active: false, stage: '', progress: 0 });
   const [streamingSubtitles, setStreamingSubtitles] = useState(''); // For real-time subtitle display
   const [videoHash, setVideoHash] = useState<string>(''); // Video hash for caching
-  const [cacheHit, setCacheHit] = useState(false); // Whether cache was used
   const summaryAnalysis = analyses.find(a => a.type === 'summary');
   const topicsAnalysis = analyses.find(a => a.type === 'topics');
   const keyInfoAnalysis = analyses.find(a => a.type === 'key-info');
@@ -161,22 +156,20 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
   };
   
   const handleGenerateSubtitles = async () => {
-    if (!video) return;
-    
     // Validate file size (max 2GB)
     const fileSizeGB = video.file.size / (1024 * 1024 * 1024);
     const fileSizeMB = video.file.size / (1024 * 1024);
-    
+
     if (fileSizeGB > 2) {
       alert(`Video file is ${fileSizeGB.toFixed(2)}GB, which exceeds the 2GB limit for subtitle generation. Please use a smaller video file.`);
       return;
     }
-    
+
     console.log(`Starting subtitle generation for ${fileSizeMB.toFixed(1)}MB video`);
-    
+
     // Get video duration for better user feedback
     try {
-      const metadata = await new Promise<{duration: number}>((resolve, reject) => {
+      const metadata = await new Promise<{ duration: number }>((resolve, reject) => {
         const v = document.createElement('video');
         v.preload = 'metadata';
         v.onloadedmetadata = () => {
@@ -189,14 +182,14 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
         };
         v.src = URL.createObjectURL(video.file);
       });
-      
+
       const durationMin = metadata.duration / 60;
       if (durationMin > 30) {
         const proceed = confirm(
           `This video is ${durationMin.toFixed(1)} minutes long.\n\n` +
-          `To ensure reasonable processing time, only the first 30 minutes will be used for subtitle generation.\n\n` +
-          `Estimated processing time: 8-12 minutes\n\n` +
-          `Continue?`
+            `To ensure reasonable processing time, only the first 30 minutes will be used for subtitle generation.\n\n` +
+            `Estimated processing time: 8-12 minutes\n\n` +
+            `Continue?`
         );
         if (!proceed) return;
       } else if (durationMin > 10) {
@@ -205,151 +198,63 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
     } catch (err) {
       console.warn('Could not get video duration:', err);
     }
-    
+
     setIsGeneratingSubtitles(true);
     setShowGenerateOptions(false);
     setStreamingSubtitles('');
-    setCacheHit(false);
-    
-    // Use generation status to show progress
     setGenerationStatus({ active: true, stage: 'Checking cache...', progress: 0 });
-    
-    try {
-        let srtContent: string;
-        
-        // Check cache first
-        if (videoHash) {
-          const cached = await getCachedSubtitles(videoHash);
-          if (cached) {
-            srtContent = cached;
-            setCacheHit(true);
-            setGenerationStatus({ active: true, stage: '✅ Loaded from cache!', progress: 100 });
-            
-            // Parse and save
-            const segments = parseSrt(srtContent);
-            const newSubtitles: Subtitles = {
-                id: video.id,
-                videoId: video.id,
-                segments,
-            };
-            await subtitleDB.put(newSubtitles);
-            onSubtitlesChange(video.id);
-            
-            setTimeout(() => {
-              setIsGeneratingSubtitles(false);
-              setGenerationStatus({ active: false, stage: '', progress: 0 });
-            }, 1500);
-            return;
-          }
-        }
-        
-        // Wrap the entire operation in retry logic
-        srtContent = await retryWithBackoff(async () => {
-          // Use Gemini with streaming for subtitle generation
-          console.log(`Using Gemini for subtitle generation (video: ${fileSizeMB.toFixed(1)}MB)`);
-          
-          // For very large videos (>500MB), warn user about longer processing time
-          if (fileSizeMB > 500) {
-            console.warn(`Large video detected (${fileSizeMB.toFixed(1)}MB). Audio extraction may take several minutes.`);
-            setGenerationStatus({ active: true, stage: `Processing large video (${fileSizeMB.toFixed(0)}MB)...`, progress: 5 });
-          }
-          
-          const targetLanguageName = language === 'zh' ? 'Chinese' : 'English';
-          const prompt = t('generateSubtitlesPrompt', sourceLanguage, targetLanguageName);
-          
-          return await generateSubtitlesStreaming(
-            video.file, 
-            prompt,
-            (progress, stage) => {
-              setGenerationStatus({ active: true, stage, progress });
-            },
-            (streamedText) => {
-              // Real-time streaming display
-              setStreamingSubtitles(streamedText);
-              
-              // Try to parse and save partial results incrementally
-              try {
-                const partialSegments = parseSrt(streamedText);
-                if (partialSegments.length > 0) {
-                  const partialSubtitles: Subtitles = {
-                    id: video.id,
-                    videoId: video.id,
-                    segments: partialSegments,
-                  };
-                  // Save partial results (fire-and-forget)
-                  subtitleDB.put(partialSubtitles).catch(() => {});
-                }
-              } catch {
-                // Ignore parse errors for partial content
-              }
-            }
-          );
-        }, {
-          maxRetries: 3,
-          delayMs: 2000,
-          onRetry: (attempt, error) => {
-            console.log(`Retrying subtitle generation (attempt ${attempt}):`, error.message);
-            setGenerationStatus({ 
-              active: true, 
-              stage: `Retrying... (attempt ${attempt}/3)`, 
-              progress: 0 
-            });
-          }
-        });
-        
-        const segments = parseSrt(srtContent);
-        
-        console.log(`Parsed ${segments.length} subtitle segments from ${srtContent.length} characters`);
-        
-        if (segments.length === 0) {
-            // Log the actual content for debugging
-            console.error('Failed to parse SRT. Content received:', srtContent.substring(0, 500));
-            throw new Error("The model was unable to generate valid subtitles. The video might not contain clear speech, or the language was incorrect.");
-        }
 
-        // Save final subtitles
-        const newSubtitles: Subtitles = {
+    const targetLanguageName = language === 'zh' ? 'Chinese' : 'English';
+    const prompt = t('generateSubtitlesPrompt', sourceLanguage, targetLanguageName);
+
+    try {
+      const result = await generateResilientSubtitles({
+        video,
+        videoHash,
+        prompt,
+        sourceLanguage,
+        onStatus: ({ stage, progress }) => setGenerationStatus({ active: true, stage, progress }),
+        onStreamText: (text) => setStreamingSubtitles(text),
+        onPartialSubtitles: async (segments) => {
+          const partialSubtitles: Subtitles = {
             id: video.id,
             videoId: video.id,
             segments,
-        };
-        await subtitleDB.put(newSubtitles);
-        onSubtitlesChange(video.id);
-        
-        // Cache the result for future use
-        if (videoHash) {
-          await cacheSubtitles(
-            videoHash,
-            srtContent,
-            sourceLanguage,
-            video.file.size,
-            0 // Duration will be calculated if needed
-          );
-        }
-        
-        setGenerationStatus({ active: true, stage: 'Complete!', progress: 100 });
+          };
+          await subtitleDB.put(partialSubtitles);
+        },
+      });
+
+      const newSubtitles: Subtitles = {
+        id: video.id,
+        videoId: video.id,
+        segments: result.segments,
+      };
+      await subtitleDB.put(newSubtitles);
+      onSubtitlesChange(video.id);
+
+      setGenerationStatus({ active: true, stage: 'Complete!', progress: 100 });
     } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to generate subtitles.';
-        console.error('Subtitle generation error:', err);
-        
-        // Provide more helpful error message
-        let userMessage = errorMessage;
-        if (errorMessage.includes('unable to generate valid subtitles')) {
-          userMessage += '\n\nPossible causes:\n' +
-            '1. Video audio quality is too low\n' +
-            '2. Selected language does not match video language\n' +
-            '3. Video contains mostly music/noise instead of speech\n' +
-            '4. API quota exceeded or network issue\n\n' +
-            'Check browser console (F12) for detailed logs.';
-        }
-        
-        alert(`${userMessage}\n\nPartial results may have been saved. Try reloading the page.`);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to generate subtitles.';
+      console.error('Subtitle generation error:', err);
+
+      let userMessage = errorMessage;
+      if (errorMessage.includes('unable to generate valid subtitles')) {
+        userMessage += '\n\nPossible causes:\n' +
+          '1. Video audio quality is too low\n' +
+          '2. Selected language does not match video language\n' +
+          '3. Video contains mostly music/noise instead of speech\n' +
+          '4. API quota exceeded or network issue\n\n' +
+          'Check browser console (F12) for detailed logs.';
+      }
+
+      alert(`${userMessage}\n\nPartial results may have been saved. Try reloading the page.`);
     } finally {
-        setIsGeneratingSubtitles(false);
-        setStreamingSubtitles('');
-        setTimeout(() => {
-          setGenerationStatus({ active: false, stage: '', progress: 0 });
-        }, 1000);
+      setIsGeneratingSubtitles(false);
+      setStreamingSubtitles('');
+      setTimeout(() => {
+        setGenerationStatus({ active: false, stage: '', progress: 0 });
+      }, 1000);
     }
   };
 
@@ -382,64 +287,33 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
   };
 
   const handleGenerateInsights = async () => {
+    const targetLanguageName = language === 'zh' ? 'Chinese' : 'English';
+    const analysisPrompts: Record<Exclude<AnalysisType, 'chat'>, string> = {
+      summary: t('analysisSummaryPrompt', targetLanguageName),
+      'key-info': t('analysisKeyInfoPrompt', targetLanguageName),
+      topics: t('analysisTopicsPrompt', targetLanguageName),
+    };
+
+    setGenerationStatus({
+      active: true,
+      stage: subtitles && subtitles.segments.length > 0 ? t('insightsAnalyzing') : t('insightsPreparingVideo'),
+      progress: 0,
+    });
+
     try {
-      const hasSubtitles = subtitles && subtitles.segments.length > 0;
-      let analysisPayload: { frames?: string[]; subtitlesText?: string; };
-
-      if (hasSubtitles) {
-        setGenerationStatus({ active: true, stage: t('insightsAnalyzing'), progress: 0 });
-        const subtitlesText = subtitles.segments.map(s => `[${formatTimestamp(s.startTime)}] ${s.text}`).join('\n');
-        analysisPayload = { subtitlesText };
-        setTimeout(() => setGenerationStatus(prev => ({...prev, progress: 100})), 100); // Animate progress bar
-      } else {
-        setGenerationStatus({ active: true, stage: t('insightsPreparingVideo'), progress: 0 });
-        const MAX_FRAMES_FOR_ANALYSIS = 40; // Reduced from 60 to stay under 4.5MB limit
-        const frames = await extractFramesFromVideo(
-          video.file,
-          MAX_FRAMES_FOR_ANALYSIS,
-          (progress) => {
-            setGenerationStatus(prev => ({ ...prev, progress }));
-          }
-        );
-        
-        // Check total size before sending
-        const totalSize = frames.reduce((acc, frame) => acc + frame.length, 0) / (1024 * 1024);
-        console.log(`Extracted ${frames.length} frames, total size: ${totalSize.toFixed(2)}MB`);
-        
-        if (totalSize > 3.5) {
-          throw new Error(`提取的视频帧太大（${totalSize.toFixed(1)}MB），超过服务器限制。请使用分辨率较低的视频。`);
-        }
-        
-        setGenerationStatus(prev => ({ ...prev, stage: t('insightsAnalyzing') }));
-        analysisPayload = { frames };
-      }
-
-      const analysesToRun = INSIGHTS_TO_GENERATE.filter(type => !analyses.some(a => a.type === type));
-      const targetLanguageName = language === 'zh' ? 'Chinese' : 'English';
-      const analysisPrompts: Omit<Record<AnalysisType, string>, 'chat'> = {
-        'summary': t('analysisSummaryPrompt', targetLanguageName),
-        'key-info': t('analysisKeyInfoPrompt', targetLanguageName),
-        'topics': t('analysisTopicsPrompt', targetLanguageName),
-      };
-
-      const promises = analysesToRun.map(async (type) => {
-        const prompt = analysisPrompts[type as keyof typeof analysisPrompts];
-        const result = await analyzeVideo({ ...analysisPayload, prompt });
-        const newAnalysis: Analysis = {
-            id: `${video.id}-${type}-${new Date().getTime()}`,
-            videoId: video.id,
-            type,
-            prompt,
-            result,
-            createdAt: new Date().toISOString(),
-        };
-        await analysisDB.put(newAnalysis);
+      const { newAnalyses } = await generateResilientInsights({
+        video,
+        videoHash,
+        subtitles,
+        prompts: analysisPrompts,
+        existingAnalyses: analyses,
+        onStatus: ({ stage, progress }) => setGenerationStatus({ active: true, stage, progress }),
       });
-      
-      await Promise.all(promises);
-      onAnalysesChange(video.id);
-      onFirstInsightGenerated();
 
+      if (newAnalyses.length > 0) {
+        onAnalysesChange(video.id);
+        onFirstInsightGenerated();
+      }
     } catch (err) {
       alert(err instanceof Error ? err.message : 'An unknown error occurred during analysis.');
     } finally {

@@ -362,7 +362,7 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
             <div className="relative group aspect-video bg-black">
                 <video
                     ref={videoRef}
-                    src={videoUrl}
+                    src={videoUrl || undefined}
                     controls
                     onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
                     className="w-full h-full"

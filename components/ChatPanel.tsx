@@ -71,8 +71,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ video, subtitles, screenshotDataU
   useEffect(() => {
     // Auto-resize textarea
     if (textAreaRef.current) {
+        const currentScrollY = window.scrollY;
         textAreaRef.current.style.height = 'auto';
         textAreaRef.current.style.height = `${textAreaRef.current.scrollHeight}px`;
+        window.scrollTo(0, currentScrollY);
     }
   }, [currentMessage]);
   

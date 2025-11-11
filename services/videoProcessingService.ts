@@ -21,6 +21,10 @@ import {
   generateSubtitlesWithWhisper,
   whisperToSrt,
 } from './whisperService';
+import {
+  generateSubtitlesIntelligent,
+  RouterResult,
+} from './intelligentRouter';
 import { analysisDB, getEffectiveSettings } from './dbService';
 import { analyzeVideoMetadata, VideoMetadataProfile } from './videoMetadataService';
 import { generateVisualTranscript } from './visualTranscriptService';
@@ -48,7 +52,7 @@ interface SubtitleGenerationResult {
   segments: SubtitleSegment[];
   srt: string;
   fromCache: boolean;
-  provider: 'cache' | 'gemini' | 'whisper' | 'visual';
+  provider: 'cache' | 'gemini' | 'whisper' | 'visual' | 'groq' | 'deepgram' | 'groq-chunked' | 'deepgram-chunked' | 'gemini-segmented';
 }
 
 const LANGUAGE_CODE_MAP: Record<string, string> = {
@@ -384,102 +388,76 @@ export async function generateResilientSubtitles(
 
   const settings = await getEffectiveSettings();
 
-  // Check if video is long and should use segmented processing
-  const VIDEO_DURATION_THRESHOLD = 180; // 3 minutes
-  const shouldUseSegmentedProcessing = video.duration > VIDEO_DURATION_THRESHOLD;
-  
-  if (shouldUseSegmentedProcessing) {
-    try {
-      const segmentedAvailable = await isSegmentedProcessingAvailable();
-      
-      if (segmentedAvailable) {
-        onStatus?.({ stage: 'Long video detected. Using segmented parallel processing...', progress: 15 });
-        
-        const segments = await processVideoInSegments({
-          video,
-          prompt: options.prompt,
-          sourceLanguage: options.sourceLanguage,
-          maxParallelTasks: 3, // Process 3 segments at a time
-          onProgress: (progress, stage) => onStatus?.({ stage, progress: 15 + progress * 0.8 }),
-          onSegmentComplete: (segmentIndex, totalSegments, segmentSubtitles) => {
-            console.log(`Completed segment ${segmentIndex + 1}/${totalSegments} with ${segmentSubtitles.length} subtitle entries`);
-          },
-          onPartialSubtitles: onPartialSubtitles,
-        });
-        
-        const srt = segmentsToSrt(segments);
-        
-        if (videoHash) {
-          await cacheSubtitles(
-            videoHash,
-            srt,
-            options.sourceLanguage,
-            video.file.size,
-            video.duration,
-            { provider: 'gemini', segmentCount: segments.length },
-          );
+  // Use intelligent routing for subtitle generation
+  onStatus?.({ stage: 'Selecting best transcription service...', progress: 15 });
+
+  try {
+    const languageCode = LANGUAGE_CODE_MAP[options.sourceLanguage] ?? undefined;
+
+    const routerResult: RouterResult = await generateSubtitlesIntelligent({
+      file: video.file,
+      video: video,
+      language: languageCode,
+      prompt: options.prompt,
+      onProgress: (progress, stage) => {
+        onStatus?.({ stage, progress: 15 + progress * 0.80 });
+      },
+      onSegmentComplete: (segmentIndex, totalSegments, segments) => {
+        console.log(`[Router] Segment ${segmentIndex + 1}/${totalSegments} completed with ${segments.length} subtitles`);
+        if (onPartialSubtitles) {
+          onPartialSubtitles(segments).catch(err => {
+            console.warn('[Router] Failed to deliver partial subtitles:', err);
+          });
         }
-        
-        return { segments, srt, fromCache: false, provider: 'gemini' };
-      } else {
-        console.log('Segmented processing not available (FFmpeg not loaded). Using standard processing.');
-      }
-    } catch (segmentedError) {
-      console.warn('Segmented processing failed, falling back to standard processing:', segmentedError);
-      onStatus?.({ stage: 'Segmented processing failed. Using standard method...', progress: 20 });
+      },
+    });
+
+    const segments = normalizeSubtitleSegments(parseSrt(routerResult.srtContent));
+
+    if (segments.length === 0) {
+      throw new Error('Intelligent router returned empty subtitles');
     }
-  }
 
-  let whisperAvailable = false;
-  try {
-    whisperAvailable = await isWhisperAvailable();
-  } catch {
-    whisperAvailable = false;
-  }
-
-  if (settings.useWhisper && whisperAvailable) {
-    try {
-      return await runWhisperSubtitleGeneration(options);
-    } catch (error) {
-      console.warn('Preferred Whisper generation failed, falling back to Gemini:', error);
+    // Cache the result
+    if (videoHash) {
+      await cacheSubtitles(
+        videoHash,
+        routerResult.srtContent,
+        options.sourceLanguage,
+        video.file.size,
+        video.duration,
+        { provider: routerResult.usedService, segmentCount: segments.length },
+      );
     }
-  }
 
-  try {
-    return await runGeminiSubtitleGeneration(options);
-  } catch (geminiError) {
-    const shouldAttemptVisualFallback =
-      !visualAttempted && (pipelineRecommendation !== 'audio' || !whisperAvailable);
+    onStatus?.({
+      stage: `Complete! (Used ${routerResult.usedService} in ${(routerResult.processingTimeMs / 1000).toFixed(1)}s)`,
+      progress: 100
+    });
+
+    return {
+      segments,
+      srt: routerResult.srtContent,
+      fromCache: false,
+      provider: routerResult.usedService
+    };
+  } catch (routerError) {
+    console.warn('[Router] Intelligent routing failed, attempting visual fallback:', routerError);
+    onStatus?.({ stage: 'Intelligent routing failed. Trying visual analysis...', progress: 30 });
+
+    const shouldAttemptVisualFallback = !visualAttempted && pipelineRecommendation !== 'audio';
 
     if (shouldAttemptVisualFallback) {
       try {
-        return await attemptVisual('Audio pipeline failed. Switching to visual analysis...');
+        return await attemptVisual('All audio transcription methods failed. Switching to visual analysis...');
       } catch (visualError) {
-        console.warn('Visual fallback after Gemini failure also failed:', visualError);
+        console.error('Visual fallback after router failure also failed:', visualError);
       }
     }
 
-    if (!whisperAvailable) {
-      throw geminiError instanceof Error
-        ? geminiError
-        : new Error('Subtitle generation failed.');
-    }
-
-    onStatus?.({ stage: 'Gemini failed. Switching to Whisper fallback...', progress: 60 });
-    try {
-      return await runWhisperSubtitleGeneration(options);
-    } catch (whisperError) {
-      console.warn('Whisper fallback failed:', whisperError);
-
-      if (!visualAttempted) {
-        onStatus?.({ stage: 'Audio services failed. Attempting visual analysis...', progress: 70 });
-        return await attemptVisual('Attempting visual analysis after audio failures...');
-      }
-
-      throw whisperError instanceof Error
-        ? whisperError
-        : new Error('Subtitle generation failed.');
-    }
+    throw routerError instanceof Error
+      ? routerError
+      : new Error('All subtitle generation methods failed.');
   }
 }
 

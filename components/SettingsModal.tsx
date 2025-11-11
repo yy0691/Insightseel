@@ -180,7 +180,70 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onSave, onClose
             />
             <p className="text-xs text-slate-500 mt-1">{t('apiKeyHelpText')}</p>
           </div>
-          
+
+          <div className="border-t border-slate-300/50 pt-4 mt-2">
+            <h3 className="text-sm font-semibold text-slate-700 mb-3">Speech-to-Text Services (For Subtitles)</h3>
+
+            <div className="space-y-3">
+              <div>
+                <label htmlFor="groq-api-key" className="block text-sm font-medium text-slate-700 mb-1">
+                  Groq API Key (Recommended)
+                </label>
+                <input
+                  type="password"
+                  id="groq-api-key"
+                  value={currentSettings.groqApiKey || ''}
+                  onChange={(e) => handleSettingChange({ groqApiKey: e.target.value })}
+                  placeholder="gsk_..."
+                  className="w-full backdrop-blur-sm bg-white/50 border-slate-300/80 border rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                />
+                <p className="text-xs text-slate-500 mt-1">
+                  Ultra-fast Whisper inference. Free tier: 14,400 requests/day. Get key at <a href="https://console.groq.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">console.groq.com</a>
+                </p>
+              </div>
+
+              <div>
+                <label htmlFor="deepgram-api-key" className="block text-sm font-medium text-slate-700 mb-1">
+                  Deepgram API Key
+                </label>
+                <input
+                  type="password"
+                  id="deepgram-api-key"
+                  value={currentSettings.deepgramApiKey || ''}
+                  onChange={(e) => handleSettingChange({ deepgramApiKey: e.target.value })}
+                  placeholder="..."
+                  className="w-full backdrop-blur-sm bg-white/50 border-slate-300/80 border rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                />
+                <p className="text-xs text-slate-500 mt-1">
+                  High-quality transcription. $200 free credits (775 hours). Get key at <a href="https://console.deepgram.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">console.deepgram.com</a>
+                </p>
+              </div>
+
+              <div>
+                <label htmlFor="openai-api-key" className="block text-sm font-medium text-slate-700 mb-1">
+                  OpenAI API Key (Whisper)
+                </label>
+                <input
+                  type="password"
+                  id="openai-api-key"
+                  value={currentSettings.openaiApiKey || ''}
+                  onChange={(e) => handleSettingChange({ openaiApiKey: e.target.value })}
+                  placeholder="sk-..."
+                  className="w-full backdrop-blur-sm bg-white/50 border-slate-300/80 border rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                />
+                <p className="text-xs text-slate-500 mt-1">
+                  OpenAI Whisper API. Paid service (~$0.006/minute)
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-3 p-3 rounded-lg bg-blue-50 border border-blue-200">
+              <p className="text-xs text-blue-800">
+                <strong>Smart Routing:</strong> The system will automatically choose the best available service: Groq (fastest) → Deepgram (high quality) → Chunked processing → Gemini (fallback)
+              </p>
+            </div>
+          </div>
+
           {/* Environment Status */}
           <div className={`p-3 rounded-lg ${proxyAvailable ? 'bg-green-50 border border-green-200' : 'bg-amber-50 border border-amber-200'}`}>
             <div className="flex items-start space-x-2">

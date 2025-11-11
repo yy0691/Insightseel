@@ -13,10 +13,9 @@ let ffmpegInstance: FFmpeg | null = null;
 let isFFmpegLoaded = false;
 let loadingPromise: Promise<FFmpeg> | null = null;
 
-const DEFAULT_FFMPEG_VERSION = '0.12.10';
+const DEFAULT_FFMPEG_VERSION = '0.12.9';
 const DEFAULT_BASE_URLS = [
   `https://cdn.jsdelivr.net/npm/@ffmpeg/core@${DEFAULT_FFMPEG_VERSION}/dist/umd`,
-  'https://cdn.jsdelivr.net/npm/@ffmpeg/core@latest/dist/umd',
   `https://unpkg.com/@ffmpeg/core@${DEFAULT_FFMPEG_VERSION}/dist/umd`,
 ];
 

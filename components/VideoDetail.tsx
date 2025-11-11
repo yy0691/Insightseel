@@ -530,7 +530,7 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
                     <div className="p-4 space-y-6">
                         <div>
                             <h3 className="font-semibold mb-2">{t('summary')}</h3>
-                            <div className="text-sm text-slate-700 leading-relaxed"><MarkdownRenderer content={summaryAnalysis.result} /></div>
+                            <div className="text-sm text-slate-700 leading-relaxed"><MarkdownRenderer content={summaryAnalysis.result} onTimestampClick={handleSeekTo} /></div>
                         </div>
                         {topicsAnalysis && (
                           <div>
@@ -692,7 +692,13 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
             </div>
         )}
         {activeTab === 'Chat' && (
-            <ChatPanel video={video} subtitles={subtitles} screenshotDataUrl={screenshotDataUrl} onClearScreenshot={() => setScreenshotDataUrl(null)} />
+            <ChatPanel
+              video={video}
+              subtitles={subtitles}
+              screenshotDataUrl={screenshotDataUrl}
+              onClearScreenshot={() => setScreenshotDataUrl(null)}
+              onSeekToTime={handleSeekTo}
+            />
         )}
         {activeTab === 'Notes' && (
             <NotesPanel video={video} note={note} />

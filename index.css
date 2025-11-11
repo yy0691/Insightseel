@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Global scrollbar styles - only show color when scrolling */
+/* For Webkit-based browsers (Chrome, Safari, etc.) */
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: transparent;
+  border-radius: 10px;
+  transition: background-color 0.3s ease;
+}
+*:active::-webkit-scrollbar-thumb,
+*:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(100, 116, 139, 0.4);
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(100, 116, 139, 0.6);
+}
+
+/* For Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+*:hover {
+  scrollbar-color: rgba(100, 116, 139, 0.4) transparent;
+}
+
+/* Custom scrollbar class for elements that need completely hidden scrollbars */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
+}
+.custom-scrollbar {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}

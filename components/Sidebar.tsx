@@ -108,7 +108,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   return (
     <div className={`h-full flex flex-col backdrop-blur-sm bg-white/90 border border-slate-200/40 transition-all duration-300 ease-in-out ${sidebarWidthClass} rounded-2xl shadow-sm`}>
       {/* Header */}
-      <div className={`p-4 h-[65px] border-b border-slate-200/40 flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
+      <div className={`p-4 h-[48px] border-b border-slate-200/40 flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
         <h1 className="text-xl font-bold text-slate-800 transition-opacity duration-200 flex items-center gap-2">
           {isCollapsed ? (
             <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 text-slate-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">

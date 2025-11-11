@@ -692,13 +692,15 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
             </div>
         )}
         {activeTab === 'Chat' && (
-            <ChatPanel
-              video={video}
-              subtitles={subtitles}
-              screenshotDataUrl={screenshotDataUrl}
-              onClearScreenshot={() => setScreenshotDataUrl(null)}
-              onSeekToTime={handleSeekTo}
-            />
+            <div className="flex-1 flex flex-col min-h-0">
+              <ChatPanel
+                video={video}
+                subtitles={subtitles}
+                screenshotDataUrl={screenshotDataUrl}
+                onClearScreenshot={() => setScreenshotDataUrl(null)}
+                onSeekToTime={handleSeekTo}
+              />
+            </div>
         )}
         {activeTab === 'Notes' && (
             <NotesPanel video={video} note={note} />

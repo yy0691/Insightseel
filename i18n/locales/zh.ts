@@ -107,10 +107,10 @@ export const zh: Translations = {
 
   // Gemini Prompts
   generateSubtitlesPrompt: (spokenLang: string, targetLang: string) => `请为该视频转写音频。视频中使用的语言是${spokenLang}。请用${targetLang}提供转写结果。如果${spokenLang}和${targetLang}不同，请进行翻译。最终输出必须为包含时间戳的 SRT (SubRip Text) 格式，且输出内容只能是 SRT 格式文本。`,
-  analysisSummaryPrompt: (targetLang: string) => `请分析该视频，并提供一份内容简洁的摘要。摘要应抓住视频的要点和核心信息。响应必须使用${targetLang}，并采用 Markdown 格式。`,
+  analysisSummaryPrompt: (targetLang: string) => `请分析该视频，并提供一份内容简洁的摘要。摘要应抓住视频的要点和核心信息。在引用特定时刻时，请以 [HH:MM:SS] 或 [MM:SS] 格式包含时间戳（例如："在 [02:15] 处演讲者讨论了..."）。响应必须使用${targetLang}，并采用 Markdown 格式。`,
   analysisKeyInfoPrompt: (targetLang: string) => `分析此视频并确定 5-10 个关键时刻或重要的主题转换。对于每一项，请在行首以 [HH:MM:SS] 的确切格式提供时间戳，后跟简要说明。如果没有明确的“事件”，请重点关注演讲者转换到新主题或提出关键论点的时间点。将整个输出格式化为列表。每个项目必须是单行。请不要在列表前添加任何前言或解释。例如：“[00:02:15] 演讲者介绍了神经网络的概念。” 响应必须使用${targetLang}。`,
   analysisTopicsPrompt: (targetLang: string) => `请识别该视频中讨论或展示的 3 到 5 个最重要的话题或主题。仅以 Markdown 无序列表的形式列出主题名称，不要添加任何解释。响应必须使用${targetLang}。`,
-  chatSystemInstruction: (targetLang: string) => `你是一个乐于助人的人工智能助手。你将回答关于一个视频的问题。用户将在第一条消息中提供视频。你的回答必须使用${targetLang}。`,
+  chatSystemInstruction: (targetLang: string) => `你是一个乐于助人的人工智能助手。你将回答关于一个视频的问题。用户将在第一条消息中提供视频。你的回答必须使用${targetLang}。\n\n重要提示：在引用视频中的特定时刻时，务必以 [HH:MM:SS] 或 [MM:SS] 格式包含时间戳。例如："在 [02:15] 处演讲者讨论了..." 或 "关键点在 [01:23:45] 被提到..."。这有助于用户导航到你所指的确切时刻。`,
   deleteVideoConfirmation: (videoName: string) => `您确定要删除视频 “${videoName}” 及其所有关联数据吗？此操作无法撤销。`,
   deleteFolderConfirmation: (folderName: string, count: number) => `您确定要删除文件夹 “${folderName}” 及其中的全部 ${count} 个视频吗？此操作无法撤销。`,
   collapseSidebar: "收起",

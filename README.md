@@ -18,12 +18,23 @@ View your app in AI Studio: https://ai.studio/apps/drive/10umFyhQTrYignX_evH9sRp
 3. Run the app:
    `npm run dev`
 
+## Multi-Provider Support
+
+This app supports multiple AI providers:
+- **Gemini** (Google Generative AI) - Default, supports vision & audio
+- **OpenAI** (GPT models) - Supports vision
+- **Poe** (Poe API) - Requires proxy due to CORS
+- **Custom** - Any Gemini-compatible API
+
+See [PROXY_SETUP.md](./PROXY_SETUP.md) for detailed configuration guide.
+
 ## Deploy to Vercel
 
 For secure deployment with API key protection, see the detailed guide in [VERCEL_DEPLOYMENT.md](./VERCEL_DEPLOYMENT.md).
 
 **Quick Summary:**
-- Set `GEMINI_API_KEY` (without `VITE_` prefix) in Vercel environment variables
-- Your API key stays secure on the backend
+- Set provider API keys (e.g., `GEMINI_API_KEY`, `OPENAI_API_KEY`) in Vercel environment variables
+- Your API keys stay secure on the backend
 - Users can try the app without configuring their own key
 - Users who set their own key use direct API calls (not your quota)
+- Multiple providers can be configured simultaneously

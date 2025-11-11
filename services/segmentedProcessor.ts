@@ -269,5 +269,11 @@ export function estimateProcessingTime(
  * Check if segmented processing is available
  */
 export async function isSegmentedProcessingAvailable(): Promise<boolean> {
+  // Allow disabling segmented processing via environment variable
+  if ((import.meta as any).env?.VITE_DISABLE_SEGMENTED === 'true') {
+    console.log('[Segmented] Disabled via VITE_DISABLE_SEGMENTED environment variable');
+    return false;
+  }
+  
   return await isFFmpegAvailable();
 }

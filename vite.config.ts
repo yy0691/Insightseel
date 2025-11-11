@@ -17,6 +17,10 @@ export default defineConfig({
     hmr: {
       clientPort: 5000,
     },
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'credentialless',
+    },
   },
   plugins: [react()],
   resolve: {

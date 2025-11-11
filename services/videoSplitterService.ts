@@ -9,6 +9,7 @@ import { fetchFile, toBlobURL } from '@ffmpeg/util';
 
 let ffmpegInstance: FFmpeg | null = null;
 let isFFmpegLoaded = false;
+let loadingPromise: Promise<FFmpeg> | null = null;
 
 /**
  * Load FFmpeg instance
@@ -18,7 +19,14 @@ async function loadFFmpeg(onProgress?: (progress: number) => void): Promise<FFmp
     return ffmpegInstance;
   }
 
-  ffmpegInstance = new FFmpeg();
+  // If already loading, return the existing promise
+  if (loadingPromise) {
+    console.log('[FFmpeg] Already loading, waiting for existing load to complete...');
+    return loadingPromise;
+  }
+
+  loadingPromise = (async () => {
+    ffmpegInstance = new FFmpeg();
   
   ffmpegInstance.on('log', ({ message }) => {
     console.log('[FFmpeg]', message);
@@ -28,15 +36,22 @@ async function loadFFmpeg(onProgress?: (progress: number) => void): Promise<FFmp
     onProgress?.(Math.round(progress * 100));
   });
 
-  const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+  const baseURL = (import.meta as any).env?.VITE_FFMPEG_BASE_URL || 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+  console.log('[FFmpeg] core base URL:', baseURL);
   
+  console.log('[FFmpeg] Starting load...');
   await ffmpegInstance.load({
     coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
     wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
   });
+  console.log('[FFmpeg] Load completed successfully');
 
-  isFFmpegLoaded = true;
-  return ffmpegInstance;
+    isFFmpegLoaded = true;
+    loadingPromise = null;
+    return ffmpegInstance;
+  })();
+
+  return loadingPromise;
 }
 
 export interface VideoSegmentInfo {
@@ -189,11 +204,18 @@ async function getVideoMetadata(file: File): Promise<{ duration: number; width: 
  */
 export async function isFFmpegAvailable(): Promise<boolean> {
   try {
-    // Check if we can load FFmpeg
-    await loadFFmpeg();
+    // Check if we can load FFmpeg with timeout (increased to 60s for slower machines)
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('FFmpeg load timeout after 60s')), 60000);
+    });
+    
+    console.log('[FFmpeg] Starting availability check...');
+    await Promise.race([loadFFmpeg(), timeoutPromise]);
+    console.log('[FFmpeg] Successfully loaded and ready');
     return true;
   } catch (error) {
-    console.error('FFmpeg not available:', error);
+    console.error('[FFmpeg] Not available:', error);
+    console.log('[FFmpeg] Falling back to standard processing (10-minute limit)');
     return false;
   }
 }

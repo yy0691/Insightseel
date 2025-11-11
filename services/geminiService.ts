@@ -70,7 +70,9 @@ async function generateContentViaProxy(
     contents: any,
     systemInstruction?: string,
 ): Promise<string> {
+    const settings = await getEffectiveSettings();
     const payload: any = {
+        provider: settings.provider || 'gemini',
         contents: Array.isArray(contents) ? contents : [contents]
     };
 
@@ -108,7 +110,9 @@ async function generateContentStreamViaProxy(
     onStreamText?: (text: string) => void,
     systemInstruction?: string,
 ): Promise<string> {
+    const settings = await getEffectiveSettings();
     const payload: any = {
+        provider: settings.provider || 'gemini',
         contents: Array.isArray(contents) ? contents : [contents],
         stream: true
     };
@@ -524,6 +528,7 @@ export async function testConnection(settings: APISettings): Promise<{success: b
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
+                    provider: settings.provider || 'gemini',
                     contents: [{ parts: [{ text: "Hello" }] }] 
                 }),
             });
@@ -532,7 +537,7 @@ export async function testConnection(settings: APISettings): Promise<{success: b
                 const errorData = await response.json().catch(() => ({ error: 'Proxy request failed' }));
                 throw new Error(errorData.error || `Request failed with status ${response.status}`);
             }
-            return { success: true, message: "Successfully connected via proxy!" };
+            return { success: true, message: `Successfully connected via proxy (${settings.provider || 'gemini'})!` };
         }
 
         const apiKey = settings.apiKey;

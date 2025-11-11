@@ -5,6 +5,8 @@ import { subtitleDB } from '../services/dbService';
 import { translateSubtitles } from '../services/geminiService';
 import { generateVideoHash } from '../services/cacheService';
 import { generateResilientSubtitles, generateResilientInsights } from '../services/videoProcessingService';
+import { isSegmentedProcessingAvailable } from '../services/segmentedProcessor';
+
 import ChatPanel from './ChatPanel';
 import NotesPanel from './NotesPanel';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -76,6 +78,7 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
   const [generationStatus, setGenerationStatus] = useState({ active: false, stage: '', progress: 0 });
   const [streamingSubtitles, setStreamingSubtitles] = useState(''); // For real-time subtitle display
   const [videoHash, setVideoHash] = useState<string>(''); // Video hash for caching
+  const [segmentedAvailable, setSegmentedAvailable] = useState(false);
   const summaryAnalysis = analyses.find(a => a.type === 'summary');
   const topicsAnalysis = analyses.find(a => a.type === 'topics');
   const keyInfoAnalysis = analyses.find(a => a.type === 'key-info');
@@ -88,6 +91,7 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
       setVideoHash(hash);
       console.log('Video hash generated:', hash);
     });
+    isSegmentedProcessingAvailable().then(setSegmentedAvailable).catch(() => setSegmentedAvailable(false));
   }, [video]);
   
   const TABS_MAP: Record<TabType, string> = useMemo(() => ({
@@ -185,6 +189,12 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
   };
   
   const handleGenerateSubtitles = async () => {
+    // Prevent duplicate calls
+    if (isGeneratingSubtitles) {
+      console.log('Subtitle generation already in progress, ignoring duplicate call');
+      return;
+    }
+
     // Validate file size (max 2GB)
     const fileSizeGB = video.file.size / (1024 * 1024 * 1024);
     const fileSizeMB = video.file.size / (1024 * 1024);
@@ -196,8 +206,22 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
 
     console.log(`Starting subtitle generation for ${fileSizeMB.toFixed(1)}MB video`);
 
+    // Set initial state early to show UI feedback
+    setIsGeneratingSubtitles(true);
+    setShowGenerateOptions(false);
+    setGenerationStatus({ active: true, stage: 'Preparing...', progress: 0 });
+
     // Get video duration for better user feedback
     try {
+      // Re-check segmented availability in case FFmpeg finished loading now
+      let segAvail = segmentedAvailable;
+      try {
+        if (!segAvail) {
+          setGenerationStatus({ active: true, stage: 'Checking video processing capabilities...', progress: 2 });
+          segAvail = await isSegmentedProcessingAvailable();
+          if (segAvail !== segmentedAvailable) setSegmentedAvailable(segAvail);
+        }
+      } catch {}
       const metadata = await new Promise<{ duration: number }>((resolve, reject) => {
         const v = document.createElement('video');
         v.preload = 'metadata';
@@ -213,17 +237,22 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
       });
 
       const durationMin = metadata.duration / 60;
-      const truncatedDuration = Math.min(durationMin, MAX_SUBTITLE_DURATION_MIN);
+      const truncatedDuration = segAvail ? durationMin : Math.min(durationMin, MAX_SUBTITLE_DURATION_MIN);
       const estimateText = formatProcessingEstimate(getProcessingEstimate(truncatedDuration));
 
-      if (durationMin > MAX_SUBTITLE_DURATION_MIN) {
+      if (!segAvail && durationMin > MAX_SUBTITLE_DURATION_MIN) {
         const proceed = confirm(
           `This video is ${durationMin.toFixed(1)} minutes long.\n\n` +
           `To avoid proxy timeout, only the first ${MAX_SUBTITLE_DURATION_MIN} minutes will be used for subtitle generation.\n\n` +
           `Estimated processing time: ${estimateText}.\n\n` +
           `Continue?`
         );
-        if (!proceed) return;
+        if (!proceed) {
+          // User cancelled, reset state
+          setIsGeneratingSubtitles(false);
+          setGenerationStatus({ active: false, stage: '', progress: 0 });
+          return;
+        }
       } else {
         console.log(
           `Video duration: ${durationMin.toFixed(1)} minutes. Estimated processing time: ${estimateText}.`
@@ -233,10 +262,9 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
       console.warn('Could not get video duration:', err);
     }
 
-    setIsGeneratingSubtitles(true);
-    setShowGenerateOptions(false);
+    // Update status (initial state already set above)
     setStreamingSubtitles('');
-    setGenerationStatus({ active: true, stage: 'Checking cache...', progress: 0 });
+    setGenerationStatus({ active: true, stage: 'Checking cache...', progress: 5 });
 
     const targetLanguageName = language === 'zh' ? 'Chinese' : 'English';
     const prompt = t('generateSubtitlesPrompt', sourceLanguage, targetLanguageName);

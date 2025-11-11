@@ -10,6 +10,21 @@ interface RetryOptions {
 }
 
 /**
+ * Check if error is retryable (temporary network/server issues)
+ */
+function isRetryableError(error: Error): boolean {
+  const message = error.message.toLowerCase();
+  return (
+    message.includes('503') ||
+    message.includes('overloaded') ||
+    message.includes('temporarily unavailable') ||
+    message.includes('rate limit') ||
+    message.includes('timeout') ||
+    message.includes('network')
+  );
+}
+
+/**
  * Retry a function with exponential backoff
  */
 export async function retryWithBackoff<T>(
@@ -29,9 +44,16 @@ export async function retryWithBackoff<T>(
       return await fn();
     } catch (error) {
       lastError = error as Error;
-      
+
       if (attempt < maxRetries) {
-        const delay = delayMs * Math.pow(2, attempt); // Exponential backoff
+        // Use longer delays for server overload errors
+        const isOverload = isRetryableError(lastError);
+        const baseDelay = isOverload ? delayMs * 3 : delayMs;
+        const delay = baseDelay * Math.pow(2, attempt); // Exponential backoff
+
+        console.log(`[Retry] Attempt ${attempt + 1}/${maxRetries} failed: ${lastError.message}`);
+        console.log(`[Retry] Waiting ${(delay / 1000).toFixed(1)}s before retry...`);
+
         onRetry?.(attempt + 1, lastError);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
@@ -136,24 +158,3 @@ export function isNetworkError(error: any): boolean {
   return false;
 }
 
-/**
- * Check if error is retryable
- */
-export function isRetryableError(error: any): boolean {
-  // Network errors are retryable
-  if (isNetworkError(error)) {
-    return true;
-  }
-  
-  // HTTP 5xx errors are retryable
-  if (error.status >= 500 && error.status < 600) {
-    return true;
-  }
-  
-  // Rate limit errors are retryable (with longer delay)
-  if (error.status === 429) {
-    return true;
-  }
-  
-  return false;
-}

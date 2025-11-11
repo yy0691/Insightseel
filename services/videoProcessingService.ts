@@ -160,11 +160,16 @@ async function runGeminiSubtitleGeneration(
       },
     );
   }, {
-    maxRetries: 3,
+    maxRetries: 4,
     delayMs: 2000,
     onRetry: (attempt, error) => {
-      onStatus?.({ stage: `Retrying subtitle generation... (${attempt}/3)`, progress: 0 });
-      console.warn('Retrying Gemini subtitle generation:', error);
+      const isOverload = error.message.toLowerCase().includes('overload') || error.message.includes('503');
+      const message = isOverload
+        ? `API overloaded, waiting to retry subtitle generation (${attempt}/4)...`
+        : `Retrying subtitle generation (${attempt}/4)...`;
+
+      onStatus?.({ stage: message, progress: 0 });
+      console.warn(`[Retry ${attempt}/4] Subtitle generation:`, error.message);
     },
   });
 
@@ -567,11 +572,16 @@ export async function generateResilientInsights(
       resultText = await retryWithBackoff(async () => {
         return await analyzeVideo({ ...payload, prompt });
       }, {
-        maxRetries: 2,
-        delayMs: 1500,
-        onRetry: (attempt) => {
+        maxRetries: 4,
+        delayMs: 2000,
+        onRetry: (attempt, error) => {
+          const isOverload = error.message.toLowerCase().includes('overload') || error.message.includes('503');
+          const message = isOverload
+            ? `API overloaded, waiting to retry ${type} (${attempt}/4)...`
+            : `Retrying analysis for ${type} (${attempt}/4)...`;
+
           onStatus?.({
-            stage: `Retrying analysis for ${type} (${attempt}/2)...`,
+            stage: message,
             progress: Math.round((completed / typesToGenerate.length) * 70 + 25),
           });
         },

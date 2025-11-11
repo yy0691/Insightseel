@@ -36,7 +36,7 @@ const VideoItem: React.FC<{ video: Video; selectedVideoId: string | null; onSele
         )}
       </button>
       {isCollapsed && (
-        <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-opacity duration-200 bg-slate-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-20 shadow-lg pointer-events-none">
+        <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-slate-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-50 shadow-lg pointer-events-none">
           {video.name}
         </div>
       )}

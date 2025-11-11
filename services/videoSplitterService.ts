@@ -5,11 +5,119 @@
  */
 
 import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { fetchFile, toBlobURL } from '@ffmpeg/util';
+import { fetchFile } from '@ffmpeg/util';
+
+type MimeType = 'text/javascript' | 'application/wasm';
 
 let ffmpegInstance: FFmpeg | null = null;
 let isFFmpegLoaded = false;
 let loadingPromise: Promise<FFmpeg> | null = null;
+
+const DEFAULT_FFMPEG_VERSION = '0.12.10';
+const DEFAULT_BASE_URLS = [
+  `https://cdn.jsdelivr.net/npm/@ffmpeg/core@${DEFAULT_FFMPEG_VERSION}/dist/umd`,
+  'https://cdn.jsdelivr.net/npm/@ffmpeg/core@latest/dist/umd',
+  `https://unpkg.com/@ffmpeg/core@${DEFAULT_FFMPEG_VERSION}/dist/umd`,
+];
+
+const DEFAULT_FETCH_TIMEOUT = 45_000;
+const DEFAULT_LOAD_TIMEOUT = 120_000;
+
+const blobUrlCache = new Map<string, string>();
+
+function resolveConfiguredBaseUrls(): string[] {
+  const raw = (import.meta as any).env?.VITE_FFMPEG_BASE_URL as string | undefined;
+
+  const configured = raw
+    ? raw
+        .split(',')
+        .map((entry) => entry.trim())
+        .filter(Boolean)
+    : [];
+
+  const unique = new Set<string>();
+  [...configured, ...DEFAULT_BASE_URLS].forEach((url) => {
+    if (!url) {
+      return;
+    }
+
+    // Normalise trailing slash to avoid duplicate requests
+    const normalised = url.endsWith('/') ? url.slice(0, -1) : url;
+    unique.add(normalised);
+  });
+
+  return Array.from(unique.values());
+}
+
+function getLoadTimeout(): number {
+  const rawTimeout = (import.meta as any).env?.VITE_FFMPEG_LOAD_TIMEOUT_MS;
+  const parsed = typeof rawTimeout === 'string' ? Number.parseInt(rawTimeout, 10) : NaN;
+
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_LOAD_TIMEOUT;
+}
+
+function getFetchTimeout(): number {
+  const rawTimeout = (import.meta as any).env?.VITE_FFMPEG_DOWNLOAD_TIMEOUT_MS;
+  const parsed = typeof rawTimeout === 'string' ? Number.parseInt(rawTimeout, 10) : NaN;
+
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_FETCH_TIMEOUT;
+}
+
+async function createBlobUrlFromSource(
+  url: string,
+  mimeType: MimeType,
+  timeoutMs: number,
+): Promise<string> {
+  if (blobUrlCache.has(url)) {
+    return blobUrlCache.get(url)!;
+  }
+
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timeout = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+
+  try {
+    const response = await fetch(url, {
+      signal: controller?.signal,
+      credentials: 'omit',
+      mode: 'cors',
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch ${url} - ${response.status} ${response.statusText}`);
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    const blob = new Blob([arrayBuffer], { type: mimeType });
+    const objectUrl = URL.createObjectURL(blob);
+
+    blobUrlCache.set(url, objectUrl);
+    return objectUrl;
+  } catch (error) {
+    if ((error as DOMException)?.name === 'AbortError') {
+      throw new Error(`Fetch timed out after ${timeoutMs}ms: ${url}`);
+    }
+
+    throw error;
+  } finally {
+    if (timeout !== null) {
+      clearTimeout(timeout);
+    }
+  }
+}
+
+function resolveAssetUrl(baseUrl: string, assetName: string): string {
+  return `${baseUrl}/${assetName}`;
+}
+
+function attachEventHandlers(instance: FFmpeg, onProgress?: (progress: number) => void) {
+  instance.on('log', ({ message }) => {
+    console.log('[FFmpeg]', message);
+  });
+
+  instance.on('progress', ({ progress }) => {
+    onProgress?.(Math.round(progress * 100));
+  });
+}
 
 /**
  * Load FFmpeg instance
@@ -19,39 +127,62 @@ async function loadFFmpeg(onProgress?: (progress: number) => void): Promise<FFmp
     return ffmpegInstance;
   }
 
-  // If already loading, return the existing promise
   if (loadingPromise) {
     console.log('[FFmpeg] Already loading, waiting for existing load to complete...');
     return loadingPromise;
   }
 
+  const baseUrls = resolveConfiguredBaseUrls();
+  const fetchTimeout = getFetchTimeout();
+
+  console.log('[FFmpeg] Starting load with sources:', baseUrls);
+
   loadingPromise = (async () => {
-    ffmpegInstance = new FFmpeg();
-  
-  ffmpegInstance.on('log', ({ message }) => {
-    console.log('[FFmpeg]', message);
-  });
+    let lastError: unknown = null;
 
-  ffmpegInstance.on('progress', ({ progress }) => {
-    onProgress?.(Math.round(progress * 100));
-  });
+    for (const baseUrl of baseUrls) {
+      try {
+        const instance = new FFmpeg();
+        attachEventHandlers(instance, onProgress);
 
-  const baseURL = (import.meta as any).env?.VITE_FFMPEG_BASE_URL || 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
-  console.log('[FFmpeg] core base URL:', baseURL);
-  
-  console.log('[FFmpeg] Starting load...');
-  await ffmpegInstance.load({
-    coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-    wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-  });
-  console.log('[FFmpeg] Load completed successfully');
+        console.log(`[FFmpeg] Attempting load from ${baseUrl}`);
 
-    isFFmpegLoaded = true;
-    loadingPromise = null;
-    return ffmpegInstance;
+        const [coreURL, wasmURL, workerURL] = await Promise.all([
+          createBlobUrlFromSource(resolveAssetUrl(baseUrl, 'ffmpeg-core.js'), 'text/javascript', fetchTimeout),
+          createBlobUrlFromSource(resolveAssetUrl(baseUrl, 'ffmpeg-core.wasm'), 'application/wasm', fetchTimeout),
+          createBlobUrlFromSource(resolveAssetUrl(baseUrl, 'ffmpeg-core.worker.js'), 'text/javascript', fetchTimeout),
+        ]);
+
+        await instance.load({
+          coreURL,
+          wasmURL,
+          workerURL,
+        });
+
+        console.log(`[FFmpeg] Load completed successfully from ${baseUrl}`);
+
+        ffmpegInstance = instance;
+        isFFmpegLoaded = true;
+        return instance;
+      } catch (error) {
+        lastError = error;
+        console.error(`[FFmpeg] Failed to load from ${baseUrl}:`, error);
+      }
+    }
+
+    throw lastError ?? new Error('Unable to load FFmpeg from any configured source');
   })();
 
-  return loadingPromise;
+  try {
+    const instance = await loadingPromise;
+    loadingPromise = null;
+    return instance;
+  } catch (error) {
+    loadingPromise = null;
+    ffmpegInstance = null;
+    isFFmpegLoaded = false;
+    throw error;
+  }
 }
 
 export interface VideoSegmentInfo {
@@ -203,19 +334,31 @@ async function getVideoMetadata(file: File): Promise<{ duration: number; width: 
  * Check if FFmpeg is available
  */
 export async function isFFmpegAvailable(): Promise<boolean> {
+  let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+
   try {
-    // Check if we can load FFmpeg with timeout (increased to 60s for slower machines)
+    const timeoutMs = getLoadTimeout();
     const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error('FFmpeg load timeout after 60s')), 60000);
+      timeoutHandle = setTimeout(
+        () => reject(new Error(`FFmpeg load timeout after ${Math.round(timeoutMs / 1000)}s`)),
+        timeoutMs,
+      );
     });
-    
+
     console.log('[FFmpeg] Starting availability check...');
-    await Promise.race([loadFFmpeg(), timeoutPromise]);
+    const loadPromise = loadFFmpeg();
+    void loadPromise.catch(() => undefined);
+    await Promise.race([loadPromise, timeoutPromise]);
     console.log('[FFmpeg] Successfully loaded and ready');
     return true;
   } catch (error) {
     console.error('[FFmpeg] Not available:', error);
     console.log('[FFmpeg] Falling back to standard processing (10-minute limit)');
     return false;
+  } finally {
+    // Ensure we clear timeout when the promise settles
+    if (timeoutHandle !== null) {
+      clearTimeout(timeoutHandle);
+    }
   }
 }

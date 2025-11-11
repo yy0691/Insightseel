@@ -112,28 +112,14 @@ const Sidebar: React.FC<SidebarProps> = ({
         <h1 className="text-xl font-bold text-slate-800 transition-opacity duration-200 flex items-center gap-2">
           {isCollapsed ? (
             <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 text-slate-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-              <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
-              <circle cx="12" cy="12" r="3"/>
-              <path d="M12 2v3"/>
-              <path d="m6.8 15-2.2 2.2"/>
-              <path d="M12 19v3"/>
-              <path d="m17.2 15 2.2 2.2"/>
-              <path d="M12 2l-2.2 2.2"/>
-              <path d="m6.8 9-2.2-2.2"/>
-              <path d="m17.2 9 2.2-2.2"/>
+              <rect width="18" height="14" x="3" y="5" rx="2"/>
+              <path d="m9 10 6 4-6 4V10z"/>
             </svg>
           ) : (
             <>
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-slate-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
-                <circle cx="12" cy="12" r="3"/>
-                <path d="M12 2v3"/>
-                <path d="m6.8 15-2.2 2.2"/>
-                <path d="M12 19v3"/>
-                <path d="m17.2 15 2.2 2.2"/>
-                <path d="M12 2l-2.2 2.2"/>
-                <path d="m6.8 9-2.2-2.2"/>
-                <path d="m17.2 9 2.2-2.2"/>
+                <rect width="18" height="14" x="3" y="5" rx="2"/>
+                <path d="m9 10 6 4-6 4V10z"/>
               </svg>
               <span>{t('appName')}</span>
             </>

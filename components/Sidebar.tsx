@@ -109,8 +109,35 @@ const Sidebar: React.FC<SidebarProps> = ({
     <div className={`h-full flex flex-col backdrop-blur-sm bg-white/90 border border-slate-200/40 transition-all duration-300 ease-in-out ${sidebarWidthClass} rounded-2xl shadow-sm`}>
       {/* Header */}
       <div className={`p-4 h-[65px] border-b border-slate-200/40 flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
-        <h1 className="text-xl font-bold text-slate-800 transition-opacity duration-200">
-          {isCollapsed ? '💡' : t('appName')}
+        <h1 className="text-xl font-bold text-slate-800 transition-opacity duration-200 flex items-center gap-2">
+          {isCollapsed ? (
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 text-slate-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M12 2v3"/>
+              <path d="m6.8 15-2.2 2.2"/>
+              <path d="M12 19v3"/>
+              <path d="m17.2 15 2.2 2.2"/>
+              <path d="M12 2l-2.2 2.2"/>
+              <path d="m6.8 9-2.2-2.2"/>
+              <path d="m17.2 9 2.2-2.2"/>
+            </svg>
+          ) : (
+            <>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-slate-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M12 2v3"/>
+                <path d="m6.8 15-2.2 2.2"/>
+                <path d="M12 19v3"/>
+                <path d="m17.2 15 2.2 2.2"/>
+                <path d="M12 2l-2.2 2.2"/>
+                <path d="m6.8 9-2.2-2.2"/>
+                <path d="m17.2 9 2.2-2.2"/>
+              </svg>
+              <span>{t('appName')}</span>
+            </>
+          )}
         </h1>
         {isMobile && !isCollapsed && (
           <button onClick={onToggle} className="p-2 -mr-2 rounded-full text-slate-600 hover:bg-white/40" aria-label="Close menu">

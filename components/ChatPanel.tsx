@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Video, Subtitles, ChatMessage } from '../types';
 import { generateChatResponse } from '../services/geminiService';
 import { Content } from '@google/genai';
@@ -11,20 +11,58 @@ interface ChatPanelProps {
   subtitles: Subtitles | null;
   screenshotDataUrl: string | null;
   onClearScreenshot: () => void;
+  onSeekToTime: (timeInSeconds: number) => void;
 }
 
-const ChatPanel: React.FC<ChatPanelProps> = ({ video, subtitles, screenshotDataUrl, onClearScreenshot }) => {
+const ChatPanel: React.FC<ChatPanelProps> = ({ video, subtitles, screenshotDataUrl, onClearScreenshot, onSeekToTime }) => {
   const [history, setHistory] = useState<ChatMessage[]>([]);
   const [currentMessage, setCurrentMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
+  const isInitializedRef = useRef(false);
   const { t, language } = useLanguage();
+
+  const storageKey = useMemo(() => `chatHistory-${video.id}`, [video.id]);
 
   // Reset history when video changes
   useEffect(() => {
-    setHistory([]);
-  }, [video.id]);
+    isInitializedRef.current = false;
+
+    if (typeof window === 'undefined') {
+      setHistory([]);
+      isInitializedRef.current = true;
+      return;
+    }
+
+    try {
+      const storedHistory = window.localStorage.getItem(storageKey);
+
+      if (storedHistory) {
+        const parsedHistory = JSON.parse(storedHistory) as ChatMessage[];
+        setHistory(parsedHistory);
+      } else {
+        setHistory([]);
+      }
+    } catch (error) {
+      console.error('Failed to load chat history from storage:', error);
+      setHistory([]);
+    } finally {
+      isInitializedRef.current = true;
+    }
+  }, [storageKey]);
+
+  useEffect(() => {
+    if (!isInitializedRef.current || typeof window === 'undefined') {
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(storageKey, JSON.stringify(history));
+    } catch (error) {
+      console.error('Failed to persist chat history:', error);
+    }
+  }, [history, storageKey]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -95,18 +133,17 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ video, subtitles, screenshotDataU
 
   return (
     <div className="flex flex-col flex-1 p-2">
-      <div className="flex-1 overflow-y-auto pr-2 space-y-4 p-4 custom-scrollbar">
+      <div className="flex-1 overflow-y-auto pr-2 space-y-4 p-4 custom-scrollbar max-h-[60vh]">
         {history.map((msg, index) => (
           <div key={index} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-xs md:max-w-md lg:max-w-lg rounded-2xl px-4 py-2 shadow-sm ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'backdrop-blur-sm bg-slate-200/60 text-slate-800'}`}>
                 {msg.role === 'user' && msg.image && (
                     <img src={msg.image} alt="user screenshot" className="w-full rounded-md mb-2 max-h-48 object-contain bg-black/20"/>
                 )}
-                {msg.role === 'model' ? (
-                    <MarkdownRenderer content={msg.text} />
-                ) : (
-                    <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
-                )}
+                <MarkdownRenderer
+                  content={msg.text}
+                  onTimestampClick={onSeekToTime}
+                />
             </div>
           </div>
         ))}

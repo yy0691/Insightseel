@@ -4,6 +4,8 @@ import VideoDetail from './components/VideoDetail';
 import WelcomeScreen from './components/WelcomeScreen';
 import SettingsModal from './components/SettingsModal';
 import FeedbackModal from './components/FeedbackModal';
+import AuthModal from './components/AuthModal';
+import AccountPanel from './components/AccountPanel';
 import Footer from './components/Footer';
 import TaskQueuePanel from './components/TaskQueuePanel';
 import { Video, Subtitles, Analysis, Note, APISettings } from './types';
@@ -11,6 +13,8 @@ import { videoDB, subtitleDB, analysisDB, noteDB, appDB, settingsDB, getEffectiv
 import { getVideoMetadata, parseSubtitleFile } from './utils/helpers';
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
 import { clearOldCache } from './services/cacheService';
+import { User } from '@supabase/supabase-js';
+import { authService } from './services/authService';
 
 const AppContent: React.FC<{ settings: APISettings, onSettingsChange: (newSettings: APISettings) => void }> = ({ settings, onSettingsChange }) => {
   const [videos, setVideos] = useState<Video[]>([]);
@@ -22,11 +26,57 @@ const AppContent: React.FC<{ settings: APISettings, onSettingsChange: (newSettin
   
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true); // Default to collapsed for minimalist feel
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
-  
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [showAccountPanel, setShowAccountPanel] = useState(false);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+
   const { t } = useLanguage();
+
+  useEffect(() => {
+    let mounted = true;
+
+    const initAuth = async () => {
+      if (!authService.isAvailable()) return;
+      const user = await authService.getCurrentUser();
+      if (mounted) setCurrentUser(user);
+    };
+
+    initAuth();
+
+    if (authService.isAvailable()) {
+      const { data } = authService.onAuthStateChange((user) => {
+        if (mounted) {
+          setCurrentUser(user);
+          if (user && isAuthModalOpen) {
+            setIsAuthModalOpen(false);
+            setShowAccountPanel(true);
+          }
+        }
+      });
+
+      return () => {
+        mounted = false;
+        data.subscription.unsubscribe();
+      };
+    }
+
+    return () => {
+      mounted = false;
+    };
+  }, [isAuthModalOpen]);
+
+  const handleSignOut = async () => {
+    try {
+      await authService.signOut();
+      setCurrentUser(null);
+      setShowAccountPanel(false);
+    } catch (error) {
+      console.error('Sign out error:', error);
+    }
+  };
 
   // Listen for window size changes
   useEffect(() => {
@@ -314,6 +364,27 @@ const AppContent: React.FC<{ settings: APISettings, onSettingsChange: (newSettin
         />
       )}
 
+      {/* Auth Modal */}
+      {isAuthModalOpen && (
+        <AuthModal
+          isOpen={isAuthModalOpen}
+          onClose={() => setIsAuthModalOpen(false)}
+          onSuccess={() => {
+            setIsAuthModalOpen(false);
+            setShowAccountPanel(true);
+          }}
+        />
+      )}
+
+      {/* Account Panel */}
+      {showAccountPanel && currentUser && (
+        <div className="fixed inset-0 bg-black/30 z-[60] flex items-center justify-center p-4" onClick={() => setShowAccountPanel(false)}>
+          <div className="w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <AccountPanel user={currentUser} onSignOut={handleSignOut} />
+          </div>
+        </div>
+      )}
+
       {videos.length > 0 && selectedVideo ? (
         <>
           {/* Desktop Sidebar */}
@@ -329,6 +400,9 @@ const AppContent: React.FC<{ settings: APISettings, onSettingsChange: (newSettin
               onOpenSettings={() => setIsSettingsModalOpen(true)}
               onDeleteFolder={handleDeleteFolder}
               isMobile={false}
+              onOpenAuth={() => setIsAuthModalOpen(true)}
+              onOpenAccount={() => setShowAccountPanel(true)}
+              currentUser={currentUser}
             />
           </div>
 
@@ -355,14 +429,23 @@ const AppContent: React.FC<{ settings: APISettings, onSettingsChange: (newSettin
                     handleImportFolderSelection(files);
                     setIsMobileSidebarOpen(false);
                   }}
-                  isCollapsed={false} // Always expanded on mobile
-                  onToggle={() => setIsMobileSidebarOpen(false)} // Close button
+                  isCollapsed={false}
+                  onToggle={() => setIsMobileSidebarOpen(false)}
                   onOpenSettings={() => {
                     setIsSettingsModalOpen(true);
                     setIsMobileSidebarOpen(false);
                   }}
                   onDeleteFolder={handleDeleteFolder}
                   isMobile={true}
+                  onOpenAuth={() => {
+                    setIsAuthModalOpen(true);
+                    setIsMobileSidebarOpen(false);
+                  }}
+                  onOpenAccount={() => {
+                    setShowAccountPanel(true);
+                    setIsMobileSidebarOpen(false);
+                  }}
+                  currentUser={currentUser}
                 />
               </div>
             </>

@@ -1,10 +1,8 @@
-import React, { useRef, useMemo, useState, useEffect } from 'react';
+import React, { useRef, useMemo, useState } from 'react';
 import { Video } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { User } from '@supabase/supabase-js';
 import { authService } from '../services/authService';
-import AuthModal from './AuthModal';
-import AccountPanel from './AccountPanel';
 import { exportService } from '../services/exportService';
 
 interface SidebarProps {
@@ -18,6 +16,9 @@ interface SidebarProps {
   onOpenSettings: () => void;
   onDeleteFolder: (folderPath: string) => void;
   isMobile?: boolean;
+  onOpenAuth?: () => void;
+  onOpenAccount?: () => void;
+  currentUser?: User | null;
 }
 
 const VideoItem: React.FC<{ video: Video; selectedVideoId: string | null; onSelectVideo: (id: string) => void; isCollapsed: boolean; }> = ({ video, selectedVideoId, onSelectVideo, isCollapsed }) => {
@@ -61,60 +62,17 @@ const Sidebar: React.FC<SidebarProps> = ({
   onOpenSettings,
   onDeleteFolder,
   isMobile = false,
+  onOpenAuth,
+  onOpenAccount,
+  currentUser: propCurrentUser,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
   const { t } = useLanguage();
 
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [showAccountPanel, setShowAccountPanel] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [exporting, setExporting] = useState(false);
-
-  useEffect(() => {
-    let mounted = true;
-
-    const initAuth = async () => {
-      if (!authService.isAvailable()) return;
-      const user = await authService.getCurrentUser();
-      if (mounted) setCurrentUser(user);
-    };
-
-    initAuth();
-
-    if (authService.isAvailable()) {
-      const { data } = authService.onAuthStateChange((user) => {
-        if (mounted) {
-          setCurrentUser(user);
-          if (user && isAuthModalOpen) {
-            setIsAuthModalOpen(false);
-            setShowAccountPanel(true);
-          }
-        }
-      });
-
-      return () => {
-        mounted = false;
-        data.subscription.unsubscribe();
-      };
-    }
-
-    return () => {
-      mounted = false;
-    };
-  }, [isAuthModalOpen]);
-
-  const handleSignOut = async () => {
-    try {
-      await authService.signOut();
-      setCurrentUser(null);
-      setShowAccountPanel(false);
-    } catch (error) {
-      console.error('Sign out error:', error);
-    }
-  };
 
   const handleExport = async (includeVideos: boolean) => {
     setExporting(true);
@@ -252,25 +210,25 @@ const Sidebar: React.FC<SidebarProps> = ({
         {/* Account / Auth Button */}
         {authService.isAvailable() && (
           <div className="mb-2">
-            {currentUser ? (
+            {propCurrentUser ? (
               <button
-                onClick={() => setShowAccountPanel(!showAccountPanel)}
+                onClick={() => onOpenAccount?.()}
                 className={`${controlButtonClasses} bg-slate-100/50`}
                 aria-label="Account"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
-                {!isCollapsed && !isMobile && <span className="ml-2 text-xs font-medium truncate">{currentUser.email?.split('@')[0]}</span>}
+                {!isCollapsed && !isMobile && <span className="ml-2 text-xs font-medium truncate">{propCurrentUser.email?.split('@')[0]}</span>}
                 {isCollapsed && (
                   <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-opacity duration-200 bg-slate-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-20 shadow-lg">
-                    {currentUser.email}
+                    {propCurrentUser.email}
                   </div>
                 )}
               </button>
             ) : (
               <button
-                onClick={() => setIsAuthModalOpen(true)}
+                onClick={() => onOpenAuth?.()}
                 className={`${controlButtonClasses} bg-blue-50/50 text-blue-600 hover:bg-blue-100/50`}
                 aria-label="Sign In"
               >
@@ -412,26 +370,6 @@ const Sidebar: React.FC<SidebarProps> = ({
         multiple
       />
 
-      {/* Auth Modal */}
-      {isAuthModalOpen && (
-        <AuthModal
-          isOpen={isAuthModalOpen}
-          onClose={() => setIsAuthModalOpen(false)}
-          onSuccess={() => {
-            setIsAuthModalOpen(false);
-            setShowAccountPanel(true);
-          }}
-        />
-      )}
-
-      {/* Account Panel - Fixed position overlay */}
-      {showAccountPanel && currentUser && (
-        <div className="fixed inset-0 bg-black/30 z-[60] flex items-center justify-center p-4" onClick={() => setShowAccountPanel(false)}>
-          <div className="w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-            <AccountPanel user={currentUser} onSignOut={handleSignOut} />
-          </div>
-        </div>
-      )}
     </div>
   );
 };

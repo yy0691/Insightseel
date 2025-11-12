@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
+import SyncExportPanel from './SyncExportPanel';
 
 interface WelcomeScreenProps {
   onImportFiles: (files: FileList) => void;
@@ -171,6 +172,11 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onImportFiles, onImportFo
               </p>
             </div>
           </div>
+        </div>
+
+        {/* Sync & Export Panel */}
+        <div className="mt-8 max-w-xl mx-auto">
+          <SyncExportPanel />
         </div>
       </div>
     </div>

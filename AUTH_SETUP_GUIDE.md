@@ -11,9 +11,9 @@ This guide explains how to configure authentication and cloud sync for InsightRe
 - ✅ Password Reset
 
 ### 2. **Cloud Sync Features**
-- ✅ Sync video metadata (name, duration, hash, etc.)
-- ✅ Sync subtitles (SRT content and segments)
-- ✅ Sync analyses (summary, key-info, topics)
+- ✅ Sync video metadata (name, duration, hash, etc.)- ✅ 同步视频元数据（名称、时长、哈希值等）
+- ✅ Sync subtitles (SRT content and segments)- ✅ 同步字幕（SRT 内容和片段）
+- ✅ Sync analyses (summary, key-info, topics)- ✅ 同步分析（摘要、关键信息、主题）
 - ✅ Sync notes
 - ✅ Sync chat history
 - ⚠️ **Video files are NOT synced** (stay in local browser storage)

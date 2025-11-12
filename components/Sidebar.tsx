@@ -1,6 +1,11 @@
-import React, { useRef, useMemo, useState } from 'react';
+import React, { useRef, useMemo, useState, useEffect } from 'react';
 import { Video } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
+import { User } from '@supabase/supabase-js';
+import { authService } from '../services/authService';
+import AuthModal from './AuthModal';
+import AccountPanel from './AccountPanel';
+import { exportService } from '../services/exportService';
 
 interface SidebarProps {
   videos: Video[];
@@ -61,6 +66,68 @@ const Sidebar: React.FC<SidebarProps> = ({
   const folderInputRef = useRef<HTMLInputElement>(null);
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
   const { t } = useLanguage();
+
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [showAccountPanel, setShowAccountPanel] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const initAuth = async () => {
+      if (!authService.isAvailable()) return;
+      const user = await authService.getCurrentUser();
+      if (mounted) setCurrentUser(user);
+    };
+
+    initAuth();
+
+    if (authService.isAvailable()) {
+      const { data } = authService.onAuthStateChange((user) => {
+        if (mounted) {
+          setCurrentUser(user);
+          if (user && isAuthModalOpen) {
+            setIsAuthModalOpen(false);
+            setShowAccountPanel(true);
+          }
+        }
+      });
+
+      return () => {
+        mounted = false;
+        data.subscription.unsubscribe();
+      };
+    }
+
+    return () => {
+      mounted = false;
+    };
+  }, [isAuthModalOpen]);
+
+  const handleSignOut = async () => {
+    try {
+      await authService.signOut();
+      setCurrentUser(null);
+      setShowAccountPanel(false);
+    } catch (error) {
+      console.error('Sign out error:', error);
+    }
+  };
+
+  const handleExport = async (includeVideos: boolean) => {
+    setExporting(true);
+    setShowExportMenu(false);
+    try {
+      await exportService.exportAllDataAndDownload(includeVideos);
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert(`Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files.length > 0) {
@@ -181,8 +248,90 @@ const Sidebar: React.FC<SidebarProps> = ({
       </nav>
 
       {/* Footer Controls */}
-      <div className="p-3 border-t border-slate-200/50">
-        {/* All Buttons */}
+      <div className="p-3 border-t border-slate-200/50 space-y-2">
+        {/* Account / Auth Button */}
+        {authService.isAvailable() && (
+          <div className="mb-2">
+            {currentUser ? (
+              <button
+                onClick={() => setShowAccountPanel(!showAccountPanel)}
+                className={`${controlButtonClasses} bg-slate-100/50`}
+                aria-label="Account"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                {!isCollapsed && !isMobile && <span className="ml-2 text-xs font-medium truncate">{currentUser.email?.split('@')[0]}</span>}
+                {isCollapsed && (
+                  <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-opacity duration-200 bg-slate-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-20 shadow-lg">
+                    {currentUser.email}
+                  </div>
+                )}
+              </button>
+            ) : (
+              <button
+                onClick={() => setIsAuthModalOpen(true)}
+                className={`${controlButtonClasses} bg-blue-50/50 text-blue-600 hover:bg-blue-100/50`}
+                aria-label="Sign In"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
+                </svg>
+                {!isCollapsed && !isMobile && <span className="ml-2 text-xs font-medium">Sign In</span>}
+                {isCollapsed && (
+                  <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-opacity duration-200 bg-slate-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-20 shadow-lg">
+                    Sign In
+                  </div>
+                )}
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Export Button with Menu */}
+        <div className="mb-2 relative">
+          <button
+            onClick={() => {
+              if (isCollapsed) {
+                handleExport(false);
+              } else {
+                setShowExportMenu(!showExportMenu);
+              }
+            }}
+            disabled={exporting}
+            className={`${controlButtonClasses} ${exporting ? 'opacity-50 cursor-not-allowed' : ''}`}
+            aria-label="Export"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
+            </svg>
+            {!isCollapsed && !isMobile && <span className="ml-2 text-xs font-medium">{exporting ? 'Exporting...' : 'Export'}</span>}
+            {isCollapsed && (
+              <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-opacity duration-200 bg-slate-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-20 shadow-lg">
+                Export Data (JSON)
+              </div>
+            )}
+          </button>
+
+          {showExportMenu && !isCollapsed && (
+            <div className="absolute bottom-full mb-2 left-0 right-0 bg-white border border-slate-200 rounded-lg shadow-lg p-2 space-y-1 z-50">
+              <button
+                onClick={() => handleExport(false)}
+                className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-slate-100 rounded transition-colors"
+              >
+                Data Only (JSON)
+              </button>
+              <button
+                onClick={() => handleExport(true)}
+                className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-slate-100 rounded transition-colors"
+              >
+                All (with Videos, ZIP)
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* All Other Buttons */}
         <div className={`grid gap-2 ${isCollapsed ? 'grid-cols-1' : isMobile ? 'grid-cols-3' : 'grid-cols-2'}`}>
           <button onClick={handleImportClick} className={controlButtonClasses} aria-label={t('importFile')}>
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -262,6 +411,27 @@ const Sidebar: React.FC<SidebarProps> = ({
         webkitdirectory=""
         multiple
       />
+
+      {/* Auth Modal */}
+      {isAuthModalOpen && (
+        <AuthModal
+          isOpen={isAuthModalOpen}
+          onClose={() => setIsAuthModalOpen(false)}
+          onSuccess={() => {
+            setIsAuthModalOpen(false);
+            setShowAccountPanel(true);
+          }}
+        />
+      )}
+
+      {/* Account Panel - Fixed position overlay */}
+      {showAccountPanel && currentUser && (
+        <div className="fixed inset-0 bg-black/30 z-[60] flex items-center justify-center p-4" onClick={() => setShowAccountPanel(false)}>
+          <div className="w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <AccountPanel user={currentUser} onSignOut={handleSignOut} />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

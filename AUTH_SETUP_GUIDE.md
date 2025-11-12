@@ -42,10 +42,10 @@ Already enabled by default. Users can sign up with email/password.
 1. Click on "Google" provider
 2. Enable it
 3. Add your Redirect URL: `https://your-domain.com/auth/callback`
-4. Get Google OAuth credentials from [Google Cloud Console](https://console.cloud.google.com/)
-   - Create OAuth 2.0 Client ID
-   - Add authorized redirect URI: `https://iydpsbrmxujwxvxqzdlr.supabase.co/auth/v1/callback`
-5. Paste Client ID and Client Secret in Supabase
+4. Get Google OAuth credentials from [Google Cloud Console](https://console.cloud.google.com/)4. 从 [Google 云控制台](https://console.cloud.google.com/) 获取 Google OAuth 凭证
+   - Create OAuth 2.0 Client ID创建 OAuth 2.0 客户端 ID
+   - Add authorized redirect URI: `https://iydpsbrmxujwxvxqzdlr.supabase.co/auth/v1/callback`- 添加授权重定向 URI：`https://iydpsbrmxujwxvxqzdlr.supabase.co/auth/v1/callback`
+5. Paste Client ID and Client Secret in Supabase5. 在 Supabase 中粘贴客户端 ID 和客户端密钥
 
 #### GitHub OAuth
 1. Click on "GitHub" provider

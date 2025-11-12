@@ -13,13 +13,18 @@ export interface SubtitleSegment {
   startTime: number;
   endTime: number;
   text: string;
+  translatedText?: string;
 }
 
 export interface Subtitles {
   id: string; // same as videoId
   videoId: string;
   segments: SubtitleSegment[];
+  translatedLanguage?: string;
+  translatedAt?: string;
 }
+
+export type SubtitleDisplayMode = 'original' | 'translated' | 'bilingual';
 
 export interface Analysis {
   id: string; // e.g., `${videoId}-${type}`

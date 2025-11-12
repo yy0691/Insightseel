@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Video, Subtitles, Analysis, AnalysisType, Note } from '../types';
+import { Video, Subtitles, Analysis, AnalysisType, Note, SubtitleDisplayMode } from '../types';
 import { parseSubtitleFile, formatTimestamp, parseSrt, segmentsToSrt, downloadFile, parseTimestampToSeconds } from '../utils/helpers';
 import { subtitleDB } from '../services/dbService';
-import { translateSubtitles } from '../services/geminiService';
+import { translateSubtitles as translateSubtitlesLegacy } from '../services/geminiService';
+import { translateSubtitles, detectSubtitleLanguage, isTraditionalChinese } from '../services/translationService';
 import { generateVideoHash } from '../services/cacheService';
 import { generateResilientSubtitles, generateResilientInsights } from '../services/videoProcessingService';
 import { isSegmentedProcessingAvailable } from '../services/segmentedProcessor';
@@ -75,6 +76,7 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
   const [isTranslating, setIsTranslating] = useState(false);
   const [showGenerateOptions, setShowGenerateOptions] = useState(false);
   const [sourceLanguage, setSourceLanguage] = useState('English');
+  const [displayMode, setDisplayMode] = useState<SubtitleDisplayMode>('original');
   
   const [generationStatus, setGenerationStatus] = useState({ active: false, stage: '', progress: 0 });
   const [streamingSubtitles, setStreamingSubtitles] = useState(''); // For real-time subtitle display
@@ -335,30 +337,67 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
   };
 
   const handleTranslateSubtitles = async () => {
-    if (!subtitles) return;
+    if (!subtitles || !subtitles.segments || subtitles.segments.length === 0) return;
+
+    if (subtitles.segments.some(seg => seg.translatedText)) {
+      alert('Subtitles are already translated!');
+      return;
+    }
+
     setIsTranslating(true);
+    setGenerationStatus({ active: true, stage: 'Detecting language...', progress: 0 });
+
     try {
-        const srtContent = segmentsToSrt(subtitles.segments);
-        const targetLanguageName = language === 'zh' ? 'English' : 'Chinese';
-        const translatedSrtContent = await translateSubtitles(srtContent, targetLanguageName);
+      const detectedLang = detectSubtitleLanguage(subtitles.segments);
+      console.log('[Translation] Detected language:', detectedLang);
 
-        const segments = parseSrt(translatedSrtContent);
-        
-        if (segments.length === 0) {
-            throw new Error("The model was unable to generate a valid translation. The response might have been empty or in an incorrect format.");
+      let targetLang: 'zh-CN' | 'zh-TW' | 'en';
+
+      if (detectedLang === 'zh') {
+        const isTraditional = isTraditionalChinese(subtitles.segments);
+        targetLang = isTraditional ? 'zh-CN' : 'zh-CN';
+        console.log('[Translation] Chinese detected, converting to Simplified');
+      } else if (detectedLang === 'en') {
+        targetLang = 'zh-CN';
+        console.log('[Translation] English detected, translating to Simplified Chinese');
+      } else {
+        targetLang = 'zh-CN';
+        console.log('[Translation] Unknown language, defaulting to Simplified Chinese');
+      }
+
+      const translatedSegments = await translateSubtitles(
+        subtitles.segments,
+        targetLang,
+        (progress, stage) => {
+          setGenerationStatus({ active: true, stage, progress });
         }
+      );
 
-        const newSubtitles: Subtitles = {
-            id: video.id,
-            videoId: video.id,
-            segments,
-        };
-        await subtitleDB.put(newSubtitles);
-        onSubtitlesChange(video.id);
+      if (translatedSegments.length === 0) {
+        throw new Error('Translation returned no results');
+      }
+
+      const updatedSubtitles: Subtitles = {
+        ...subtitles,
+        segments: translatedSegments,
+        translatedLanguage: targetLang,
+        translatedAt: new Date().toISOString(),
+      };
+
+      await subtitleDB.put(updatedSubtitles);
+      onSubtitlesChange(video.id);
+
+      setGenerationStatus({ active: true, stage: 'Translation complete!', progress: 100 });
+      setTimeout(() => {
+        setGenerationStatus({ active: false, stage: '', progress: 0 });
+        setDisplayMode('translated');
+      }, 1000);
     } catch (err) {
-        alert(err instanceof Error ? err.message : 'Failed to translate subtitles.');
+      console.error('[Translation] Error:', err);
+      alert(err instanceof Error ? err.message : 'Failed to translate subtitles.');
+      setGenerationStatus({ active: false, stage: '', progress: 0 });
     } finally {
-        setIsTranslating(false);
+      setIsTranslating(false);
     }
   };
 
@@ -610,18 +649,63 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
                     </div>
                 ) : subtitles && subtitles.segments.length > 0 ? (
                   <>
-                    <div className="flex items-center justify-end space-x-2 mb-2">
-                        <button onClick={handleTranslateSubtitles} className="text-xs backdrop-blur-sm bg-white/50 hover:bg-white/80 border border-white/20 text-slate-800 font-medium px-2.5 py-1 rounded-xl transition shadow-sm">
-                            {t('translateSubtitles')}
-                        </button>
-                        <button 
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center space-x-1">
+                        {subtitles.segments.some(seg => seg.translatedText) && (
+                          <>
+                            <button
+                              onClick={() => setDisplayMode('original')}
+                              className={`text-xs px-2.5 py-1 rounded-lg transition ${
+                                displayMode === 'original'
+                                  ? 'bg-slate-800 text-white'
+                                  : 'bg-white/50 hover:bg-white/80 border border-white/20 text-slate-600'
+                              }`}
+                            >
+                              {language === 'zh' ? '原文' : 'Original'}
+                            </button>
+                            <button
+                              onClick={() => setDisplayMode('translated')}
+                              className={`text-xs px-2.5 py-1 rounded-lg transition ${
+                                displayMode === 'translated'
+                                  ? 'bg-slate-800 text-white'
+                                  : 'bg-white/50 hover:bg-white/80 border border-white/20 text-slate-600'
+                              }`}
+                            >
+                              {language === 'zh' ? '译文' : 'Translated'}
+                            </button>
+                            <button
+                              onClick={() => setDisplayMode('bilingual')}
+                              className={`text-xs px-2.5 py-1 rounded-lg transition ${
+                                displayMode === 'bilingual'
+                                  ? 'bg-slate-800 text-white'
+                                  : 'bg-white/50 hover:bg-white/80 border border-white/20 text-slate-600'
+                              }`}
+                            >
+                              {language === 'zh' ? '双语' : 'Bilingual'}
+                            </button>
+                          </>
+                        )}
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        {!subtitles.segments.some(seg => seg.translatedText) && (
+                          <button
+                            onClick={handleTranslateSubtitles}
+                            disabled={isTranslating}
+                            className="text-xs backdrop-blur-sm bg-white/50 hover:bg-white/80 border border-white/20 text-slate-800 font-medium px-2.5 py-1 rounded-xl transition shadow-sm disabled:opacity-50"
+                          >
+                            {language === 'zh' ? '翻译字幕' : 'Translate'}
+                          </button>
+                        )}
+                        <button
                             onClick={() => downloadFile(segmentsToSrt(subtitles.segments), `${video.name}.srt`, 'text/plain')}
                             className="text-xs backdrop-blur-sm bg-white/50 hover:bg-white/80 border border-white/20 text-slate-800 font-medium p-1.5 rounded-xl transition shadow-sm"
+                            title={language === 'zh' ? '下载字幕' : 'Download'}
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                             </svg>
                         </button>
+                      </div>
                     </div>
                     <div className="space-y-3 text-sm pr-2">
                         {subtitles.segments.map((segment, index) => (
@@ -644,15 +728,52 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
                             >
                                 {formatTimestamp(segment.startTime)}
                             </span>
-                            <p
-                                className={`mt-0.5 ${
-                                    index === activeSegmentIndex
-                                    ? 'text-slate-900'
-                                    : 'text-slate-700'
-                                }`}
-                            >
-                                {segment.text}
-                            </p>
+                            {displayMode === 'original' && (
+                              <p
+                                  className={`mt-0.5 ${
+                                      index === activeSegmentIndex
+                                      ? 'text-slate-900'
+                                      : 'text-slate-700'
+                                  }`}
+                              >
+                                  {segment.text}
+                              </p>
+                            )}
+                            {displayMode === 'translated' && segment.translatedText && (
+                              <p
+                                  className={`mt-0.5 ${
+                                      index === activeSegmentIndex
+                                      ? 'text-slate-900'
+                                      : 'text-slate-700'
+                                  }`}
+                              >
+                                  {segment.translatedText}
+                              </p>
+                            )}
+                            {displayMode === 'bilingual' && (
+                              <>
+                                <p
+                                    className={`mt-0.5 text-sm ${
+                                        index === activeSegmentIndex
+                                        ? 'text-slate-900 font-medium'
+                                        : 'text-slate-700'
+                                    }`}
+                                >
+                                    {segment.translatedText || segment.text}
+                                </p>
+                                {segment.translatedText && (
+                                  <p
+                                      className={`mt-1 text-xs ${
+                                          index === activeSegmentIndex
+                                          ? 'text-slate-600'
+                                          : 'text-slate-500'
+                                      }`}
+                                  >
+                                      {segment.text}
+                                  </p>
+                                )}
+                              </>
+                            )}
                         </div>
                         ))}
                     </div>

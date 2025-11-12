@@ -96,8 +96,11 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
               <p className="text-xs uppercase tracking-[0.45em] text-slate-400">InsightSeel</p>
               <h1 className="text-2xl font-semibold text-slate-900">AI Video Parsing Intelligence</h1>
             </div>
+            <p className="text-sm text-slate-500 sm:hidden">
+              {t('welcomeSubtitle')}
+            </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
             {currentUser ? (
               <button
                 onClick={() => onOpenAccount?.()}
@@ -128,10 +131,10 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/70 border border-white/70 text-xs uppercase tracking-[0.32em] text-slate-500 shadow-[0_12px_28px_rgba(148,163,255,0.18)]">
             ⚡ {t('welcomeBoxTitle')}
           </div>
-          <h2 className="mt-6 text-center text-4xl md:text-5xl lg:text-6xl font-semibold tracking-tight text-slate-900 leading-tight max-w-4xl">
+          <h2 className="mt-6 text-center text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-semibold tracking-tight text-slate-900 leading-tight max-w-4xl">
             {t('welcomeTitle')}
           </h2>
-          <p className="mt-5 text-lg md:text-xl text-slate-600 max-w-3xl leading-relaxed text-center">
+          <p className="mt-5 hidden text-base text-slate-600 max-w-3xl leading-relaxed text-center sm:block md:text-lg">
             {t('welcomeSubtitle')}
           </p>
 

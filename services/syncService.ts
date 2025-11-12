@@ -63,6 +63,13 @@ export const syncService = {
 
         const subtitle = await subtitleDB.get(video.id);
         if (subtitle) {
+          // Generate content from segments
+          const content = subtitle.segments
+            .map(seg => seg.text)
+            .join('\n');
+          
+          const language = subtitle.translatedLanguage || 'en';
+          
           const { error: subtitleError } = await supabase
             .from('subtitles')
             .upsert(
@@ -70,18 +77,26 @@ export const syncService = {
                 id: subtitle.id,
                 video_id: video.id,
                 user_id: userId,
-                content: subtitle.content,
-                language: subtitle.language || 'en',
+                content: content,
+                language: language,
                 segments: subtitle.segments,
               },
               { onConflict: 'video_id,user_id' }
             );
 
-          if (!subtitleError) result.synced.subtitles++;
+          if (subtitleError) {
+            console.error('Error syncing subtitle:', subtitleError);
+          } else {
+            result.synced.subtitles++;
+          }
         }
 
         const analyses = await analysisDB.getByVideoId(video.id);
         for (const analysis of analyses) {
+          // Convert local format (prompt/result) to Supabase format (title/content)
+          const title = analysis.prompt || `${analysis.type} analysis`;
+          const content = analysis.result || '';
+          
           const { error: analysisError } = await supabase
             .from('analyses')
             .upsert(
@@ -90,13 +105,17 @@ export const syncService = {
                 video_id: video.id,
                 user_id: userId,
                 type: analysis.type,
-                title: analysis.title,
-                content: analysis.content,
+                title: title,
+                content: content,
               },
               { onConflict: 'id' }
             );
 
-          if (!analysisError) result.synced.analyses++;
+          if (analysisError) {
+            console.error('Error syncing analysis:', analysisError);
+          } else {
+            result.synced.analyses++;
+          }
         }
 
         const note = await noteDB.get(video.id);

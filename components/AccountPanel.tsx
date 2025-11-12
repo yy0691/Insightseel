@@ -3,6 +3,7 @@ import { User } from '@supabase/supabase-js';
 import { authService, Profile } from '../services/authService';
 import { syncService } from '../services/syncService';
 import { exportService } from '../services/exportService';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface AccountPanelProps {
   user: User;
@@ -10,6 +11,7 @@ interface AccountPanelProps {
 }
 
 const AccountPanel: React.FC<AccountPanelProps> = ({ user, onSignOut }) => {
+  const { t } = useLanguage();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
@@ -38,16 +40,16 @@ const AccountPanel: React.FC<AccountPanelProps> = ({ user, onSignOut }) => {
       if (result.success) {
         const { videos, subtitles, analyses, notes, chats } = result.synced;
         setSyncMessage(
-          `✓ Synced: ${videos} videos, ${subtitles} subtitles, ${analyses} analyses, ${notes} notes, ${chats} chats`
+          `✓ ${t('syncedStats', videos, subtitles, analyses, notes, chats)}`
         );
         setLastSyncTime(new Date().toISOString());
       } else {
-        setSyncMessage(`✗ Error: ${result.error}`);
+        setSyncMessage(`✗ ${t('error')}: ${result.error}`);
       }
 
       setTimeout(() => setSyncMessage(null), 5000);
     } catch (error) {
-      setSyncMessage(`✗ Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setSyncMessage(`✗ ${t('error')}: ${error instanceof Error ? error.message : t('anErrorOccurred')}`);
       setTimeout(() => setSyncMessage(null), 5000);
     } finally {
       setSyncing(false);
@@ -59,10 +61,10 @@ const AccountPanel: React.FC<AccountPanelProps> = ({ user, onSignOut }) => {
 
     try {
       await exportService.exportAllDataAndDownload(includeVideos);
-      setSyncMessage('✓ Export completed successfully');
+      setSyncMessage(`✓ ${t('exportSuccess')}`);
       setTimeout(() => setSyncMessage(null), 3000);
     } catch (error) {
-      setSyncMessage(`✗ Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setSyncMessage(`✗ ${t('exportFailed')}: ${error instanceof Error ? error.message : t('anErrorOccurred')}`);
       setTimeout(() => setSyncMessage(null), 5000);
     } finally {
       setExporting(false);
@@ -70,28 +72,28 @@ const AccountPanel: React.FC<AccountPanelProps> = ({ user, onSignOut }) => {
   };
 
   const formatLastSync = (isoString: string | null) => {
-    if (!isoString) return 'Never';
+    if (!isoString) return t('neverSynced');
 
     const date = new Date(isoString);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
 
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins} min ago`;
+    if (diffMins < 1) return t('justNow');
+    if (diffMins < 60) return t('minutesAgo', diffMins);
 
     const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    if (diffHours < 24) return t('hoursAgo', diffHours);
 
     const diffDays = Math.floor(diffHours / 24);
-    return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+    return t('daysAgo', diffDays);
   };
 
   return (
     <div className="p-6 bg-white rounded-xl shadow-lg space-y-6">
       <div className="flex items-center justify-between pb-4 border-b border-gray-200">
         <div>
-          <h2 className="text-xl font-bold text-gray-800">Account</h2>
+          <h2 className="text-xl font-bold text-gray-800">{t('account')}</h2>
           <p className="text-sm text-gray-600 mt-1">{user.email}</p>
           {profile?.full_name && (
             <p className="text-sm text-gray-500">{profile.full_name}</p>
@@ -101,7 +103,7 @@ const AccountPanel: React.FC<AccountPanelProps> = ({ user, onSignOut }) => {
           onClick={onSignOut}
           className="px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
         >
-          Sign Out
+          {t('signOut')}
         </button>
       </div>
 
@@ -117,12 +119,12 @@ const AccountPanel: React.FC<AccountPanelProps> = ({ user, onSignOut }) => {
 
       <div className="space-y-4">
         <div>
-          <h3 className="text-sm font-semibold text-gray-700 mb-3">Cloud Sync</h3>
+          <h3 className="text-sm font-semibold text-gray-700 mb-3">{t('cloudSync')}</h3>
           <p className="text-xs text-gray-500 mb-3">
-            Last synced: {formatLastSync(lastSyncTime)}
+            {t('lastSynced', formatLastSync(lastSyncTime))}
           </p>
           <p className="text-xs text-gray-500 mb-3">
-            ⚠️ Note: Video files are NOT synced (they stay local). Only metadata, subtitles, analyses, notes, and chat history are synced.
+            ⚠️ {t('videoFilesNotSyncedNote')}
           </p>
           <div className="grid grid-cols-2 gap-3">
             <button
@@ -133,7 +135,7 @@ const AccountPanel: React.FC<AccountPanelProps> = ({ user, onSignOut }) => {
               <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
               </svg>
-              {syncing ? 'Syncing...' : 'Upload to Cloud'}
+              {syncing ? t('uploading') : t('uploadToCloud')}
             </button>
 
             <button
@@ -144,13 +146,13 @@ const AccountPanel: React.FC<AccountPanelProps> = ({ user, onSignOut }) => {
               <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l-3-3m0 0l3-3m-3 3h12" />
               </svg>
-              {syncing ? 'Syncing...' : 'Download from Cloud'}
+              {syncing ? t('downloading') : t('downloadFromCloud')}
             </button>
           </div>
         </div>
 
         <div>
-          <h3 className="text-sm font-semibold text-gray-700 mb-3">Export Data</h3>
+          <h3 className="text-sm font-semibold text-gray-700 mb-3">{t('localExport')}</h3>
           <div className="space-y-2">
             <button
               onClick={() => handleExport(false)}
@@ -160,7 +162,7 @@ const AccountPanel: React.FC<AccountPanelProps> = ({ user, onSignOut }) => {
               <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
-              {exporting ? 'Exporting...' : 'Export Data Only (JSON)'}
+              {exporting ? t('exporting') : t('exportDataOnly')}
             </button>
 
             <button
@@ -171,11 +173,11 @@ const AccountPanel: React.FC<AccountPanelProps> = ({ user, onSignOut }) => {
               <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
               </svg>
-              {exporting ? 'Exporting...' : 'Export All (with Videos, ZIP)'}
+              {exporting ? t('exporting') : t('exportAll')}
             </button>
 
             <p className="text-xs text-gray-500 mt-2">
-              💡 Tip: Export with videos creates a complete backup including video files.
+              💡 {t('exportTip')}
             </p>
           </div>
         </div>
@@ -183,10 +185,10 @@ const AccountPanel: React.FC<AccountPanelProps> = ({ user, onSignOut }) => {
 
       <div className="pt-4 border-t border-gray-200">
         <p className="text-xs text-gray-500">
-          <strong>Storage Limits (Free Tier):</strong><br />
-          • Database: 500MB<br />
-          • Files: 1GB (not used for videos)<br />
-          • Bandwidth: 10GB/month
+          <strong>{t('storageLimitsFree')}</strong><br />
+          • {t('storageLimitsDatabase')}<br />
+          • {t('storageLimitsFiles')}<br />
+          • {t('storageLimitsBandwidth')}
         </p>
       </div>
     </div>

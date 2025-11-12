@@ -11,6 +11,7 @@ interface AuthModalProps {
 type AuthMode = 'signin' | 'signup' | 'reset';
 
 const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess }) => {
+  const { t } = useLanguage();
   const [mode, setMode] = useState<AuthMode>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -18,7 +19,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess }) => 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const { t } = useLanguage();
 
   if (!isOpen) return null;
 
@@ -31,28 +31,28 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess }) => 
     try {
       if (mode === 'signin') {
         await authService.signInWithEmail(email, password);
-        setMessage('Signed in successfully!');
+        setMessage(t('signedInSuccessfully'));
         setTimeout(() => {
           onSuccess();
           onClose();
         }, 1000);
       } else if (mode === 'signup') {
         await authService.signUpWithEmail(email, password, fullName);
-        setMessage('Account created! Please check your email to verify.');
+        setMessage(t('accountCreatedCheckEmail'));
         setTimeout(() => {
           setMode('signin');
           setMessage(null);
         }, 3000);
       } else if (mode === 'reset') {
         await authService.resetPassword(email);
-        setMessage('Password reset email sent! Check your inbox.');
+        setMessage(t('passwordResetEmailSent'));
         setTimeout(() => {
           setMode('signin');
           setMessage(null);
         }, 3000);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      setError(err instanceof Error ? err.message : t('anErrorOccurred'));
     } finally {
       setLoading(false);
     }
@@ -69,7 +69,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess }) => 
         await authService.signInWithGithub();
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      setError(err instanceof Error ? err.message : t('anErrorOccurred'));
       setLoading(false);
     }
   };
@@ -88,9 +88,9 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess }) => 
         </button>
 
         <h2 className="text-2xl font-bold text-gray-800 mb-6">
-          {mode === 'signin' && 'Sign In'}
-          {mode === 'signup' && 'Create Account'}
-          {mode === 'reset' && 'Reset Password'}
+          {mode === 'signin' && t('signIn')}
+          {mode === 'signup' && t('createAccount')}
+          {mode === 'reset' && t('resetPassword')}
         </h2>
 
         {error && (
@@ -109,21 +109,21 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess }) => 
           {mode === 'signup' && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Full Name (Optional)
+                {t('fullName')}
               </label>
               <input
                 type="text"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="John Doe"
+                placeholder={t('fullNamePlaceholder')}
               />
             </div>
           )}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Email
+              {t('email')}
             </label>
             <input
               type="email"
@@ -131,14 +131,14 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess }) => 
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="you@example.com"
+              placeholder={t('emailPlaceholder')}
             />
           </div>
 
           {mode !== 'reset' && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Password
+                {t('password')}
               </label>
               <input
                 type="password"
@@ -146,7 +146,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess }) => 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="••••••••"
+                placeholder={t('passwordPlaceholder')}
                 minLength={6}
               />
             </div>
@@ -157,7 +157,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess }) => 
             disabled={loading}
             className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium"
           >
-            {loading ? 'Loading...' : mode === 'signin' ? 'Sign In' : mode === 'signup' ? 'Sign Up' : 'Send Reset Email'}
+            {loading ? t('loading') : mode === 'signin' ? t('signIn') : mode === 'signup' ? t('signUp') : t('sendResetEmail')}
           </button>
         </form>
 
@@ -168,7 +168,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess }) => 
                 <div className="w-full border-t border-gray-300"></div>
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">Or continue with</span>
+                <span className="px-2 bg-white text-gray-500">{t('orContinueWith')}</span>
               </div>
             </div>
 
@@ -211,14 +211,14 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess }) => 
                 onClick={() => setMode('reset')}
                 className="text-blue-600 hover:text-blue-700 mr-4"
               >
-                Forgot password?
+                {t('forgotPassword')}
               </button>
               <button
                 type="button"
                 onClick={() => setMode('signup')}
                 className="text-blue-600 hover:text-blue-700"
               >
-                Create account
+                {t('createAccount')}
               </button>
             </>
           )}
@@ -228,7 +228,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess }) => 
               onClick={() => setMode('signin')}
               className="text-blue-600 hover:text-blue-700"
             >
-              Already have an account? Sign in
+              {t('alreadyHaveAccount')} {t('signIn')}
             </button>
           )}
           {mode === 'reset' && (
@@ -237,7 +237,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess }) => 
               onClick={() => setMode('signin')}
               className="text-blue-600 hover:text-blue-700"
             >
-              Back to sign in
+              {t('backToSignIn')}
             </button>
           )}
         </div>

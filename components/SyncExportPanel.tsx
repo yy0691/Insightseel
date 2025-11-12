@@ -5,8 +5,10 @@ import { syncService } from '../services/syncService';
 import { exportService } from '../services/exportService';
 import AuthModal from './AuthModal';
 import AccountPanel from './AccountPanel';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const SyncExportPanel: React.FC = () => {
+  const { t } = useLanguage();
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -69,10 +71,10 @@ const SyncExportPanel: React.FC = () => {
 
     try {
       await exportService.exportAllDataAndDownload(includeVideos);
-      setExportMessage('✓ Export completed successfully');
+      setExportMessage(`✓ ${t('exportSuccess')}`);
       setTimeout(() => setExportMessage(null), 3000);
     } catch (error) {
-      setExportMessage(`✗ Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setExportMessage(`✗ ${t('exportFailed')}: ${error instanceof Error ? error.message : 'Unknown error'}`);
       setTimeout(() => setExportMessage(null), 5000);
     } finally {
       setExporting(false);
@@ -82,18 +84,18 @@ const SyncExportPanel: React.FC = () => {
   if (authLoading) {
     return (
       <div className="p-6 bg-white rounded-xl shadow-lg">
-        <div className="text-center text-gray-500">Loading...</div>
+        <div className="text-center text-gray-500">{t('loading')}</div>
       </div>
     );
   }
 
   return (
     <div className="p-6 bg-white rounded-xl shadow-lg space-y-6">
-      <h2 className="text-xl font-bold text-gray-800">Sync & Export</h2>
+      <h2 className="text-xl font-bold text-gray-800">{t('syncAndExport')}</h2>
 
       {!authService.isAvailable() && (
         <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-800 text-sm">
-          ⚠️ Cloud sync is not available. Supabase credentials not configured.
+          ⚠️ {t('proxyNotAvailable')}
         </div>
       )}
 
@@ -101,19 +103,19 @@ const SyncExportPanel: React.FC = () => {
         <div className="space-y-4">
           <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
             <p className="text-sm text-blue-800 mb-2">
-              <strong>Sign in to enable cloud sync</strong>
+              <strong>{t('signInToSync')}</strong>
             </p>
             <p className="text-xs text-blue-600 mb-4">
-              Sync your video metadata, subtitles, analyses, notes, and chat history across devices.
+              {t('syncDescription')}
             </p>
             <button
               onClick={() => setIsAuthModalOpen(true)}
               className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm"
             >
-              Sign In / Create Account
+              {t('signIn')} / {t('createAccount')}
             </button>
             <p className="text-xs text-gray-500 mt-3">
-              ⚠️ Video files will NOT be synced (50MB limit per file on free tier).
+              ⚠️ {t('videoFilesNotSynced')}
             </p>
           </div>
         </div>
@@ -124,9 +126,9 @@ const SyncExportPanel: React.FC = () => {
       )}
 
       <div className="pt-4 border-t border-gray-200">
-        <h3 className="text-sm font-semibold text-gray-700 mb-3">Local Export</h3>
+        <h3 className="text-sm font-semibold text-gray-700 mb-3">{t('localExport')}</h3>
         <p className="text-xs text-gray-500 mb-3">
-          Export your data to backup locally, even without signing in.
+          {t('exportDescription')}
         </p>
 
         {exportMessage && (
@@ -148,7 +150,7 @@ const SyncExportPanel: React.FC = () => {
             <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-            {exporting ? 'Exporting...' : 'Export Data Only (JSON)'}
+            {exporting ? t('exporting') : t('exportDataOnly')}
           </button>
 
           <button
@@ -159,12 +161,8 @@ const SyncExportPanel: React.FC = () => {
             <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
             </svg>
-            {exporting ? 'Exporting...' : 'Export All (with Videos, ZIP)'}
+            {exporting ? t('exporting') : t('exportAll')}
           </button>
-
-          <p className="text-xs text-gray-500 mt-2">
-            💡 Tip: Export with videos creates a complete backup including video files.
-          </p>
         </div>
       </div>
 

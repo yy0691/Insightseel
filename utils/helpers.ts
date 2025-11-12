@@ -37,11 +37,11 @@ export const extractAudioToBase64 = async (
         onProgress?.(10);
         
         const videoDurationMin = video.duration / 60;
-        const MAX_EXTRACT_DURATION_MIN = 10; // Maximum 10 minutes for proxy mode (avoid timeout)
-        
+        const MAX_EXTRACT_DURATION_MIN = 30; // Maximum 30 minutes for subtitle generation
+
         // For very long videos, warn user and limit extraction
         if (videoDurationMin > MAX_EXTRACT_DURATION_MIN) {
-          console.warn(`Video is ${videoDurationMin.toFixed(1)} minutes long. Will extract first ${MAX_EXTRACT_DURATION_MIN} minutes only to avoid proxy timeout.`);
+          console.warn(`Video is ${videoDurationMin.toFixed(1)} minutes long. Will extract first ${MAX_EXTRACT_DURATION_MIN} minutes only.`);
         }
         
         // Create audio context with lower sample rate for better compression
@@ -54,16 +54,23 @@ export const extractAudioToBase64 = async (
         
         onProgress?.(20);
         
-        // Determine optimal bitrate based on video size (lower for proxy mode)
+        // Determine optimal bitrate based on video duration
         const fileSizeMB = videoFile.size / (1024 * 1024);
-        let audioBitsPerSecond = 12000; // Default: 12kbps for proxy mode
-        
-        if (fileSizeMB < 100) {
-          audioBitsPerSecond = 16000; // 16kbps for smaller files
-        } else if (fileSizeMB < 500) {
-          audioBitsPerSecond = 12000; // 12kbps for medium files
+        let audioBitsPerSecond: number;
+
+        // Lower bitrate for longer videos to keep audio size manageable
+        if (video.duration > 1800) {
+          // Videos > 30 minutes: use 8kbps
+          audioBitsPerSecond = 8000;
+        } else if (video.duration > 900) {
+          // Videos > 15 minutes: use 10kbps
+          audioBitsPerSecond = 10000;
+        } else if (video.duration > 300) {
+          // Videos > 5 minutes: use 12kbps
+          audioBitsPerSecond = 12000;
         } else {
-          audioBitsPerSecond = 8000; // 8kbps for large files (>500MB)
+          // Short videos: use 16kbps for better quality
+          audioBitsPerSecond = 16000;
         }
         
         console.log(`Video size: ${fileSizeMB.toFixed(1)}MB, using audio bitrate: ${audioBitsPerSecond}bps`);
@@ -76,21 +83,24 @@ export const extractAudioToBase64 = async (
         
         const chunks: Blob[] = [];
         let totalChunkSize = 0;
-        const MAX_AUDIO_SIZE_MB = 5; // Target max audio size in MB for proxy mode
-        let audioLimitReached = false;
-        
+        const MAX_AUDIO_SIZE_MB = 50; // Increased limit to support longer videos
+        let warnedAboutSize = false;
+
         mediaRecorder.ondataavailable = (e) => {
           if (e.data.size > 0) {
             chunks.push(e.data);
             totalChunkSize += e.data.size;
-            
-            // Monitor audio size and stop if getting too large
+
+            // Monitor audio size and warn if getting large (but don't stop)
             const currentSizeMB = totalChunkSize / (1024 * 1024);
-            if (currentSizeMB > MAX_AUDIO_SIZE_MB && !audioLimitReached) {
-              audioLimitReached = true;
-              console.warn(`Audio extraction size (${currentSizeMB.toFixed(1)}MB) exceeds ${MAX_AUDIO_SIZE_MB}MB limit. Stopping extraction early.`);
-              
-              // Stop recording early to prevent excessive audio size
+            if (currentSizeMB > 20 && !warnedAboutSize) {
+              warnedAboutSize = true;
+              console.warn(`Audio size is ${currentSizeMB.toFixed(1)}MB and growing. This may take longer to process.`);
+            }
+
+            // Only stop if exceeding absolute maximum
+            if (currentSizeMB > MAX_AUDIO_SIZE_MB) {
+              console.error(`Audio extraction size (${currentSizeMB.toFixed(1)}MB) exceeds ${MAX_AUDIO_SIZE_MB}MB absolute limit. Stopping.`);
               if (mediaRecorder.state === 'recording') {
                 video.pause();
                 mediaRecorder.stop();
@@ -108,9 +118,16 @@ export const extractAudioToBase64 = async (
           
           console.log(`Audio extracted: ${sizeKB}KB (${sizeMB.toFixed(2)}MB) from ${fileSizeMB.toFixed(1)}MB video`);
           
-          // Check if audio is too large (>20MB might cause API issues)
-          if (sizeMB > MAX_AUDIO_SIZE_MB) {
-            console.warn(`Extracted audio is ${sizeMB.toFixed(1)}MB, which may be too large for some APIs`);
+          // Log audio size info
+          if (sizeMB > 20) {
+            console.warn(`Extracted audio is ${sizeMB.toFixed(1)}MB. Processing may take longer.`);
+          }
+
+          console.log(`Audio extraction complete: ${(video.currentTime / 60).toFixed(1)}min of ${(video.duration / 60).toFixed(1)}min video processed`);
+
+          // Warn if extraction was cut short
+          if (video.currentTime < video.duration - 5) {
+            console.warn(`Audio extraction stopped at ${(video.currentTime / 60).toFixed(1)}min of ${(video.duration / 60).toFixed(1)}min video. Some content may not be transcribed.`);
           }
           
           // Convert blob to base64 with chunked reading for memory efficiency
@@ -176,11 +193,11 @@ export const extractAudioToBase64 = async (
         };
         
         // Calculate max extraction time
-        const MAX_EXTRACT_DURATION_SEC = 10 * 60; // 10 minutes of video content max for proxy mode
+        const MAX_EXTRACT_DURATION_SEC = 30 * 60; // 30 minutes of video content max
         const maxVideoDuration = Math.min(video.duration, MAX_EXTRACT_DURATION_SEC);
         const actualExtractionTime = maxVideoDuration / playbackRate; // Real-time needed to extract
-        
-        console.log(`Will extract ${(maxVideoDuration / 60).toFixed(1)}min of video content, taking ~${(actualExtractionTime / 60).toFixed(1)}min real-time at ${playbackRate}x speed`);
+
+        console.log(`Will extract ${(maxVideoDuration / 60).toFixed(1)}min of video content (${(video.duration / 60).toFixed(1)}min total), taking ~${(actualExtractionTime / 60).toFixed(1)}min real-time at ${playbackRate}x speed`);
         
         // Timer to stop after max duration
         const maxDurationTimer = setTimeout(() => {

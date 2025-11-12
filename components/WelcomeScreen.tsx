@@ -86,17 +86,15 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         <div className="absolute inset-0 bg-[linear-gradient(110deg,transparent_0%,rgba(148,163,255,0.08)_35%,transparent_70%)]" />
       </div>
 
-      <div className="relative z-10 flex flex-col min-h-full items-center px-5 sm:px-8 lg:px-14 py-12">
-        <header className="w-full max-w-6xl mx-auto flex flex-col gap-6 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-3">
-            <div className="flex items-center gap-3">
-              <div className="h-12 w-12 rounded-2xl border border-white/70 bg-white/90 shadow-[0_12px_35px_rgba(85,100,246,0.15)] backdrop-blur flex items-center justify-center">
-                <span className="text-lg font-semibold text-[#4c5cf2] tracking-[0.3em]">IS</span>
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-[0.45em] text-slate-400">InsightSeel</p>
-                <h1 className="text-2xl font-semibold text-slate-900">AI Video Parsing Intelligence</h1>
-              </div>
+      <div className="relative z-10 flex flex-col min-h-full items-center px-6 sm:px-8 lg:px-14 py-12">
+        <header className="w-full max-w-6xl mx-auto flex items-center justify-between gap-6 py-4">
+          <div className="flex items-center gap-3">
+            <div className="h-12 w-12 rounded-2xl border border-white/70 bg-white/90 shadow-[0_12px_35px_rgba(85,100,246,0.15)] backdrop-blur flex items-center justify-center">
+              <span className="text-lg font-semibold text-[#4c5cf2] tracking-[0.3em]">IS</span>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-[0.45em] text-slate-400">InsightSeel</p>
+              <h1 className="text-2xl font-semibold text-slate-900">AI Video Parsing Intelligence</h1>
             </div>
             <p className="text-sm text-slate-500 sm:hidden">
               {t('welcomeSubtitle')}
@@ -106,7 +104,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             {currentUser ? (
               <button
                 onClick={() => onOpenAccount?.()}
-                className="w-full sm:w-auto px-4 py-2 rounded-full border border-slate-200 text-sm font-medium text-slate-600 bg-white/80 backdrop-blur-lg hover:bg-white shadow-sm transition text-center"
+                className="px-4 py-2 rounded-full border border-slate-200 text-sm font-medium text-slate-600 bg-white/80 backdrop-blur-lg hover:bg-white shadow-sm transition"
               >
                 {currentUser.email || 'Account'}
               </button>
@@ -114,13 +112,13 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
               <>
                 <button
                   onClick={onLogin}
-                  className="w-full sm:w-auto px-4 py-2 rounded-full text-sm font-medium text-slate-600 border border-slate-200 bg-white/70 hover:bg-white shadow-sm transition text-center"
+                  className="px-4 py-2 rounded-full text-sm font-medium text-slate-600 border border-slate-200 bg-white/70 hover:bg-white shadow-sm transition"
                 >
                   登录
                 </button>
                 <button
                   onClick={onRegister}
-                  className="w-full sm:w-auto px-5 py-2 rounded-full text-sm font-semibold text-white bg-[linear-gradient(135deg,#4b5cf2,#6f8bff)] hover:shadow-[0_15px_35px_rgba(75,92,242,0.35)] transition text-center"
+                  className="px-5 py-2 rounded-full text-sm font-semibold text-white bg-[linear-gradient(135deg,#4b5cf2,#6f8bff)] hover:shadow-[0_15px_35px_rgba(75,92,242,0.35)] transition"
                 >
                   注册
                 </button>
@@ -235,17 +233,17 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                 aria-hidden
               />
               <div className="relative grid divide-y divide-white/40 sm:grid-cols-3 sm:divide-y-0 sm:divide-x">
-                <div className="p-6 sm:p-8">
+                <div className="p-8">
                   <p className="text-xs uppercase tracking-[0.36em] text-slate-500">多引擎</p>
                   <p className="mt-4 text-sm text-slate-600 leading-relaxed">
                     智能路由驱动的字幕、分析与翻译能力
                   </p>
                 </div>
-                <div className="p-6 sm:p-8">
+                <div className="p-8">
                   <p className="text-xs uppercase tracking-[0.36em] text-slate-500">批量</p>
                   <p className="mt-4 text-sm text-slate-600 leading-relaxed">文件夹导入、多任务并发与进度可视化</p>
                 </div>
-                <div className="p-6 sm:p-8">
+                <div className="p-8">
                   <p className="text-xs uppercase tracking-[0.36em] text-slate-500">云同步</p>
                   <p className="mt-4 text-sm text-slate-600 leading-relaxed">自动同步字幕、分析与聊天记录至云端</p>
                 </div>

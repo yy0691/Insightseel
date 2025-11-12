@@ -27,7 +27,7 @@ interface VideoDetailProps {
   onFirstInsightGenerated: () => void;
 }
 
-type TabType = 'Insights' | 'Transcript' | 'Chat' | 'Notes';
+type TabType = 'Insights' | 'Chat' | 'Notes';
 
 const HEATMAP_COLORS = [
     'bg-sky-400', 'bg-lime-400', 'bg-amber-400', 'bg-violet-400', 'bg-rose-400',
@@ -100,7 +100,6 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
   
   const TABS_MAP: Record<TabType, string> = useMemo(() => ({
     'Insights': t('insights'),
-    'Transcript': t('transcript'),
     'Chat': t('chat'),
     'Notes': t('notes'),
   }), [t]);
@@ -465,8 +464,8 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
         <div className="bg-white/50 text-card-foreground flex flex-col rounded-3xl border border-white/30 overflow-hidden shadow-sm flex-shrink-0 lg:sticky lg:top-6">
             <div className="p-4 h-14 border-b border-slate-300/50 flex justify-between items-center">
                 <h2 className="font-semibold text-lg truncate" title={video.name}>{video.name}</h2>
-                <button 
-                    onClick={() => onDeleteVideo(video.id)} 
+                <button
+                    onClick={() => onDeleteVideo(video.id)}
                     className="p-2 rounded-md text-slate-500 hover:bg-red-100 hover:text-red-600 transition-colors"
                     title={t('deleteVideo')}
                 >
@@ -510,337 +509,356 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
               </div>
             )}
         </div>
-         {/* Key Moments Card */}
+
+        {/* Transcript Card */}
+        <div className="bg-white/50 rounded-3xl border border-white/30 shadow-sm flex flex-col flex-1 min-h-0 overflow-hidden">
+          <div className="p-4 border-b border-slate-300/50 flex flex-wrap items-center justify-between gap-3">
+            <h3 className="font-semibold">{t('transcript')}</h3>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={handleImportSubtitlesClick}
+                className="h-9 px-3 text-xs font-semibold rounded-lg bg-white/80 text-slate-700 hover:bg-white border border-slate-300/80 shadow-sm transition"
+                disabled={isGeneratingSubtitles || isTranslating}
+              >
+                {t('importSubtitles')}
+              </button>
+              <button
+                onClick={() => setShowGenerateOptions(true)}
+                className="h-9 px-3 text-xs font-semibold rounded-lg bg-slate-800 text-slate-200 hover:bg-slate-700 shadow-sm transition disabled:opacity-60"
+                disabled={isGeneratingSubtitles}
+              >
+                {t('generateWithAI')}
+              </button>
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-4">
+            {isGeneratingSubtitles || isTranslating ? (
+                <div className="flex flex-col items-center justify-center h-full text-center">
+                    <div className="w-16 h-16 border-4 border-slate-300 border-t-slate-800 rounded-full animate-spin"></div>
+                    <p className="mt-4 font-semibold">{isTranslating ? t('translatingSubtitles') : generationStatus.stage || t('generatingSubtitles')}</p>
+                    {generationStatus.progress > 0 && (
+                      <div className="w-full max-w-xs bg-slate-200 rounded-full h-2 mt-3">
+                        <div className="bg-slate-600 h-2 rounded-full transition-all" style={{width: `${generationStatus.progress}%`}}></div>
+                      </div>
+                    )}
+                    <p className="text-xs text-slate-500 mt-2">
+                      {t('subtitleGenerationWarning')}
+                    </p>
+                    {streamingSubtitles && (
+                      <div className="mt-4 p-3 bg-white/50 rounded-lg border border-slate-200 text-left max-w-lg max-h-48 overflow-y-auto text-xs whitespace-pre-wrap">
+                        <p className="text-slate-600 font-mono">{streamingSubtitles}</p>
+                      </div>
+                    )}
+                </div>
+            ) : subtitles && subtitles.segments.length > 0 ? (
+              <>
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+                  <div className="flex items-center gap-1">
+                    {subtitles.segments.some(seg => seg.translatedText) && (
+                      <>
+                        <button
+                          onClick={() => setDisplayMode('original')}
+                          className={`text-xs px-2.5 py-1 rounded-lg transition ${
+                            displayMode === 'original'
+                              ? 'bg-slate-800 text-white'
+                              : 'bg-white/50 hover:bg-white/80 border border-white/20 text-slate-600'
+                          }`}
+                        >
+                          {language === 'zh' ? '原文' : 'Original'}
+                        </button>
+                        <button
+                          onClick={() => setDisplayMode('translated')}
+                          className={`text-xs px-2.5 py-1 rounded-lg transition ${
+                            displayMode === 'translated'
+                              ? 'bg-slate-800 text-white'
+                              : 'bg-white/50 hover:bg-white/80 border border-white/20 text-slate-600'
+                          }`}
+                        >
+                          {language === 'zh' ? '译文' : 'Translated'}
+                        </button>
+                        <button
+                          onClick={() => setDisplayMode('bilingual')}
+                          className={`text-xs px-2.5 py-1 rounded-lg transition ${
+                            displayMode === 'bilingual'
+                              ? 'bg-slate-800 text-white'
+                              : 'bg-white/50 hover:bg-white/80 border border-white/20 text-slate-600'
+                          }`}
+                        >
+                          {language === 'zh' ? '双语' : 'Bilingual'}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {!subtitles.segments.some(seg => seg.translatedText) && (
+                      <button
+                        onClick={handleTranslateSubtitles}
+                        disabled={isTranslating}
+                        className="text-xs backdrop-blur-sm bg-white/50 hover:bg-white/80 border border-white/20 text-slate-800 font-medium px-2.5 py-1 rounded-xl transition shadow-sm disabled:opacity-50"
+                      >
+                        {language === 'zh' ? '翻译字幕' : 'Translate'}
+                      </button>
+                    )}
+                    <button
+                        onClick={() => downloadFile(segmentsToSrt(subtitles.segments), `${video.name}.srt`, 'text/plain')}
+                        className="text-xs backdrop-blur-sm bg-white/50 hover:bg-white/80 border border-white/20 text-slate-800 font-medium p-1.5 rounded-xl transition shadow-sm"
+                        title={language === 'zh' ? '下载字幕' : 'Download'}
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-3 text-sm pr-2">
+                    {subtitles.segments.map((segment, index) => (
+                    <div
+                        key={index}
+                        ref={index === activeSegmentIndex ? activeSegmentRef : null}
+                        onClick={() => handleSeekTo(segment.startTime)}
+                        className={`p-2 rounded-xl border border-transparent cursor-pointer transition-all duration-200 ${
+                            index === activeSegmentIndex
+                            ? 'bg-slate-800/10 border-slate-200 shadow-sm'
+                            : 'hover:bg-slate-800/5'
+                        }`}
+                    >
+                        <span
+                            className={`font-mono text-xs ${
+                                index === activeSegmentIndex
+                                ? 'text-slate-800'
+                                : 'text-slate-500'
+                            }`}
+                        >
+                            {formatTimestamp(segment.startTime)}
+                        </span>
+                        {displayMode === 'original' && (
+                          <p
+                              className={`mt-1 ${
+                                  index === activeSegmentIndex
+                                  ? 'text-slate-900'
+                                  : 'text-slate-700'
+                              }`}
+                          >
+                              {segment.text}
+                          </p>
+                        )}
+                        {displayMode === 'translated' && segment.translatedText && (
+                          <p
+                              className={`mt-1 ${
+                                  index === activeSegmentIndex
+                                  ? 'text-slate-900'
+                                  : 'text-slate-700'
+                              }`}
+                          >
+                              {segment.translatedText}
+                          </p>
+                        )}
+                        {displayMode === 'bilingual' && (
+                          <>
+                            <p
+                                className={`mt-1 text-sm ${
+                                    index === activeSegmentIndex
+                                    ? 'text-slate-900 font-medium'
+                                    : 'text-slate-700'
+                                }`}
+                            >
+                                {segment.translatedText || segment.text}
+                            </p>
+                            {segment.translatedText && (
+                              <p
+                                  className={`mt-1 text-xs ${
+                                      index === activeSegmentIndex
+                                      ? 'text-slate-600'
+                                      : 'text-slate-500'
+                                  }`}
+                              >
+                                  {segment.text}
+                              </p>
+                            )}
+                          </>
+                        )}
+                    </div>
+                    ))}
+                </div>
+              </>
+            ) : (
+                <div className="flex flex-col items-center justify-center h-full text-center">
+                    <div className="w-16 h-16 mb-4 text-slate-400">
+                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1} stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-9h3.375c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 0 1-2.25 2.25M16.5 7.5V18a2.25 2.25 0 0 0 2.25 2.25M16.5 7.5V4.875c0-.621-.504-1.125-1.125-1.125H4.125C3.504 3.75 3 4.254 3 4.875V18a2.25 2.25 0 0 0 2.25 2.25h13.5M6 7.5h3v3H6v-3Z" />
+                         </svg>
+                    </div>
+                    <p className="text-sm text-slate-500">{t('noSubtitles')}</p>
+                </div>
+            )}
+          </div>
+          {showGenerateOptions && (
+            <div className="p-4 border-t border-slate-200 bg-slate-200/40 flex flex-col gap-3 animate-fade-in">
+              <div>
+                  <label htmlFor="lang-select" className="font-medium text-slate-800 text-xs">{t('spokenLanguage')}:</label>
+                   <select
+                      id="lang-select"
+                      value={sourceLanguage}
+                      onChange={e => setSourceLanguage(e.target.value)}
+                      className="mt-1 w-full bg-white/80 border-slate-300 border rounded-lg px-2 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                  >
+                      <option>English</option>
+                      <option>Chinese</option>
+                      <option>Spanish</option>
+                      <option>French</option>
+                      <option>German</option>
+                      <option>Japanese</option>
+                      <option>Korean</option>
+                      <option>Russian</option>
+                  </select>
+              </div>
+              <div className="flex justify-end gap-2">
+                   <button onClick={() => setShowGenerateOptions(false)} className="px-3 py-1 text-xs rounded-lg hover:bg-slate-900/10">{t('cancel')}</button>
+                   <button onClick={handleGenerateSubtitles} className="px-3 py-1 text-xs rounded-lg bg-slate-900 text-white hover:bg-slate-800">{t('generate')}</button>
+              </div>
+            </div>
+          )}
+          <input type="file" ref={subtitleInputRef} onChange={handleSubtitleFileChange} className="hidden" accept=".srt,.vtt" />
+        </div>
+      </div>
+
+      {/* Right Column */}
+      <div className="lg:col-span-5 flex flex-col gap-5 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)]">
         {keyInfoAnalysis && (
-            <div className="bg-white/50 rounded-3xl border border-white/30 shadow-sm flex flex-col flex-1 min-h-0 overflow-hidden">
-                <div className="p-4 border-b border-slate-300/50 flex-shrink-0">
+            <div className="bg-white/50 rounded-3xl border border-white/30 shadow-sm flex flex-col flex-shrink-0 overflow-hidden">
+                <div className="p-4 border-b border-slate-300/50">
                     <h3 className="font-semibold">{t('keyMoments')}</h3>
                 </div>
-                <div className="p-4 flex-1 overflow-y-auto custom-scrollbar">
+                <div className="p-4 space-y-3 overflow-y-auto custom-scrollbar max-h-80">
                     {parsedKeyInfo.length > 0 ? (
-                    <ul className="space-y-2 text-sm pr-2">
-                        {parsedKeyInfo.map((info, index) => {
-                            const isHighlighted = activeTopic ? info.text.toLowerCase().includes(activeTopic.toLowerCase()) : false;
-                            const itemOpacity = activeTopic && !isHighlighted ? 'opacity-40' : 'opacity-100';
+                      parsedKeyInfo.map((info, index) => {
+                        const isHighlighted = activeTopic ? info.text.toLowerCase().includes(activeTopic.toLowerCase()) : false;
+                        const itemOpacity = activeTopic && !isHighlighted ? 'opacity-40' : 'opacity-100';
 
-                            return (
-                                <li 
-                                    key={index}
-                                    className={`flex items-start cursor-pointer rounded-lg p-1.5 transition-all duration-300 ${itemOpacity} ${isHighlighted ? 'bg-amber-200/80' : 'hover:bg-slate-100/80'}`}
-                                    onClick={() => handleSeekTo(info.timestamp)}
-                                >
-                                    <span className="font-mono text-xs text-slate-500 mr-2">[{formatTimestamp(info.timestamp)}]</span>
-                                    <span className="flex-1">{info.text}</span>
-                                </li>
-                            );
-                        })}
-                    </ul>
+                        return (
+                            <button
+                                key={index}
+                                onClick={() => handleSeekTo(info.timestamp)}
+                                className={`w-full text-left rounded-xl border border-transparent px-3 py-2 transition-all duration-200 ${itemOpacity} ${
+                                    isHighlighted
+                                        ? 'bg-amber-200/80 text-slate-900 shadow-sm'
+                                        : 'hover:bg-slate-100/80 hover:border-slate-200'
+                                }`}
+                            >
+                                <div className="flex items-center justify-between gap-3">
+                                  <span className="font-mono text-xs text-slate-500">{formatTimestamp(info.timestamp)}</span>
+                                  <span className={`text-[10px] uppercase tracking-wider font-semibold ${info.color.replace('bg-', 'text-')}`}>●</span>
+                                </div>
+                                <p className="mt-1 text-sm text-slate-700">{info.text}</p>
+                            </button>
+                        );
+                      })
                     ) : (
                     <p className="text-sm text-slate-500 italic">{t('noKeyMomentsGenerated')}</p>
                     )}
                 </div>
             </div>
         )}
-      </div>
 
-      {/* Right Column */}
-      <div className="lg:col-span-5 flex flex-col bg-white/50 rounded-3xl border border-white/30 shadow-sm lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)]">
-        {/* Tabs */}
-        <div className="flex-shrink-0 p-2 border-b border-slate-300/50">
-          <div className="bg-slate-200/50 p-1 rounded-xl flex items-center" role="tablist">
-              {TABS.map(tab => (
-                  <button
-                      key={tab}
-                      onClick={() => setActiveTab(tab)}
-                      role="tab"
-                      aria-selected={activeTab === tab}
-                      className={`flex-1 py-1.5 text-sm font-semibold transition-all duration-200 rounded-lg ${
-                          activeTab === tab
-                              ? 'bg-white text-slate-900 shadow-sm'
-                              : 'text-slate-500 hover:bg-white/50'
-                      }`}
-                  >
-                      {TABS_MAP[tab]}
-                  </button>
-              ))}
-          </div>
-        </div>
-        
-        {/* Tab Content */}
-        {activeTab === 'Insights' && (
-            <div className="flex-1 overflow-y-auto custom-scrollbar flex">
-                {generationStatus.active ? (
-                    <div className="flex flex-col items-center justify-center h-full p-4 text-center m-auto">
-                        <div className="w-16 h-16 border-4 border-slate-300 border-t-slate-800 rounded-full animate-spin"></div>
-                        <p className="mt-4 font-semibold">{generationStatus.stage}</p>
-                        {generationStatus.stage === t('insightsPreparingVideo') && (
-                            <div className="w-full bg-slate-200 rounded-full h-2.5 mt-2">
-                                <div className="bg-slate-600 h-2.5 rounded-full" style={{width: `${generationStatus.progress}%`}}></div>
-                            </div>
-                        )}
-                        <p className="text-xs text-slate-500 mt-2">{t('generatingInsights')}</p>
-                    </div>
-                ) : summaryAnalysis ? (
-                    <div className="p-4 space-y-6">
-                        <div>
-                            <h3 className="font-semibold mb-2">{t('summary')}</h3>
-                            <div className="text-sm text-slate-700 leading-relaxed"><MarkdownRenderer content={summaryAnalysis.result} onTimestampClick={handleSeekTo} /></div>
-                        </div>
-                        {topicsAnalysis && (
-                          <div>
-                            <h3 className="font-semibold mb-2">{t('topics')}</h3>
-                            {parsedTopics.length > 0 ? (
-                            <div className="flex flex-wrap gap-2">
-                                {parsedTopics.map((topic, i) => (
-                                <button 
-                                    key={i} 
-                                    onClick={() => setActiveTopic(prev => prev === topic ? null : topic)}
-                                    className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
-                                        activeTopic === topic ? 'bg-slate-800 text-white' : 'bg-slate-200/80 hover:bg-slate-300/80 text-slate-700'
-                                    }`}
-                                >
-                                    {topic}
-                                </button>
-                                ))}
-                            </div>
-                             ) : (
-                                <p className="text-sm text-slate-500 italic">{t('noTopicsGenerated')}</p>
-                            )}
-                          </div>
-                        )}
-                    </div>
-                ) : (
-                    <div className="flex flex-col items-center p-6 text-center m-auto">
-                         <div className="w-20 h-20 mb-4">
-                            <svg className="w-full h-full text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.375 3.375 0 0114 18.442V21.75a1.5 1.5 0 01-3 0v-3.308c0-.944.345-1.846.945-2.55l.547-.547z" />
-                            </svg>
-                         </div>
-                        <h3 className="font-semibold text-lg">{t('unlockInsights')}</h3>
-                        <p className="text-sm text-slate-500 mb-4">{t('unlockInsightsDesc')}</p>
-                        <button
-                            onClick={handleGenerateInsights}
-                            className="w-full h-10 px-4 py-2 inline-flex items-center justify-center rounded-xl text-sm font-medium transition-colors bg-slate-900 text-slate-50 hover:bg-slate-900/90 shadow-sm"
-                        >
-                            {t('generateInsights')}
-                        </button>
-                    </div>
-                )}
+        <div className="bg-white/50 rounded-3xl border border-white/30 shadow-sm flex flex-col flex-1 min-h-0 overflow-hidden">
+          {/* Tabs */}
+          <div className="flex-shrink-0 p-2 border-b border-slate-300/50">
+            <div className="bg-slate-200/50 p-1 rounded-xl flex items-center" role="tablist">
+                {TABS.map(tab => (
+                    <button
+                        key={tab}
+                        onClick={() => setActiveTab(tab)}
+                        role="tab"
+                        aria-selected={activeTab === tab}
+                        className={`flex-1 py-1.5 text-sm font-semibold transition-all duration-200 rounded-lg ${
+                            activeTab === tab
+                                ? 'bg-white text-slate-900 shadow-sm'
+                                : 'text-slate-500 hover:bg-white/50'
+                        }`}
+                    >
+                        {TABS_MAP[tab]}
+                    </button>
+                ))}
             </div>
-        )}
-        {activeTab === 'Transcript' && (
-             <div className="flex-1 overflow-y-auto custom-scrollbar p-4">
-                {isGeneratingSubtitles || isTranslating ? (
-                    <div className="flex flex-col items-center justify-center h-full text-center">
-                        <div className="w-16 h-16 border-4 border-slate-300 border-t-slate-800 rounded-full animate-spin"></div>
-                        <p className="mt-4 font-semibold">{isTranslating ? t('translatingSubtitles') : generationStatus.stage || t('generatingSubtitles')}</p>
-                        {generationStatus.progress > 0 && (
-                          <div className="w-full max-w-xs bg-slate-200 rounded-full h-2 mt-3">
-                            <div className="bg-slate-600 h-2 rounded-full transition-all" style={{width: `${generationStatus.progress}%`}}></div>
-                          </div>
-                        )}
-                        <p className="text-xs text-slate-500 mt-2">
-                          {t('subtitleGenerationWarning')}
-                        </p>
-                        {streamingSubtitles && (
-                          <div className="mt-4 p-3 bg-white/50 rounded-lg border border-slate-200 text-left max-w-lg max-h-48 overflow-y-auto text-xs whitespace-pre-wrap">
-                            <p className="text-slate-600 font-mono">{streamingSubtitles}</p>
-                          </div>
-                        )}
-                    </div>
-                ) : subtitles && subtitles.segments.length > 0 ? (
-                  <>
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center space-x-1">
-                        {subtitles.segments.some(seg => seg.translatedText) && (
-                          <>
-                            <button
-                              onClick={() => setDisplayMode('original')}
-                              className={`text-xs px-2.5 py-1 rounded-lg transition ${
-                                displayMode === 'original'
-                                  ? 'bg-slate-800 text-white'
-                                  : 'bg-white/50 hover:bg-white/80 border border-white/20 text-slate-600'
-                              }`}
-                            >
-                              {language === 'zh' ? '原文' : 'Original'}
-                            </button>
-                            <button
-                              onClick={() => setDisplayMode('translated')}
-                              className={`text-xs px-2.5 py-1 rounded-lg transition ${
-                                displayMode === 'translated'
-                                  ? 'bg-slate-800 text-white'
-                                  : 'bg-white/50 hover:bg-white/80 border border-white/20 text-slate-600'
-                              }`}
-                            >
-                              {language === 'zh' ? '译文' : 'Translated'}
-                            </button>
-                            <button
-                              onClick={() => setDisplayMode('bilingual')}
-                              className={`text-xs px-2.5 py-1 rounded-lg transition ${
-                                displayMode === 'bilingual'
-                                  ? 'bg-slate-800 text-white'
-                                  : 'bg-white/50 hover:bg-white/80 border border-white/20 text-slate-600'
-                              }`}
-                            >
-                              {language === 'zh' ? '双语' : 'Bilingual'}
-                            </button>
-                          </>
-                        )}
+          </div>
+
+          {/* Tab Content */}
+          {activeTab === 'Insights' && (
+              <div className="flex-1 overflow-y-auto custom-scrollbar flex">
+                  {generationStatus.active ? (
+                      <div className="flex flex-col items-center justify-center h-full p-4 text-center m-auto">
+                          <div className="w-16 h-16 border-4 border-slate-300 border-t-slate-800 rounded-full animate-spin"></div>
+                          <p className="mt-4 font-semibold">{generationStatus.stage}</p>
+                          {generationStatus.stage === t('insightsPreparingVideo') && (
+                              <div className="w-full bg-slate-200 rounded-full h-2.5 mt-2">
+                                  <div className="bg-slate-600 h-2.5 rounded-full" style={{width: `${generationStatus.progress}%`}}></div>
+                              </div>
+                          )}
+                          <p className="text-xs text-slate-500 mt-2">{t('generatingInsights')}</p>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        {!subtitles.segments.some(seg => seg.translatedText) && (
-                          <button
-                            onClick={handleTranslateSubtitles}
-                            disabled={isTranslating}
-                            className="text-xs backdrop-blur-sm bg-white/50 hover:bg-white/80 border border-white/20 text-slate-800 font-medium px-2.5 py-1 rounded-xl transition shadow-sm disabled:opacity-50"
-                          >
-                            {language === 'zh' ? '翻译字幕' : 'Translate'}
-                          </button>
-                        )}
-                        <button
-                            onClick={() => downloadFile(segmentsToSrt(subtitles.segments), `${video.name}.srt`, 'text/plain')}
-                            className="text-xs backdrop-blur-sm bg-white/50 hover:bg-white/80 border border-white/20 text-slate-800 font-medium p-1.5 rounded-xl transition shadow-sm"
-                            title={language === 'zh' ? '下载字幕' : 'Download'}
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                            </svg>
-                        </button>
-                      </div>
-                    </div>
-                    <div className="space-y-3 text-sm pr-2">
-                        {subtitles.segments.map((segment, index) => (
-                        <div
-                            key={index}
-                            ref={index === activeSegmentIndex ? activeSegmentRef : null}
-                            onClick={() => handleSeekTo(segment.startTime)}
-                            className={`p-1.5 rounded-lg cursor-pointer transition-colors duration-200 ${
-                                index === activeSegmentIndex
-                                ? 'bg-slate-800/10'
-                                : 'hover:bg-slate-800/5'
-                            }`}
-                        >
-                            <span
-                                className={`font-mono text-xs ${
-                                    index === activeSegmentIndex
-                                    ? 'text-slate-800'
-                                    : 'text-slate-500'
-                                }`}
-                            >
-                                {formatTimestamp(segment.startTime)}
-                            </span>
-                            {displayMode === 'original' && (
-                              <p
-                                  className={`mt-0.5 ${
-                                      index === activeSegmentIndex
-                                      ? 'text-slate-900'
-                                      : 'text-slate-700'
-                                  }`}
-                              >
-                                  {segment.text}
-                              </p>
-                            )}
-                            {displayMode === 'translated' && segment.translatedText && (
-                              <p
-                                  className={`mt-0.5 ${
-                                      index === activeSegmentIndex
-                                      ? 'text-slate-900'
-                                      : 'text-slate-700'
-                                  }`}
-                              >
-                                  {segment.translatedText}
-                              </p>
-                            )}
-                            {displayMode === 'bilingual' && (
-                              <>
-                                <p
-                                    className={`mt-0.5 text-sm ${
-                                        index === activeSegmentIndex
-                                        ? 'text-slate-900 font-medium'
-                                        : 'text-slate-700'
-                                    }`}
-                                >
-                                    {segment.translatedText || segment.text}
-                                </p>
-                                {segment.translatedText && (
-                                  <p
-                                      className={`mt-1 text-xs ${
-                                          index === activeSegmentIndex
-                                          ? 'text-slate-600'
-                                          : 'text-slate-500'
+                  ) : summaryAnalysis ? (
+                      <div className="p-4 space-y-6">
+                          <div>
+                              <h3 className="font-semibold mb-2">{t('summary')}</h3>
+                              <div className="text-sm text-slate-700 leading-relaxed"><MarkdownRenderer content={summaryAnalysis.result} onTimestampClick={handleSeekTo} /></div>
+                          </div>
+                          {topicsAnalysis && (
+                            <div>
+                              <h3 className="font-semibold mb-2">{t('topics')}</h3>
+                              {parsedTopics.length > 0 ? (
+                              <div className="flex flex-wrap gap-2">
+                                  {parsedTopics.map((topic, i) => (
+                                  <button
+                                      key={i}
+                                      onClick={() => setActiveTopic(prev => prev === topic ? null : topic)}
+                                      className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
+                                          activeTopic === topic ? 'bg-slate-800 text-white' : 'bg-slate-200/80 hover:bg-slate-300/80 text-slate-700'
                                       }`}
                                   >
-                                      {segment.text}
-                                  </p>
-                                )}
-                              </>
-                            )}
-                        </div>
-                        ))}
-                    </div>
-                  </>
-                ) : (
-                    <div className="flex flex-col items-center justify-center h-full p-4 text-center">
-                        <div className="w-16 h-16 mb-4 text-slate-400">
-                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1} stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-9h3.375c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 0 1-2.25 2.25M16.5 7.5V18a2.25 2.25 0 0 0 2.25 2.25M16.5 7.5V4.875c0-.621-.504-1.125-1.125-1.125H4.125C3.504 3.75 3 4.254 3 4.875V18a2.25 2.25 0 0 0 2.25 2.25h13.5M6 7.5h3v3H6v-3Z" />
-                             </svg>
-                        </div>
-                        <p className="text-sm text-slate-500 mb-4">{t('noSubtitles')}</p>
-                        <div className="flex space-x-2 w-full">
-                            <button onClick={handleImportSubtitlesClick} className="flex-1 h-9 text-xs font-semibold rounded-lg bg-white/80 text-slate-700 hover:bg-white border border-slate-300/80 shadow-sm transition">
-                                {t('importSubtitles')}
-                            </button>
-                            <button onClick={() => setShowGenerateOptions(true)} className="flex-1 h-9 text-xs font-semibold rounded-lg bg-slate-800 text-slate-200 hover:bg-slate-700 shadow-sm transition">
-                                {t('generateWithAI')}
-                            </button>
-                        </div>
-                        
-                        {showGenerateOptions && (
-                            <div className="mt-4 p-4 bg-slate-200/50 rounded-xl w-full text-left text-sm space-y-3 animate-fade-in">
-                                <div>
-                                    <label htmlFor="lang-select" className="font-medium text-slate-800 text-xs">{t('spokenLanguage')}:</label>
-                                     <select
-                                        id="lang-select"
-                                        value={sourceLanguage}
-                                        onChange={e => setSourceLanguage(e.target.value)}
-                                        className="mt-1 w-full bg-white/80 border-slate-300 border rounded-lg px-2 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
-                                    >
-                                        <option>English</option>
-                                        <option>Chinese</option>
-                                        <option>Spanish</option>
-                                        <option>French</option>
-                                        <option>German</option>
-                                        <option>Japanese</option>
-                                        <option>Korean</option>
-                                        <option>Russian</option>
-                                    </select>
-                                </div>
-                                <div className="flex justify-end space-x-2">
-                                     <button onClick={() => setShowGenerateOptions(false)} className="px-3 py-1 text-xs rounded-lg hover:bg-slate-900/10">{t('cancel')}</button>
-                                     <button onClick={handleGenerateSubtitles} className="px-3 py-1 text-xs rounded-lg bg-slate-900 text-white hover:bg-slate-800">{t('generate')}</button>
-                                </div>
+                                      {topic}
+                                  </button>
+                                  ))}
+                              </div>
+                               ) : (
+                                  <p className="text-sm text-slate-500 italic">{t('noTopicsGenerated')}</p>
+                              )}
                             </div>
-                        )}
-                        <input type="file" ref={subtitleInputRef} onChange={handleSubtitleFileChange} className="hidden" accept=".srt,.vtt" />
-                    </div>
-                )}
-            </div>
-        )}
-        {activeTab === 'Chat' && (
-            <div className="flex-1 flex flex-col min-h-0">
-              <ChatPanel
-                video={video}
-                subtitles={subtitles}
-                screenshotDataUrl={screenshotDataUrl}
-                onClearScreenshot={() => setScreenshotDataUrl(null)}
-                onSeekToTime={handleSeekTo}
-              />
-            </div>
-        )}
-        {activeTab === 'Notes' && (
-            <NotesPanel video={video} note={note} />
-        )}
+                          )}
+                      </div>
+                  ) : (
+                      <div className="flex flex-col items-center p-6 text-center m-auto">
+                           <div className="w-20 h-20 mb-4">
+                              <svg className="w-full h-full text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.375 3.375 0 0114 18.442V21.75a1.5 1.5 0 01-3 0v-3.308c0-.944.345-1.846.945-2.55l.547-.547z" />
+                              </svg>
+                           </div>
+                          <h3 className="font-semibold text-lg">{t('unlockInsights')}</h3>
+                          <p className="text-sm text-slate-500 mb-4">{t('unlockInsightsDesc')}</p>
+                          <button
+                              onClick={handleGenerateInsights}
+                              className="w-full h-10 px-4 py-2 inline-flex items-center justify-center rounded-xl text-sm font-medium transition-colors bg-slate-900 text-slate-50 hover:bg-slate-900/90 shadow-sm"
+                          >
+                              {t('generateInsights')}
+                          </button>
+                      </div>
+                  )}
+              </div>
+          )}
+          {activeTab === 'Chat' && (
+              <div className="flex-1 flex flex-col min-h-0">
+                <ChatPanel
+                  video={video}
+                  subtitles={subtitles}
+                  screenshotDataUrl={screenshotDataUrl}
+                  onClearScreenshot={() => setScreenshotDataUrl(null)}
+                  onSeekToTime={handleSeekTo}
+                />
+              </div>
+          )}
+          {activeTab === 'Notes' && (
+              <NotesPanel video={video} note={note} />
+          )}
+        </div>
       </div>
     </div>
   );

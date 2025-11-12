@@ -72,29 +72,36 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   };
 
   return (
-    <div className="relative flex-1 overflow-hidden bg-[#f6f8fc]">
+    <div className="relative flex-1 overflow-hidden bg-[#f7f9fc]">
       <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute -top-40 right-[-10%] h-[440px] w-[440px] rounded-full bg-[radial-gradient(circle,_rgba(118,131,255,0.18)_0%,rgba(118,131,255,0)_70%)] blur-[120px]" />
-        <div className="absolute -bottom-32 left-[-10%] h-[500px] w-[500px] rounded-full bg-[radial-gradient(circle,_rgba(97,181,255,0.16)_0%,rgba(97,181,255,0)_70%)] blur-[130px]" />
-        <div className="absolute inset-0 bg-gradient-to-br from-white/70 via-transparent to-white/40" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(148,163,255,0.24),transparent_55%),radial-gradient(circle_at_80%_30%,rgba(94,234,212,0.18),transparent_50%),linear-gradient(125deg,rgba(255,255,255,0.92),rgba(244,247,252,0.85))]" />
+        <div
+          className="absolute inset-0 mix-blend-overlay opacity-50"
+          style={{
+            backgroundImage:
+              'linear-gradient(115deg, rgba(180, 193, 255, 0.08) 0%, rgba(180, 193, 255, 0) 55%), linear-gradient(25deg, rgba(94, 234, 212, 0.08) 0%, rgba(94, 234, 212, 0) 55%)',
+          }}
+        />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.7),transparent_60%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(110deg,transparent_0%,rgba(148,163,255,0.08)_35%,transparent_70%)]" />
       </div>
 
-      <div className="relative z-10 flex flex-col min-h-full items-center px-6 sm:px-8 lg:px-12 py-12">
+      <div className="relative z-10 flex flex-col min-h-full items-center px-6 sm:px-8 lg:px-14 py-12">
         <header className="w-full max-w-6xl mx-auto flex items-center justify-between gap-6 py-4">
           <div className="flex items-center gap-3">
-            <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-[#5564f6] to-[#8aa1ff] shadow-lg shadow-[#5564f6]/20 flex items-center justify-center">
-              <span className="text-lg font-semibold text-white tracking-wider">AI</span>
+            <div className="h-12 w-12 rounded-2xl border border-white/70 bg-white/90 shadow-[0_12px_35px_rgba(85,100,246,0.15)] backdrop-blur flex items-center justify-center">
+              <span className="text-lg font-semibold text-[#4c5cf2] tracking-[0.3em]">IS</span>
             </div>
             <div>
-              <p className="text-xs uppercase tracking-[0.4em] text-slate-500">InsightReel</p>
-              <h1 className="text-2xl font-semibold text-slate-900">Video Intelligence Studio</h1>
+              <p className="text-xs uppercase tracking-[0.45em] text-slate-400">InsightSeel</p>
+              <h1 className="text-2xl font-semibold text-slate-900">AI Video Parsing Intelligence</h1>
             </div>
           </div>
           <div className="flex items-center gap-3">
             {currentUser ? (
               <button
                 onClick={() => onOpenAccount?.()}
-                className="px-4 py-2 rounded-full border border-slate-300 text-sm font-medium text-slate-600 bg-white/80 backdrop-blur-lg hover:bg-white transition"
+                className="px-4 py-2 rounded-full border border-slate-200 text-sm font-medium text-slate-600 bg-white/80 backdrop-blur-lg hover:bg-white shadow-sm transition"
               >
                 {currentUser.email || 'Account'}
               </button>
@@ -102,13 +109,13 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
               <>
                 <button
                   onClick={onLogin}
-                  className="px-4 py-2 rounded-full text-sm font-medium text-slate-600 border border-slate-300 bg-white/80 hover:bg-white transition"
+                  className="px-4 py-2 rounded-full text-sm font-medium text-slate-600 border border-slate-200 bg-white/70 hover:bg-white shadow-sm transition"
                 >
                   登录
                 </button>
                 <button
                   onClick={onRegister}
-                  className="px-5 py-2 rounded-full text-sm font-semibold text-white bg-[#5564f6] hover:bg-[#4654e1] transition shadow-md shadow-[#5564f6]/30"
+                  className="px-5 py-2 rounded-full text-sm font-semibold text-white bg-[linear-gradient(135deg,#4b5cf2,#6f8bff)] hover:shadow-[0_15px_35px_rgba(75,92,242,0.35)] transition"
                 >
                   注册
                 </button>
@@ -118,7 +125,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         </header>
 
         <div className="w-full max-w-5xl mx-auto flex flex-col items-center pb-16 text-slate-900">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white border border-slate-200 text-xs uppercase tracking-[0.3em] text-slate-500 shadow-sm">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/70 border border-white/70 text-xs uppercase tracking-[0.32em] text-slate-500 shadow-[0_12px_28px_rgba(148,163,255,0.18)]">
             ⚡ {t('welcomeBoxTitle')}
           </div>
           <h2 className="mt-6 text-center text-4xl md:text-5xl lg:text-6xl font-semibold tracking-tight text-slate-900 leading-tight max-w-4xl">
@@ -136,22 +143,22 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             onDrop={handleDrop}
           >
             <div
-              className={`absolute inset-0 rounded-[28px] bg-[radial-gradient(circle,_rgba(120,134,255,0.25)_0%,rgba(120,134,255,0)_65%)] opacity-0 blur-3xl transition-opacity duration-500 group-hover:opacity-100 ${
+              className={`absolute inset-0 rounded-[30px] bg-[conic-gradient(from_120deg_at_50%_50%,rgba(91,118,255,0.28),rgba(91,118,255,0)_70%)] opacity-0 blur-3xl transition-opacity duration-500 group-hover:opacity-100 ${
                 isDragging ? 'opacity-100' : ''
               }`}
               aria-hidden
             />
             <div
-              className={`relative rounded-[26px] border border-slate-200 bg-white backdrop-blur-xl p-10 md:p-12 shadow-[0_25px_60px_rgba(85,100,246,0.12)] transition-all duration-300 ${
+              className={`relative rounded-[28px] border border-slate-200/80 bg-white/90 backdrop-blur-2xl p-10 md:p-12 shadow-[0_32px_70px_rgba(79,106,255,0.14)] transition-all duration-300 ${
                 isDragging
-                  ? 'border-[#5564f6]/60 shadow-[0_25px_60px_rgba(85,100,246,0.2)]'
-                  : 'hover:border-[#5564f6]/40 hover:shadow-[0_25px_60px_rgba(85,100,246,0.16)]'
+                  ? 'border-[#4c5cf2]/60 shadow-[0_32px_80px_rgba(79,106,255,0.22)]'
+                  : 'hover:border-[#4c5cf2]/50 hover:shadow-[0_32px_80px_rgba(79,106,255,0.18)]'
               }`}
             >
               <div className="flex flex-col items-center text-center">
                 <div
-                  className={`w-16 h-16 rounded-full flex items-center justify-center bg-[#eef2ff] text-[#4c5cf2] transition-transform duration-300 ${
-                    isDragging ? 'scale-110 shadow-[0_0_35px_rgba(85,100,246,0.35)]' : 'group-hover:scale-110'
+                  className={`w-16 h-16 rounded-2xl flex items-center justify-center bg-gradient-to-br from-[#eef2ff] via-white to-[#e0f7f4] text-[#4c5cf2] transition-transform duration-300 shadow-[0_18px_35px_rgba(76,92,242,0.22)] ${
+                    isDragging ? 'scale-110 shadow-[0_0_35px_rgba(76,92,242,0.35)]' : 'group-hover:scale-110'
                   }`}
                 >
                   <svg
@@ -174,19 +181,19 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                 <h3 className="mt-6 text-xl font-semibold text-slate-900 tracking-wide">
                   {t('dropTarget')}
                 </h3>
-                <p className="mt-2 text-sm text-slate-500 max-w-sm">
+                <p className="mt-3 text-sm text-slate-500 max-w-sm">
                   {t('dropTargetHint')}
                 </p>
-                <div className="mt-8 flex flex-col sm:flex-row gap-3 w-full sm:w-auto justify-center">
+                <div className="mt-10 flex flex-col sm:flex-row gap-3 w-full sm:w-auto justify-center">
                   <button
                     onClick={handleImportClick}
-                    className="w-full sm:w-auto px-7 py-3 rounded-full bg-[#5564f6] text-white font-semibold shadow-md shadow-[#5564f6]/30 hover:bg-[#4654e1] transition"
+                    className="w-full sm:w-auto px-8 py-3 rounded-full bg-[linear-gradient(135deg,#4b5cf2,#7b9cff)] text-white font-semibold shadow-[0_18px_35px_rgba(75,92,242,0.32)] hover:brightness-110 transition"
                   >
                     {t('browseFile')}
                   </button>
                   <button
                     onClick={handleImportFolderClick}
-                    className="w-full sm:w-auto px-7 py-3 rounded-full border border-slate-300 text-slate-600 font-medium bg-white/80 backdrop-blur hover:bg-white transition"
+                    className="w-full sm:w-auto px-8 py-3 rounded-full border border-slate-200/80 text-slate-600 font-medium bg-white/70 backdrop-blur-xl hover:bg-white transition"
                   >
                     {t('importFolder')}
                   </button>
@@ -213,18 +220,31 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             multiple
           />
 
-          <div className="mt-12 grid w-full gap-4 sm:grid-cols-3 text-left">
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">多引擎</p>
-              <p className="mt-2 text-sm text-slate-600 leading-relaxed">智能路由驱动的字幕、分析与翻译能力</p>
+          <div className="relative mt-16 w-full">
+            <div className="absolute inset-x-0 -bottom-20 flex justify-center" aria-hidden>
+              <div className="h-56 w-[90%] max-w-4xl rounded-full bg-[radial-gradient(circle_at_center,rgba(148,163,255,0.28),transparent_70%)] blur-3xl opacity-80" />
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">批量</p>
-              <p className="mt-2 text-sm text-slate-600 leading-relaxed">文件夹导入、多任务并发与进度可视化</p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">云同步</p>
-              <p className="mt-2 text-sm text-slate-600 leading-relaxed">自动同步字幕、分析与聊天记录至云端</p>
+            <div className="relative overflow-hidden rounded-[32px] border border-white/70 bg-white/60 backdrop-blur-3xl shadow-[0_32px_70px_rgba(79,106,255,0.12)]">
+              <div
+                className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(91,118,255,0.22),transparent_60%),linear-gradient(135deg,rgba(148,163,255,0.12),rgba(94,234,212,0.08))] opacity-70"
+                aria-hidden
+              />
+              <div className="relative grid divide-y divide-white/40 sm:grid-cols-3 sm:divide-y-0 sm:divide-x">
+                <div className="p-8">
+                  <p className="text-xs uppercase tracking-[0.36em] text-slate-500">多引擎</p>
+                  <p className="mt-4 text-sm text-slate-600 leading-relaxed">
+                    智能路由驱动的字幕、分析与翻译能力
+                  </p>
+                </div>
+                <div className="p-8">
+                  <p className="text-xs uppercase tracking-[0.36em] text-slate-500">批量</p>
+                  <p className="mt-4 text-sm text-slate-600 leading-relaxed">文件夹导入、多任务并发与进度可视化</p>
+                </div>
+                <div className="p-8">
+                  <p className="text-xs uppercase tracking-[0.36em] text-slate-500">云同步</p>
+                  <p className="mt-4 text-sm text-slate-600 leading-relaxed">自动同步字幕、分析与聊天记录至云端</p>
+                </div>
+              </div>
             </div>
           </div>
         </div>

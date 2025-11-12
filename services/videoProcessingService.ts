@@ -501,11 +501,13 @@ async function prepareAnalysisPayload(
     : null;
   const duration = video.duration || lastSubtitle?.endTime || 0;
   const frameAttempts = (() => {
-    if (duration > 1800) return [75, 60, 45, 30];
-    if (duration > 900) return [60, 45, 32, 24];
-    if (duration > 600) return [55, 40, 28, 20];
-    if (duration > 300) return [48, 36, 24, 16];
-    return [40, 30, 20, 12];
+    // Increased frame counts for better analysis coverage
+    if (duration > 1800) return [360, 300, 240, 180]; // 30+ min: ~1 frame per 5s
+    if (duration > 1200) return [300, 240, 180, 120]; // 20-30 min: ~1 frame per 4s
+    if (duration > 900) return [225, 180, 135, 90];   // 15-20 min: ~1 frame per 4s
+    if (duration > 600) return [200, 150, 100, 60];   // 10-15 min: ~1 frame per 3s
+    if (duration > 300) return [150, 120, 90, 60];    // 5-10 min: ~1 frame per 2s
+    return [120, 90, 60, 40];                         // < 5 min: ~1 frame per 1-2s
   })();
   let frames: string[] | null = null;
 
@@ -518,10 +520,15 @@ async function prepareAnalysisPayload(
       );
 
       const totalSizeMB = frames.reduce((acc, frame) => acc + frame.length, 0) / (1024 * 1024);
-      if (totalSizeMB <= 3.5) {
+      console.log(`Extracted ${frames.length} frames, total size: ${totalSizeMB.toFixed(2)}MB`);
+
+      // Increased limit from 3.5MB to 15MB to support longer videos
+      // Gemini 2.0 Flash can handle up to 20MB of image data
+      if (totalSizeMB <= 15) {
         break;
       }
 
+      console.warn(`Frame size (${totalSizeMB.toFixed(2)}MB) exceeds 15MB limit. Retrying with fewer frames...`);
       onStatus?.({ stage: 'Frames too large. Retrying with fewer frames...', progress: 15 });
       frames = null;
     } catch (error) {

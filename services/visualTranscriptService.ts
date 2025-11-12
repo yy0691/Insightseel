@@ -23,19 +23,35 @@ function chooseFrameBudgets(duration: number): number[] {
     return [40, 30, 20];
   }
 
+  // Increased frame counts for better coverage of entire video
   if (duration <= 120) {
+    // <= 2 min: 1 frame per second
     return [120, 90, 60];
   }
 
+  if (duration <= 300) {
+    // 2-5 min: 1 frame per 2 seconds
+    return [150, 120, 90];
+  }
+
   if (duration <= 600) {
-    return [90, 70, 48];
+    // 5-10 min: 1 frame per 3 seconds
+    return [200, 150, 120];
+  }
+
+  if (duration <= 1200) {
+    // 10-20 min: 1 frame per 4 seconds
+    return [300, 250, 200];
   }
 
   if (duration <= 1800) {
-    return [75, 60, 40];
+    // 20-30 min: 1 frame per 5 seconds
+    return [360, 300, 240];
   }
 
-  return [60, 45, 30];
+  // > 30 min: 1 frame per 6 seconds
+  const targetFrames = Math.floor(duration / 6);
+  return [targetFrames, Math.floor(targetFrames * 0.8), Math.floor(targetFrames * 0.6)];
 }
 
 function buildTimelineHints(duration: number, frameCount: number): Array<{ start: number; end: number; label: string }> {
@@ -106,8 +122,16 @@ export async function generateVisualTranscript(
 
   onStatus?.({ stage: 'Inferring subtitles from visual timeline...', progress: 65 });
 
-  const timelineSummary = selectedTimeline
-    .slice(0, 40)
+  // Use all timeline entries, not just first 40
+  // For very long videos (> 500 frames), sample evenly to keep prompt manageable
+  let timelineForPrompt = selectedTimeline;
+  if (selectedTimeline.length > 500) {
+    const step = Math.ceil(selectedTimeline.length / 500);
+    timelineForPrompt = selectedTimeline.filter((_, idx) => idx % step === 0);
+    console.log(`Sampled ${timelineForPrompt.length} timeline hints from ${selectedTimeline.length} frames`);
+  }
+
+  const timelineSummary = timelineForPrompt
     .map((entry) => entry.label)
     .join('\n');
 

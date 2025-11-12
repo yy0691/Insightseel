@@ -310,3 +310,5 @@ export const syncService = {
     };
   },
 };
+// 在文件底部添加
+export { syncToCloud };

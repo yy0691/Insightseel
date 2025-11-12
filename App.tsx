@@ -15,6 +15,7 @@ import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
 import { clearOldCache } from './services/cacheService';
 import { User } from '@supabase/supabase-js';
 import { authService } from './services/authService';
+import autoSyncService from './services/autoSyncService';
 
 const AppContent: React.FC<{ settings: APISettings, onSettingsChange: (newSettings: APISettings) => void }> = ({ settings, onSettingsChange }) => {
   const [videos, setVideos] = useState<Video[]>([]);
@@ -63,6 +64,8 @@ const AppContent: React.FC<{ settings: APISettings, onSettingsChange: (newSettin
       };
     }
 
+    // 初始化自动同步
+    autoSyncService.initAutoSync();
     return () => {
       mounted = false;
     };

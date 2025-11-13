@@ -27,7 +27,7 @@ interface VideoDetailProps {
   onFirstInsightGenerated: () => void;
 }
 
-type TabType = 'Insights' | 'Chat' | 'Notes';
+type TabType = 'KeyMoments' | 'Insights' | 'Chat' | 'Notes';
 
 const HEATMAP_COLORS = [
     'bg-sky-400', 'bg-lime-400', 'bg-amber-400', 'bg-violet-400', 'bg-rose-400',
@@ -75,8 +75,6 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
   const activeSegmentRef = useRef<HTMLDivElement>(null);
   const [isGeneratingSubtitles, setIsGeneratingSubtitles] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
-  const [showGenerateOptions, setShowGenerateOptions] = useState(false);
-  const [sourceLanguage, setSourceLanguage] = useState('English');
   const [displayMode, setDisplayMode] = useState<SubtitleDisplayMode>('original');
   
   const [generationStatus, setGenerationStatus] = useState({ active: false, stage: '', progress: 0 });
@@ -87,6 +85,7 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
   const topicsAnalysis = analyses.find(a => a.type === 'topics');
   const keyInfoAnalysis = analyses.find(a => a.type === 'key-info');
   const [activeTopic, setActiveTopic] = useState<string | null>(null);
+  const sourceLanguage = useMemo(() => (language === 'zh' ? 'Chinese' : 'English'), [language]);
   
   // Generate video hash on mount for caching
   useEffect(() => {
@@ -99,19 +98,19 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
   }, [video]);
   
   const TABS_MAP: Record<TabType, string> = useMemo(() => ({
+    'KeyMoments': t('keyMoments'),
     'Insights': t('insights'),
     'Chat': t('chat'),
     'Notes': t('notes'),
   }), [t]);
 
-  const TABS = useMemo(() => Object.keys(TABS_MAP) as TabType[], [TABS_MAP]);
+  const TABS = useMemo(() => (['KeyMoments', 'Insights', 'Chat', 'Notes'] as TabType[]), []);
 
   useEffect(() => {
     const url = URL.createObjectURL(video.file);
     setVideoUrl(url);
     setActiveTab('Insights');
     setScreenshotDataUrl(null); 
-    setShowGenerateOptions(false);
     setIsGeneratingSubtitles(false);
     setIsTranslating(false);
     setGenerationStatus({ active: false, stage: '', progress: 0 });
@@ -211,7 +210,6 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
 
     // Set initial state early to show UI feedback
     setIsGeneratingSubtitles(true);
-    setShowGenerateOptions(false);
     setGenerationStatus({ active: true, stage: 'Preparing...', progress: 0 });
 
     // Get video duration for better user feedback
@@ -512,24 +510,27 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
 
         {/* Transcript Card */}
         <div className="bg-white/50 rounded-3xl border border-white/30 shadow-sm flex flex-col flex-1 min-h-0 overflow-hidden">
-          <div className="p-4 border-b border-slate-300/50 flex flex-wrap items-center justify-between gap-3">
-            <h3 className="font-semibold">{t('transcript')}</h3>
-            <div className="flex flex-wrap items-center gap-2">
+          <div className="p-3 border-b border-slate-200/60 flex items-center justify-end gap-2">
+            {subtitles && subtitles.segments.length > 0 && !subtitles.segments.some(seg => seg.translatedText) && (
               <button
-                onClick={handleImportSubtitlesClick}
-                className="h-9 px-3 text-xs font-semibold rounded-lg bg-white/80 text-slate-700 hover:bg-white border border-slate-300/80 shadow-sm transition"
-                disabled={isGeneratingSubtitles || isTranslating}
+                onClick={handleTranslateSubtitles}
+                disabled={isTranslating}
+                className="h-8 px-3 text-xs font-semibold rounded-lg bg-slate-800 text-slate-100 hover:bg-slate-700 transition shadow-sm disabled:opacity-50"
               >
-                {t('importSubtitles')}
+                {t('translateSubtitles')}
               </button>
+            )}
+            {subtitles && subtitles.segments.length > 0 && (
               <button
-                onClick={() => setShowGenerateOptions(true)}
-                className="h-9 px-3 text-xs font-semibold rounded-lg bg-slate-800 text-slate-200 hover:bg-slate-700 shadow-sm transition disabled:opacity-60"
-                disabled={isGeneratingSubtitles}
+                onClick={() => downloadFile(segmentsToSrt(subtitles.segments), `${video.name}.srt`, 'text/plain')}
+                className="h-8 px-2.5 text-xs font-semibold rounded-lg bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 transition shadow-sm"
+                title={language === 'zh' ? '下载字幕' : 'Download'}
               >
-                {t('generateWithAI')}
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
               </button>
-            </div>
+            )}
           </div>
           <div className="flex-1 overflow-y-auto custom-scrollbar p-4">
             {isGeneratingSubtitles || isTranslating ? (
@@ -552,64 +553,40 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
                 </div>
             ) : subtitles && subtitles.segments.length > 0 ? (
               <>
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-                  <div className="flex items-center gap-1">
-                    {subtitles.segments.some(seg => seg.translatedText) && (
-                      <>
-                        <button
-                          onClick={() => setDisplayMode('original')}
-                          className={`text-xs px-2.5 py-1 rounded-lg transition ${
-                            displayMode === 'original'
-                              ? 'bg-slate-800 text-white'
-                              : 'bg-white/50 hover:bg-white/80 border border-white/20 text-slate-600'
-                          }`}
-                        >
-                          {language === 'zh' ? '原文' : 'Original'}
-                        </button>
-                        <button
-                          onClick={() => setDisplayMode('translated')}
-                          className={`text-xs px-2.5 py-1 rounded-lg transition ${
-                            displayMode === 'translated'
-                              ? 'bg-slate-800 text-white'
-                              : 'bg-white/50 hover:bg-white/80 border border-white/20 text-slate-600'
-                          }`}
-                        >
-                          {language === 'zh' ? '译文' : 'Translated'}
-                        </button>
-                        <button
-                          onClick={() => setDisplayMode('bilingual')}
-                          className={`text-xs px-2.5 py-1 rounded-lg transition ${
-                            displayMode === 'bilingual'
-                              ? 'bg-slate-800 text-white'
-                              : 'bg-white/50 hover:bg-white/80 border border-white/20 text-slate-600'
-                          }`}
-                        >
-                          {language === 'zh' ? '双语' : 'Bilingual'}
-                        </button>
-                      </>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {!subtitles.segments.some(seg => seg.translatedText) && (
-                      <button
-                        onClick={handleTranslateSubtitles}
-                        disabled={isTranslating}
-                        className="text-xs backdrop-blur-sm bg-white/50 hover:bg-white/80 border border-white/20 text-slate-800 font-medium px-2.5 py-1 rounded-xl transition shadow-sm disabled:opacity-50"
-                      >
-                        {language === 'zh' ? '翻译字幕' : 'Translate'}
-                      </button>
-                    )}
+                {subtitles.segments.some(seg => seg.translatedText) && (
+                  <div className="flex items-center gap-2 mb-4">
                     <button
-                        onClick={() => downloadFile(segmentsToSrt(subtitles.segments), `${video.name}.srt`, 'text/plain')}
-                        className="text-xs backdrop-blur-sm bg-white/50 hover:bg-white/80 border border-white/20 text-slate-800 font-medium p-1.5 rounded-xl transition shadow-sm"
-                        title={language === 'zh' ? '下载字幕' : 'Download'}
+                      onClick={() => setDisplayMode('original')}
+                      className={`text-xs px-2.5 py-1 rounded-lg transition ${
+                        displayMode === 'original'
+                          ? 'bg-slate-800 text-white'
+                          : 'bg-white/50 hover:bg-white/80 border border-white/20 text-slate-600'
+                      }`}
                     >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                        </svg>
+                      {language === 'zh' ? '原文' : 'Original'}
+                    </button>
+                    <button
+                      onClick={() => setDisplayMode('translated')}
+                      className={`text-xs px-2.5 py-1 rounded-lg transition ${
+                        displayMode === 'translated'
+                          ? 'bg-slate-800 text-white'
+                          : 'bg-white/50 hover:bg-white/80 border border-white/20 text-slate-600'
+                      }`}
+                    >
+                      {language === 'zh' ? '译文' : 'Translated'}
+                    </button>
+                    <button
+                      onClick={() => setDisplayMode('bilingual')}
+                      className={`text-xs px-2.5 py-1 rounded-lg transition ${
+                        displayMode === 'bilingual'
+                          ? 'bg-slate-800 text-white'
+                          : 'bg-white/50 hover:bg-white/80 border border-white/20 text-slate-600'
+                      }`}
+                    >
+                      {language === 'zh' ? '双语' : 'Bilingual'}
                     </button>
                   </div>
-                </div>
+                )}
                 <div className="space-y-3 text-sm pr-2">
                     {subtitles.segments.map((segment, index) => (
                     <div
@@ -692,74 +669,12 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
                 </div>
             )}
           </div>
-          {showGenerateOptions && (
-            <div className="p-4 border-t border-slate-200 bg-slate-200/40 flex flex-col gap-3 animate-fade-in">
-              <div>
-                  <label htmlFor="lang-select" className="font-medium text-slate-800 text-xs">{t('spokenLanguage')}:</label>
-                   <select
-                      id="lang-select"
-                      value={sourceLanguage}
-                      onChange={e => setSourceLanguage(e.target.value)}
-                      className="mt-1 w-full bg-white/80 border-slate-300 border rounded-lg px-2 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
-                  >
-                      <option>English</option>
-                      <option>Chinese</option>
-                      <option>Spanish</option>
-                      <option>French</option>
-                      <option>German</option>
-                      <option>Japanese</option>
-                      <option>Korean</option>
-                      <option>Russian</option>
-                  </select>
-              </div>
-              <div className="flex justify-end gap-2">
-                   <button onClick={() => setShowGenerateOptions(false)} className="px-3 py-1 text-xs rounded-lg hover:bg-slate-900/10">{t('cancel')}</button>
-                   <button onClick={handleGenerateSubtitles} className="px-3 py-1 text-xs rounded-lg bg-slate-900 text-white hover:bg-slate-800">{t('generate')}</button>
-              </div>
-            </div>
-          )}
           <input type="file" ref={subtitleInputRef} onChange={handleSubtitleFileChange} className="hidden" accept=".srt,.vtt" />
         </div>
       </div>
 
       {/* Right Column */}
       <div className="lg:col-span-5 flex flex-col gap-5 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)]">
-        {keyInfoAnalysis && (
-            <div className="bg-white/50 rounded-3xl border border-white/30 shadow-sm flex flex-col flex-shrink-0 overflow-hidden">
-                <div className="p-4 border-b border-slate-300/50">
-                    <h3 className="font-semibold">{t('keyMoments')}</h3>
-                </div>
-                <div className="p-4 space-y-3 overflow-y-auto custom-scrollbar max-h-80">
-                    {parsedKeyInfo.length > 0 ? (
-                      parsedKeyInfo.map((info, index) => {
-                        const isHighlighted = activeTopic ? info.text.toLowerCase().includes(activeTopic.toLowerCase()) : false;
-                        const itemOpacity = activeTopic && !isHighlighted ? 'opacity-40' : 'opacity-100';
-
-                        return (
-                            <button
-                                key={index}
-                                onClick={() => handleSeekTo(info.timestamp)}
-                                className={`w-full text-left rounded-xl border border-transparent px-3 py-2 transition-all duration-200 ${itemOpacity} ${
-                                    isHighlighted
-                                        ? 'bg-amber-200/80 text-slate-900 shadow-sm'
-                                        : 'hover:bg-slate-100/80 hover:border-slate-200'
-                                }`}
-                            >
-                                <div className="flex items-center justify-between gap-3">
-                                  <span className="font-mono text-xs text-slate-500">{formatTimestamp(info.timestamp)}</span>
-                                  <span className={`text-[10px] uppercase tracking-wider font-semibold ${info.color.replace('bg-', 'text-')}`}>●</span>
-                                </div>
-                                <p className="mt-1 text-sm text-slate-700">{info.text}</p>
-                            </button>
-                        );
-                      })
-                    ) : (
-                    <p className="text-sm text-slate-500 italic">{t('noKeyMomentsGenerated')}</p>
-                    )}
-                </div>
-            </div>
-        )}
-
         <div className="bg-white/50 rounded-3xl border border-white/30 shadow-sm flex flex-col flex-1 min-h-0 overflow-hidden">
           {/* Tabs */}
           <div className="flex-shrink-0 p-2 border-b border-slate-300/50">
@@ -783,6 +698,40 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
           </div>
 
           {/* Tab Content */}
+          {activeTab === 'KeyMoments' && (
+              <div className="flex-1 overflow-y-auto custom-scrollbar">
+                <div className="p-4 space-y-3">
+                  {parsedKeyInfo.length > 0 ? (
+                    parsedKeyInfo.map((info, index) => {
+                      const isHighlighted = activeTopic ? info.text.toLowerCase().includes(activeTopic.toLowerCase()) : false;
+                      const itemOpacity = activeTopic && !isHighlighted ? 'opacity-40' : 'opacity-100';
+
+                      return (
+                        <button
+                          key={index}
+                          onClick={() => handleSeekTo(info.timestamp)}
+                          className={`w-full text-left rounded-xl border border-transparent px-3 py-2 transition-all duration-200 ${itemOpacity} ${
+                            isHighlighted
+                              ? 'bg-amber-200/80 text-slate-900 shadow-sm'
+                              : 'hover:bg-slate-100/80 hover:border-slate-200'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="font-mono text-xs text-slate-500">{formatTimestamp(info.timestamp)}</span>
+                            <span className={`text-[10px] uppercase tracking-wider font-semibold ${info.color.replace('bg-', 'text-')}`}>●</span>
+                          </div>
+                          <p className="mt-1 text-sm text-slate-700">{info.text}</p>
+                        </button>
+                      );
+                    })
+                  ) : (
+                    <p className="text-sm text-slate-500 italic">
+                      {keyInfoAnalysis ? t('noKeyMomentsGenerated') : t('keyMomentsTabPlaceholder')}
+                    </p>
+                  )}
+                </div>
+              </div>
+          )}
           {activeTab === 'Insights' && (
               <div className="flex-1 overflow-y-auto custom-scrollbar flex">
                   {generationStatus.active ? (

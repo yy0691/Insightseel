@@ -1,13 +1,13 @@
 import React, { useRef } from "react";
 import { motion, useScroll, useTransform } from "framer-motion";
-import { FileText, FileSpreadsheet, File, Folder } from "lucide-react";
+import { Clapperboard, Film, Folder, Video } from "lucide-react";
 
 const fileCards = [
   {
     id: 1,
-    name: "report-final.pdf",
-    icon: FileText,
-    size: "2.4 MB",
+    name: "product-demo.mp4",
+    icon: Video,
+    duration: "12:47",
     initialX: -200,
     initialY: -100,
     startProgress: 0.2,
@@ -15,9 +15,9 @@ const fileCards = [
   },
   {
     id: 2,
-    name: "events.csv",
-    icon: FileSpreadsheet,
-    size: "1.8 MB",
+    name: "webinar-snippet.mov",
+    icon: Clapperboard,
+    duration: "05:32",
     initialX: 220,
     initialY: -80,
     startProgress: 0.3,
@@ -25,9 +25,9 @@ const fileCards = [
   },
   {
     id: 3,
-    name: "analytics-q4.xlsx",
-    icon: FileSpreadsheet,
-    size: "3.2 MB",
+    name: "team-update.webm",
+    icon: Film,
+    duration: "08:15",
     initialX: -180,
     initialY: 120,
     startProgress: 0.4,
@@ -78,7 +78,7 @@ function CentralWorkspace({ scrollProgress }: { scrollProgress: any }) {
               <h3 className="text-sm font-medium text-slate-800">Insightseel Workspace</h3>
             </div>
             <motion.span className="text-xs text-slate-600">
-              {filesInQueue.get() > 0 ? `${Math.round(filesInQueue.get())} files in queue` : "Waiting for data..."}
+              {filesInQueue.get() > 0 ? `${Math.round(filesInQueue.get())} videos in queue` : "Waiting for videos..."}
             </motion.span>
           </div>
         </div>
@@ -87,8 +87,8 @@ function CentralWorkspace({ scrollProgress }: { scrollProgress: any }) {
         <div className="p-8">
           <div className="flex min-h-[200px] flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 p-8">
             <Folder className="mb-3 h-12 w-12 text-slate-400" />
-            <p className="text-sm font-medium text-slate-700">Drop files here</p>
-            <p className="mt-1 text-xs text-slate-500">Files will be analyzed automatically</p>
+            <p className="text-sm font-medium text-slate-700">Drop videos here</p>
+            <p className="mt-1 text-xs text-slate-500">Videos will be analyzed automatically</p>
           </div>
 
           {/* Queue List */}
@@ -99,9 +99,9 @@ function CentralWorkspace({ scrollProgress }: { scrollProgress: any }) {
                 animate={{ opacity: 1, y: 0 }}
                 className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3"
               >
-                <FileText className="h-4 w-4 text-emerald-600" />
-                <span className="text-xs text-slate-700">report-final.pdf</span>
-                <span className="ml-auto text-xs text-slate-500">2.4 MB</span>
+                <Video className="h-4 w-4 text-emerald-600" />
+                <span className="text-xs text-slate-700">product-demo.mp4</span>
+                <span className="ml-auto text-xs text-slate-500">12:47</span>
               </motion.div>
             )}
             {filesInQueue.get() >= 2 && (
@@ -110,9 +110,9 @@ function CentralWorkspace({ scrollProgress }: { scrollProgress: any }) {
                 animate={{ opacity: 1, y: 0 }}
                 className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3"
               >
-                <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
-                <span className="text-xs text-slate-700">events.csv</span>
-                <span className="ml-auto text-xs text-slate-500">1.8 MB</span>
+                <Clapperboard className="h-4 w-4 text-emerald-600" />
+                <span className="text-xs text-slate-700">webinar-snippet.mov</span>
+                <span className="ml-auto text-xs text-slate-500">05:32</span>
               </motion.div>
             )}
             {filesInQueue.get() >= 3 && (
@@ -121,9 +121,9 @@ function CentralWorkspace({ scrollProgress }: { scrollProgress: any }) {
                 animate={{ opacity: 1, y: 0 }}
                 className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3"
               >
-                <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
-                <span className="text-xs text-slate-700">analytics-q4.xlsx</span>
-                <span className="ml-auto text-xs text-slate-500">3.2 MB</span>
+                <Film className="h-4 w-4 text-emerald-600" />
+                <span className="text-xs text-slate-700">team-update.webm</span>
+                <span className="ml-auto text-xs text-slate-500">08:15</span>
               </motion.div>
             )}
           </div>
@@ -171,7 +171,7 @@ function FileCard({ file, scrollProgress }: { file: any; scrollProgress: any }) 
         </div>
         <div className="flex-1 overflow-hidden">
           <p className="truncate text-xs font-medium text-slate-800">{file.name}</p>
-          <p className="text-[11px] text-slate-500">{file.size}</p>
+          <p className="text-[11px] text-slate-500">{file.duration}</p>
         </div>
       </div>
     </motion.div>

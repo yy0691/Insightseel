@@ -51,6 +51,7 @@ export const en = {
   noTopicsGenerated: "No topics were generated for this video.",
   noKeyMomentsForTopic: "No key moments found for this topic.",
   noKeyMomentsGenerated: "No key moments were generated for this video.",
+  keyMomentsTabPlaceholder: "Generate insights to unlock key moments.",
   translateSubtitles: "Translate",
   translatingSubtitles: "Translating...",
 

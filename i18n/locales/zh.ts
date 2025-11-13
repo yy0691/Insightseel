@@ -53,6 +53,7 @@ export const zh: Translations = {
   noTopicsGenerated: "未能为该视频生成主题。",
   noKeyMomentsForTopic: "未找到与此主题相关的关键时刻。",
   noKeyMomentsGenerated: "未能为该视频生成关键时刻。",
+  keyMomentsTabPlaceholder: "生成见解后即可查看关键时刻。",
   translateSubtitles: "翻译",
   translatingSubtitles: "翻译中...",
 

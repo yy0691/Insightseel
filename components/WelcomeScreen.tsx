@@ -1,6 +1,6 @@
-import React, { useRef } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { User } from "@supabase/supabase-js";
-import { motion, useScroll, useTransform } from "framer-motion";
+import { motion, useScroll, useTransform, useAnimation } from "framer-motion";
 import { Clapperboard, Film, Folder, Video, Sparkles } from "lucide-react";
 import { useLanguage } from "../contexts/LanguageContext";
 
@@ -64,6 +64,17 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
     target: containerRef,
     offset: ["start end", "end start"],
   });
+
+  // Rotating words for title
+  const rotatingWords = ['数据', '语音', '内容', '场景', '情绪', '洞察'];
+  const [currentWordIndex, setCurrentWordIndex] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentWordIndex((prev) => (prev + 1) % rotatingWords.length);
+    }, 2000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files.length > 0) {
@@ -131,6 +142,18 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
               {t('welcomeHeroTitle')}
               <br />
               {t('welcomeHeroTitleLine2')}
+              <span className="inline-block ml-3">
+                <motion.span
+                  key={currentWordIndex}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.5 }}
+                  className="text-emerald-600"
+                >
+                  {rotatingWords[currentWordIndex]}
+                </motion.span>
+              </span>
             </h1>
             <p className="mx-auto mb-8 max-w-2xl text-sm leading-relaxed text-slate-600 md:text-base">
               {t('welcomeHeroDescription')}
@@ -174,10 +197,61 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
       {/* Scroll Drag Animation Section */}
       <section ref={containerRef} className="relative min-h-[200vh] w-full bg-gradient-to-b from-slate-50 via-slate-50 to-white py-24 overflow-hidden">
-        {/* Background decorative elements */}
+        {/* Background decorative elements with drift animation */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-emerald-100/20 rounded-full blur-3xl"></div>
-          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-100/20 rounded-full blur-3xl"></div>
+          <motion.div 
+            className="absolute top-1/4 left-1/4 w-96 h-96 bg-emerald-100/20 rounded-full blur-3xl"
+            animate={{
+              x: [0, 30, 0],
+              y: [0, -20, 0],
+            }}
+            transition={{
+              duration: 20,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+          />
+          <motion.div 
+            className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-100/20 rounded-full blur-3xl"
+            animate={{
+              x: [0, -40, 0],
+              y: [0, 30, 0],
+            }}
+            transition={{
+              duration: 25,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+          />
+          {/* Semantic flow line */}
+          <motion.div
+            className="absolute top-0 right-0 w-full h-full"
+            initial={{ pathLength: 0 }}
+            animate={{ pathLength: 1 }}
+            transition={{
+              duration: 8,
+              repeat: Infinity,
+              ease: "linear",
+            }}
+          >
+            <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
+              <motion.path
+                d="M 100% 0 Q 50% 50% 0 100%"
+                stroke="rgba(255, 255, 255, 0.05)"
+                strokeWidth="2"
+                fill="none"
+                animate={{
+                  pathLength: [0, 1],
+                  opacity: [0.05, 0.15, 0.05],
+                }}
+                transition={{
+                  duration: 8,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                }}
+              />
+            </svg>
+          </motion.div>
         </div>
         
         <div className="sticky top-20 mx-auto flex h-[70vh] max-w-[1120px] items-center justify-center px-4 relative z-10">
@@ -201,6 +275,26 @@ function CentralWorkspace({ scrollProgress }: { scrollProgress: any }) {
   const dropZoneOpacity = useTransform(scrollProgress, [0.5, 0.65], [0.3, 1]);
   const dropZoneScale = useTransform(scrollProgress, [0.5, 0.65], [0.95, 1]);
   const glowIntensity = useTransform(scrollProgress, [0.5, 0.65], [0, 0.5]);
+  const isScanning = useTransform(scrollProgress, [0.5, 0.7], [0, 1]);
+  
+  // Easter egg: show message after 3 seconds
+  const [showEasterEgg, setShowEasterEgg] = useState(false);
+  
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowEasterEgg(true);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, []);
+  
+  // AI status tags
+  const aiStatusMessages = [
+    '正在分析中…',
+    '智能识别中…',
+    '耐心等待…',
+    '正在读取音轨…',
+    '正在解析场景…',
+  ];
 
   return (
     <motion.div
@@ -231,10 +325,93 @@ function CentralWorkspace({ scrollProgress }: { scrollProgress: any }) {
             }}
             className="relative flex min-h-[200px] flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-gradient-to-br from-slate-50 to-slate-100/50 p-8 overflow-hidden"
           >
-            {/* Animated background pattern */}
-            <div className="absolute inset-0 opacity-30">
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(16,185,129,0.1),transparent_50%)] animate-pulse"></div>
-            </div>
+            {/* Animated background pattern with breathing effect */}
+            <motion.div 
+              className="absolute inset-0 opacity-30"
+              animate={{
+                scale: [1, 1.005, 1],
+                opacity: [0.3, 0.4, 0.3],
+              }}
+              transition={{
+                duration: 3.5,
+                repeat: Infinity,
+                ease: "easeInOut",
+              }}
+            >
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(16,185,129,0.1),transparent_50%)]"></div>
+            </motion.div>
+            
+            {/* Flowing particles */}
+            {[...Array(12)].map((_, i) => (
+              <motion.div
+                key={`particle-${i}`}
+                className="absolute w-1 h-1 bg-emerald-400/20 rounded-full"
+                style={{
+                  left: `${Math.random() * 100}%`,
+                  bottom: 0,
+                }}
+                animate={{
+                  y: [-10, -200],
+                  x: [0, (Math.random() - 0.5) * 40],
+                  opacity: [0, 0.8, 0],
+                }}
+                transition={{
+                  duration: 4 + Math.random() * 2,
+                  repeat: Infinity,
+                  delay: Math.random() * 3,
+                  ease: "easeOut",
+                }}
+              />
+            ))}
+            
+            {/* Scanning line effect */}
+            <motion.div
+              style={{ 
+                opacity: useTransform(isScanning, [0, 0.5, 1], [0, 1, 0]),
+              }}
+              className="absolute inset-0 pointer-events-none overflow-hidden"
+            >
+              <motion.div
+                className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-transparent via-emerald-400/60 to-transparent blur-sm"
+                animate={{
+                  x: ['-100%', '200%'],
+                }}
+                transition={{
+                  duration: 2,
+                  repeat: Infinity,
+                  ease: "linear",
+                }}
+              />
+            </motion.div>
+            
+            {/* AI status floating tags */}
+            <motion.div
+              style={{ opacity: useTransform(isScanning, [0, 0.3], [0, 1]) }}
+              className="absolute inset-0 pointer-events-none"
+            >
+              {aiStatusMessages.map((message, i) => (
+                <motion.div
+                  key={`status-${i}`}
+                  className="absolute px-3 py-1.5 text-xs font-medium text-slate-600 bg-white/80 backdrop-blur-sm rounded-full border border-emerald-200/50 shadow-sm"
+                  style={{
+                    left: `${15 + i * 18}%`,
+                    top: `${20 + (i % 2) * 40}%`,
+                  }}
+                  animate={{
+                    y: [0, -8, 0],
+                    opacity: [0.7, 1, 0.7],
+                  }}
+                  transition={{
+                    duration: 2.5,
+                    repeat: Infinity,
+                    delay: i * 0.4,
+                    ease: "easeInOut",
+                  }}
+                >
+                  {message}
+                </motion.div>
+              ))}
+            </motion.div>
             
             {/* Sparkle effects when files are being dragged */}
             <motion.div
@@ -268,6 +445,22 @@ function CentralWorkspace({ scrollProgress }: { scrollProgress: any }) {
               <Folder className="mb-3 h-12 w-12 text-slate-400" />
               <p className="text-sm font-medium text-slate-700">{t('welcomeDropVideosHere')}</p>
               <p className="mt-1 text-xs text-slate-500">{t('welcomeVideosAnalyzedAuto')}</p>
+              
+              {/* Easter egg message */}
+              {showEasterEgg && scrollProgress.get() < 0.3 && (
+                <motion.p
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: [0, 0.6, 0] }}
+                  transition={{ 
+                    duration: 4, 
+                    times: [0, 0.5, 1],
+                    ease: "easeInOut" 
+                  }}
+                  className="mt-3 text-xs text-emerald-600/70 italic"
+                >
+                  把视频给我，让我试试看？
+                </motion.p>
+              )}
             </div>
           </motion.div>
 
@@ -275,34 +468,125 @@ function CentralWorkspace({ scrollProgress }: { scrollProgress: any }) {
             {filesInQueue.get() >= 1 && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3"
+                animate={{ 
+                  opacity: 1, 
+                  y: 0,
+                  scale: [1, 1.005, 1],
+                  borderColor: ['rgb(226, 232, 240)', 'rgb(167, 243, 208)', 'rgb(226, 232, 240)'],
+                }}
+                transition={{
+                  scale: {
+                    duration: 3.5,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                  },
+                  borderColor: {
+                    duration: 3.5,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                  }
+                }}
+                className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 relative overflow-hidden"
               >
-                <Video className="h-4 w-4 text-emerald-600" />
-                <span className="text-xs text-slate-700">product-demo.mp4</span>
-                <span className="ml-auto text-xs text-slate-500">12:47</span>
+                {/* Subtle wave effect inside */}
+                <motion.div
+                  className="absolute inset-0 bg-gradient-to-r from-transparent via-emerald-100/20 to-transparent"
+                  animate={{
+                    x: ['-100%', '100%'],
+                  }}
+                  transition={{
+                    duration: 3,
+                    repeat: Infinity,
+                    ease: "linear",
+                  }}
+                />
+                <Video className="h-4 w-4 text-emerald-600 relative z-10" />
+                <span className="text-xs text-slate-700 relative z-10">product-demo.mp4</span>
+                <span className="ml-auto text-xs text-slate-500 relative z-10">12:47</span>
               </motion.div>
             )}
             {filesInQueue.get() >= 2 && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3"
+                animate={{ 
+                  opacity: 1, 
+                  y: 0,
+                  scale: [1, 1.005, 1],
+                  borderColor: ['rgb(226, 232, 240)', 'rgb(167, 243, 208)', 'rgb(226, 232, 240)'],
+                }}
+                transition={{
+                  scale: {
+                    duration: 3.5,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                    delay: 0.5,
+                  },
+                  borderColor: {
+                    duration: 3.5,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                    delay: 0.5,
+                  }
+                }}
+                className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 relative overflow-hidden"
               >
-                <Clapperboard className="h-4 w-4 text-emerald-600" />
-                <span className="text-xs text-slate-700">webinar-snippet.mov</span>
-                <span className="ml-auto text-xs text-slate-500">05:32</span>
+                <motion.div
+                  className="absolute inset-0 bg-gradient-to-r from-transparent via-emerald-100/20 to-transparent"
+                  animate={{
+                    x: ['-100%', '100%'],
+                  }}
+                  transition={{
+                    duration: 3,
+                    repeat: Infinity,
+                    ease: "linear",
+                    delay: 0.5,
+                  }}
+                />
+                <Clapperboard className="h-4 w-4 text-emerald-600 relative z-10" />
+                <span className="text-xs text-slate-700 relative z-10">webinar-snippet.mov</span>
+                <span className="ml-auto text-xs text-slate-500 relative z-10">05:32</span>
               </motion.div>
             )}
             {filesInQueue.get() >= 3 && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3"
+                animate={{ 
+                  opacity: 1, 
+                  y: 0,
+                  scale: [1, 1.005, 1],
+                  borderColor: ['rgb(226, 232, 240)', 'rgb(167, 243, 208)', 'rgb(226, 232, 240)'],
+                }}
+                transition={{
+                  scale: {
+                    duration: 3.5,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                    delay: 1,
+                  },
+                  borderColor: {
+                    duration: 3.5,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                    delay: 1,
+                  }
+                }}
+                className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 relative overflow-hidden"
               >
-                <Film className="h-4 w-4 text-emerald-600" />
-                <span className="text-xs text-slate-700">team-update.webm</span>
-                <span className="ml-auto text-xs text-slate-500">08:15</span>
+                <motion.div
+                  className="absolute inset-0 bg-gradient-to-r from-transparent via-emerald-100/20 to-transparent"
+                  animate={{
+                    x: ['-100%', '100%'],
+                  }}
+                  transition={{
+                    duration: 3,
+                    repeat: Infinity,
+                    ease: "linear",
+                    delay: 1,
+                  }}
+                />
+                <Film className="h-4 w-4 text-emerald-600 relative z-10" />
+                <span className="text-xs text-slate-700 relative z-10">team-update.webm</span>
+                <span className="ml-auto text-xs text-slate-500 relative z-10">08:15</span>
               </motion.div>
             )}
           </div>
@@ -328,17 +612,24 @@ interface FileCardProps {
 
 const FileCard: React.FC<FileCardProps> = ({ file, scrollProgress }) => {
   const Icon = file.icon;
+  const controls = useAnimation();
 
-  const floatY = useTransform(
-    scrollProgress,
-    [0, file.startProgress],
-    [0, Math.sin(Date.now() / 1000) * 10]
-  );
-  const floatRotate = useTransform(scrollProgress, [0, file.startProgress], [-4, 4]);
+  // Continuous floating animation when idle
+  useEffect(() => {
+    controls.start({
+      y: [0, -8, 0],
+      rotate: [-1, 1, -1],
+      transition: {
+        duration: 3 + file.id * 0.5,
+        repeat: Infinity,
+        ease: "easeInOut",
+      },
+    });
+  }, [controls, file.id]);
 
   const dragX = useTransform(scrollProgress, [file.startProgress, file.endProgress], [file.initialX, 0]);
   const dragY = useTransform(scrollProgress, [file.startProgress, file.endProgress], [file.initialY, 0]);
-  const dragRotate = useTransform(scrollProgress, [file.startProgress, file.endProgress], [floatRotate.get(), 0]);
+  const dragRotate = useTransform(scrollProgress, [file.startProgress, file.endProgress], [-4, 0]);
   const dragScale = useTransform(scrollProgress, [file.startProgress, file.endProgress], [1, 0.9]);
   
   // Add glow effect when dragging
@@ -353,10 +644,11 @@ const FileCard: React.FC<FileCardProps> = ({ file, scrollProgress }) => {
 
   return (
     <motion.div
+      animate={scrollProgress.get() < file.startProgress ? controls : undefined}
       style={{
         x: dragX,
         y: dragY,
-        rotate: scrollProgress.get() < file.startProgress ? floatRotate : dragRotate,
+        rotate: scrollProgress.get() >= file.startProgress ? dragRotate : undefined,
         scale: scrollProgress.get() < file.endProgress ? dragScale : queueScale,
         opacity,
       }}
@@ -368,7 +660,19 @@ const FileCard: React.FC<FileCardProps> = ({ file, scrollProgress }) => {
             `0 0 ${intensity * 30}px rgba(16, 185, 129, ${intensity * 0.4})`
           )
         }}
-        className="flex w-48 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-[0_8px_24px_rgba(15,23,42,0.1)] transition-all"
+        animate={{
+          boxShadow: [
+            '0 8px 24px rgba(15,23,42,0.1)',
+            '0 12px 32px rgba(15,23,42,0.12)',
+            '0 8px 24px rgba(15,23,42,0.1)',
+          ],
+        }}
+        transition={{
+          duration: 3,
+          repeat: Infinity,
+          ease: "easeInOut",
+        }}
+        className="flex w-48 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3"
       >
         <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50">
           <Icon className="h-5 w-5 text-emerald-600" />

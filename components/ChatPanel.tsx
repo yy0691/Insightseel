@@ -143,75 +143,78 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ video, subtitles, screenshotDataU
   };
 
   return (
-    <div className="flex flex-col h-full">
-      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto pr-2 space-y-4 p-4 custom-scrollbar">
+    <div className="flex h-full flex-col gap-4 px-6 py-5">
+      <div ref={messagesContainerRef} className="flex-1 space-y-4 overflow-y-auto pr-1 custom-scrollbar">
         {history.map((msg, index) => (
           <div key={index} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-xs md:max-w-md lg:max-w-lg rounded-2xl px-4 py-2 shadow-sm ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'backdrop-blur-sm bg-slate-200/60 text-slate-800'}`}>
-                {msg.role === 'user' && msg.image && (
-                    <img src={msg.image} alt="user screenshot" className="w-full rounded-md mb-2 max-h-48 object-contain bg-black/20"/>
-                )}
-                <div className="text-sm">
-                  <MarkdownRenderer
-                    content={msg.text}
-                    onTimestampClick={onSeekToTime}
-                  />
-                </div>
+            <div
+              className={`max-w-sm rounded-2xl px-4 py-3 shadow-[0_12px_24px_rgba(15,23,42,0.1)] md:max-w-md lg:max-w-lg ${
+                msg.role === 'user'
+                  ? 'bg-slate-900 text-white'
+                  : 'border border-[#E5E7EB] bg-white text-slate-700'
+              }`}
+            >
+              {msg.role === 'user' && msg.image && (
+                <img src={msg.image} alt="user screenshot" className="mb-3 w-full max-h-48 rounded-xl object-cover" />
+              )}
+              <div className="text-sm leading-[1.65]">
+                <MarkdownRenderer content={msg.text} onTimestampClick={onSeekToTime} />
+              </div>
             </div>
           </div>
         ))}
         {isLoading && (
-            <div className="flex justify-start">
-                 <div className="max-w-xs rounded-2xl px-4 py-3 backdrop-blur-sm bg-slate-200/60 text-slate-800">
-                    <div className="flex items-center space-x-2">
-                        <div className="w-2 h-2 bg-slate-500 rounded-full animate-pulse"></div>
-                        <div className="w-2 h-2 bg-slate-500 rounded-full animate-pulse [animation-delay:0.2s]"></div>
-                        <div className="w-2 h-2 bg-slate-500 rounded-full animate-pulse [animation-delay:0.4s]"></div>
-                    </div>
-                </div>
+          <div className="flex justify-start">
+            <div className="max-w-sm rounded-2xl border border-[#E5E7EB] bg-white px-4 py-3 text-slate-700 shadow-[0_12px_24px_rgba(15,23,42,0.1)]">
+              <div className="flex items-center space-x-2">
+                <div className="h-2 w-2 animate-pulse rounded-full bg-slate-500"></div>
+                <div className="h-2 w-2 animate-pulse rounded-full bg-slate-500 [animation-delay:0.2s]"></div>
+                <div className="h-2 w-2 animate-pulse rounded-full bg-slate-500 [animation-delay:0.4s]"></div>
+              </div>
             </div>
+          </div>
         )}
         <div ref={messagesEndRef} />
       </div>
-      <div className="flex-shrink-0 p-4 border-t border-gray-200">
+      <div className="flex-shrink-0">
         {screenshotDataUrl && (
-            <div className="p-1 border bg-white rounded-xl mb-2 relative inline-block shadow-md">
-                <img src={screenshotDataUrl} alt="Screenshot to send" className="w-16 h-16 object-cover rounded-md"/>
-                <button
-                    onClick={onClearScreenshot}
-                    className="absolute -top-2 -right-2 bg-slate-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-sm leading-none hover:bg-black"
-                    aria-label="Remove screenshot"
-                >
-                    &times;
-                </button>
-            </div>
+          <div className="relative mb-2 inline-block rounded-xl border border-[#E5E7EB] bg-white p-1 shadow-[0_12px_24px_rgba(15,23,42,0.1)]">
+            <img src={screenshotDataUrl} alt="Screenshot to send" className="h-16 w-16 rounded-lg object-cover" />
+            <button
+              onClick={onClearScreenshot}
+              className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-slate-600 text-sm text-white shadow hover:bg-black"
+              aria-label="Remove screenshot"
+            >
+              &times;
+            </button>
+          </div>
         )}
         <div className="relative">
-            <textarea
-                ref={textAreaRef}
-                rows={1}
-                value={currentMessage}
-                onChange={(e) => setCurrentMessage(e.target.value)}
-                onKeyPress={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSendMessage();
-                    }
-                }}
-                placeholder={t('askQuestion')}
-                className="flex text-sm w-full border px-3 py-2 rounded-[20px] bg-neutral-100 border-[#ebecee] pr-11 resize-none max-h-40 focus:outline-none focus:ring-2 focus:ring-indigo-400 custom-scrollbar"
-                disabled={isLoading}
-            />
-            <button 
-                onClick={handleSendMessage} 
-                disabled={isLoading || !currentMessage.trim()} 
-                className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 rounded-full inline-flex items-center justify-center bg-slate-800 text-white disabled:bg-slate-400 hover:bg-slate-700 transition-colors"
-                aria-label={t('sendMessage')}
-            >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 10.5 12 3m0 0 7.5 7.5M12 3v18" />
-                </svg>
-            </button>
+          <textarea
+            ref={textAreaRef}
+            rows={1}
+            value={currentMessage}
+            onChange={(e) => setCurrentMessage(e.target.value)}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSendMessage();
+              }
+            }}
+            placeholder={t('askQuestion')}
+            className="custom-scrollbar flex max-h-40 w-full resize-none rounded-2xl border border-[#E5E7EB] bg-white px-4 py-3 pr-12 text-sm text-slate-700 shadow-[0_8px_20px_rgba(15,23,42,0.08)] focus:outline-none focus:ring-2 focus:ring-slate-300"
+            disabled={isLoading}
+          />
+          <button
+            onClick={handleSendMessage}
+            disabled={isLoading || !currentMessage.trim()}
+            className="absolute right-2 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-slate-900 text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+            aria-label={t('sendMessage')}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="h-4 w-4">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 10.5 12 3m0 0 7.5 7.5M12 3v18" />
+            </svg>
+          </button>
         </div>
       </div>
     </div>

@@ -461,7 +461,7 @@ const AppContent: React.FC<{
   const selectedVideo = videos.find((v) => v.id === selectedVideoId);
 
   return (
-    <div className="min-h-screen w-screen flex font-sans relative bg-gradient-to-br from-slate-50 to-slate-200">
+    <div className="min-h-screen w-screen flex font-sans antialiased relative bg-[#F7F8FA] text-slate-700">
       {/* Error Popup */}
       {error && (
         <div

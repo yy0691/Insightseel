@@ -91,28 +91,26 @@ const NotesPanel: React.FC<NotesPanelProps> = ({ video, note }) => {
   };
 
   return (
-    <div className="flex flex-col flex-1 p-2">
-      <div className="flex-shrink-0 flex justify-between items-center mb-2">
-        <p className="text-xs text-slate-500 italic">
-          {getStatusText()}
-        </p>
-         <button
-            onClick={handleExport}
-            disabled={!content}
-            className="text-xs backdrop-blur-sm bg-white/50 hover:bg-white/80 border border-white/20 text-slate-800 font-medium p-1.5 rounded-xl transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-            aria-label={t('exportNotes')}
-            title={t('exportNotes')}
+    <div className="flex flex-1 flex-col gap-3 px-6 py-5">
+      <div className="flex flex-shrink-0 items-center justify-between">
+        <p className="text-xs font-medium text-slate-500">{getStatusText()}</p>
+        <button
+          onClick={handleExport}
+          disabled={!content}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-[#E5E7EB] bg-white text-slate-600 shadow-[0_2px_6px_rgba(15,23,42,0.05)] transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60"
+          aria-label={t('exportNotes')}
+          title={t('exportNotes')}
         >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-            </svg>
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4-4 4m0 0-4-4m4 4V4" />
+          </svg>
         </button>
       </div>
       <textarea
         value={content}
         onChange={handleChange}
         placeholder={t('notesPlaceholder')}
-        className="flex-1 w-full bg-white/40 rounded-xl p-3 text-sm border border-white/20 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition resize-none backdrop-blur-sm custom-scrollbar"
+        className="custom-scrollbar flex-1 w-full resize-none rounded-2xl border border-[#E5E7EB] bg-white px-4 py-3 text-sm leading-[1.6] text-slate-700 shadow-[0_8px_20px_rgba(15,23,42,0.08)] focus:outline-none focus:ring-2 focus:ring-slate-300"
         aria-label="Video notes"
       />
     </div>

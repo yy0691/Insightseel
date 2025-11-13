@@ -71,6 +71,10 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
   const [currentTime, setCurrentTime] = useState(0);
   const [screenshotDataUrl, setScreenshotDataUrl] = useState<string | null>(null);
   const { t, language } = useLanguage();
+  const screenshotLabel = language === 'zh' ? '发送到聊天' : 'Send to chat';
+  const downloadFrameLabel = language === 'zh' ? '下载截图' : 'Download frame';
+  const toolbarButtonClasses =
+    'inline-flex h-10 w-10 items-center justify-center rounded-xl border border-transparent text-slate-500 transition-all duration-150 hover:border-[#E2E5EB] hover:bg-white hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D6DAE0] shadow-[0_2px_8px_rgba(15,23,42,0.05)]';
   
   const activeSegmentRef = useRef<HTMLDivElement>(null);
   const [isGeneratingSubtitles, setIsGeneratingSubtitles] = useState(false);
@@ -137,18 +141,35 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
     }
   };
 
-  const handleScreenshot = () => {
-    if (!videoRef.current) return;
+  const captureCurrentFrame = () => {
+    if (!videoRef.current) return null;
     const canvas = document.createElement('canvas');
-    canvas.width = videoRef.current.videoWidth;
-    canvas.height = videoRef.current.videoHeight;
+    const { videoWidth, videoHeight, clientWidth, clientHeight } = videoRef.current;
+    canvas.width = videoWidth || clientWidth;
+    canvas.height = videoHeight || clientHeight;
     const ctx = canvas.getContext('2d');
-    if (ctx) {
-        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
-        setScreenshotDataUrl(dataUrl);
-        setActiveTab('Chat');
-    }
+    if (!ctx) return null;
+    ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', 0.92);
+  };
+
+  const handleScreenshot = () => {
+    const dataUrl = captureCurrentFrame();
+    if (!dataUrl) return;
+    setScreenshotDataUrl(dataUrl);
+    setActiveTab('Chat');
+  };
+
+  const handleDownloadCurrentFrame = () => {
+    const dataUrl = captureCurrentFrame();
+    if (!dataUrl) return;
+    const link = document.createElement('a');
+    const baseName = video.name.replace(/\.[^/.]+$/, '');
+    link.href = dataUrl;
+    link.download = `${baseName || 'frame'}-snapshot.jpg`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const handleImportSubtitlesClick = () => {
@@ -455,233 +476,296 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
 
 
   return (
-    <div className="h-full py-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+    <div className="grid h-full grid-cols-1 gap-6 py-8 lg:grid-cols-12 xl:gap-8">
       {/* Left Column */}
-      <div className="lg:col-span-7 flex flex-col gap-5 lg:max-h-[calc(100vh-3rem)]">
+      <div className="flex flex-col gap-6 lg:col-span-7 lg:max-h-[calc(100vh-3rem)]">
         {/* Video Player Card */}
-        <div className="bg-white/50 text-card-foreground flex flex-col rounded-3xl border border-white/30 overflow-hidden shadow-sm flex-shrink-0 lg:sticky lg:top-6">
-            <div className="p-4 h-14 border-b border-slate-300/50 flex justify-between items-center">
-                <h2 className="font-semibold text-lg truncate" title={video.name}>{video.name}</h2>
-                <button
-                    onClick={() => onDeleteVideo(video.id)}
-                    className="p-2 rounded-md text-slate-500 hover:bg-red-100 hover:text-red-600 transition-colors"
-                    title={t('deleteVideo')}
+        <div className="flex flex-col overflow-hidden rounded-[28px] border border-[#E5E7EB] bg-[#FCFCFD] shadow-[0_18px_42px_rgba(15,23,42,0.08)] lg:sticky lg:top-6">
+          <div className="flex items-center justify-between border-b border-[#E5E7EB]/70 px-6 py-4">
+            <h2 className="min-w-0 truncate text-[17px] font-semibold text-slate-700" title={video.name}>
+              {video.name}
+            </h2>
+            <div className="flex items-center gap-2.5">
+              <button
+                type="button"
+                onClick={handleScreenshot}
+                className={toolbarButtonClasses}
+                title={screenshotLabel}
+                aria-label={screenshotLabel}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.8}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-5 w-5"
                 >
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.134-2.033-2.134H8.71c-1.123 0-2.033.954-2.033 2.134v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-                    </svg>
-                </button>
+                  <path d="M2 7a2 2 0 0 1 2-2h3l1.2-1.8A1 1 0 0 1 8.97 3h6.06a1 1 0 0 1 .83.45L17 5h3a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2Z" />
+                  <circle cx="12" cy="13" r="3.5" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={handleDownloadCurrentFrame}
+                className={toolbarButtonClasses}
+                title={downloadFrameLabel}
+                aria-label={downloadFrameLabel}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.8}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-5 w-5"
+                >
+                  <path d="M7 10h3V3h4v7h3l-5 6.5z" />
+                  <path d="M5 19h14" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={() => onDeleteVideo(video.id)}
+                className={`${toolbarButtonClasses} hover:text-red-600`}
+                title={t('deleteVideo')}
+                aria-label={t('deleteVideo')}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.8}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-5 w-5"
+                >
+                  <path d="M5 7h14" />
+                  <path d="M10 11v6" />
+                  <path d="M14 11v6" />
+                  <path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12" />
+                  <path d="M9 7V4h6v3" />
+                </svg>
+              </button>
             </div>
-            <div className="relative group aspect-video bg-black">
-                <video
-                    ref={videoRef}
-                    src={videoUrl || undefined}
-                    controls
-                    onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
-                    className="w-full h-full"
-                />
-                <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={handleScreenshot} className="px-3 py-1.5 bg-black/50 text-white text-xs font-semibold rounded-lg hover:bg-black/80 backdrop-blur-sm">
-                        Screenshot
-                    </button>
-                </div>
-            </div>
+          </div>
+          <div className="relative aspect-video bg-slate-900">
+            <video
+              ref={videoRef}
+              src={videoUrl || undefined}
+              controls
+              onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+              className="h-full w-full object-contain"
+            />
+          </div>
 
-            {parsedKeyInfo.length > 0 && (
-              <div className="p-4 pt-2">
-                <div className="relative h-2 w-full bg-slate-200/80 rounded-full">
-                    {parsedKeyInfo.map((info, index) => (
-                        <div
-                            key={index}
-                            className={`absolute top-0 h-full rounded-full ${info.color} transition-all hover:scale-y-[2] hover:z-10 cursor-pointer origin-center`}
-                            style={{
-                                left: `${(info.timestamp / video.duration) * 100}%`,
-                                width: '4px',
-                                transform: 'translateX(-50%)',
-                            }}
-                            title={`${formatTimestamp(info.timestamp)}: ${info.text}`}
-                            onClick={() => handleSeekTo(info.timestamp)}
-                        />
-                    ))}
-                </div>
+          {parsedKeyInfo.length > 0 && video.duration > 0 && (
+            <div className="border-t border-[#E5E7EB]/60 px-6 py-4">
+              <div className="relative flex h-10 items-center">
+                <div className="absolute left-0 right-0 top-1/2 h-px -translate-y-1/2 rounded-full bg-slate-200" />
+                {parsedKeyInfo.map((info, index) => (
+                  <button
+                    type="button"
+                    key={index}
+                    onClick={() => handleSeekTo(info.timestamp)}
+                    className="group absolute -translate-x-1/2"
+                    style={{
+                      left: `${Math.min(100, (info.timestamp / Math.max(video.duration, 0.001)) * 100)}%`,
+                    }}
+                  >
+                    <span className={`block h-1.5 w-1.5 rounded-full ${info.color}`}></span>
+                    <span className="absolute left-1/2 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-slate-400/20 opacity-0 transition group-hover:opacity-100"></span>
+                    <span className="pointer-events-none absolute bottom-full left-1/2 hidden -translate-x-1/2 rounded-xl border border-[#E5E7EB] bg-white/95 px-3 py-2 text-left text-[12px] leading-relaxed text-slate-600 shadow-[0_16px_36px_rgba(15,23,42,0.15)] group-hover:flex group-hover:w-max group-hover:flex-col">
+                      <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-slate-400">
+                        {formatTimestamp(info.timestamp)}
+                      </span>
+                      <span className="mt-1 text-xs">{info.text}</span>
+                    </span>
+                  </button>
+                ))}
               </div>
-            )}
+            </div>
+          )}
         </div>
 
         {/* Transcript Card */}
-        <div className="bg-white/50 rounded-3xl border border-white/30 shadow-sm flex flex-col flex-1 min-h-0 overflow-hidden">
-          <div className="p-3 border-b border-slate-200/60 flex items-center justify-end gap-2">
-            {subtitles && subtitles.segments.length > 0 && !subtitles.segments.some(seg => seg.translatedText) && (
-              <button
-                onClick={handleTranslateSubtitles}
-                disabled={isTranslating}
-                className="h-8 px-3 text-xs font-semibold rounded-lg bg-slate-800 text-slate-100 hover:bg-slate-700 transition shadow-sm disabled:opacity-50"
-              >
-                {t('translateSubtitles')}
-              </button>
-            )}
-            {subtitles && subtitles.segments.length > 0 && (
-              <button
-                onClick={() => downloadFile(segmentsToSrt(subtitles.segments), `${video.name}.srt`, 'text/plain')}
-                className="h-8 px-2.5 text-xs font-semibold rounded-lg bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 transition shadow-sm"
-                title={language === 'zh' ? '下载字幕' : 'Download'}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-              </button>
-            )}
+        <div className="flex flex-1 min-h-0 flex-col overflow-hidden rounded-[28px] border border-[#E5E7EB] bg-[#FCFCFD] shadow-[0_18px_42px_rgba(15,23,42,0.06)]">
+          <div className="flex items-center justify-between border-b border-[#E5E7EB]/70 px-6 py-3.5">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t('transcript')}</p>
+            <div className="flex items-center gap-2">
+              {subtitles && subtitles.segments.length > 0 && !subtitles.segments.some((seg) => seg.translatedText) && (
+                <button
+                  onClick={handleTranslateSubtitles}
+                  disabled={isTranslating}
+                  className="inline-flex h-9 items-center rounded-xl border border-[#E5E7EB] bg-white px-3 text-[12px] font-semibold text-slate-600 shadow-[0_2px_6px_rgba(15,23,42,0.05)] transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {t('translateSubtitles')}
+                </button>
+              )}
+              {subtitles && subtitles.segments.length > 0 && (
+                <button
+                  onClick={() => downloadFile(segmentsToSrt(subtitles.segments), `${video.name}.srt`, 'text/plain')}
+                  className="inline-flex h-9 items-center rounded-xl border border-[#E5E7EB] bg-white px-3 text-[12px] font-semibold text-slate-600 shadow-[0_2px_6px_rgba(15,23,42,0.05)] transition hover:bg-white/85"
+                  title={language === 'zh' ? '下载字幕' : 'Download'}
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={1.8}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4-4 4m0 0-4-4m4 4V4" />
+                  </svg>
+                </button>
+              )}
+            </div>
           </div>
-          <div className="flex-1 overflow-y-auto custom-scrollbar p-4">
+          <div className="flex-1 overflow-y-auto px-6 py-5 custom-scrollbar">
             {isGeneratingSubtitles || isTranslating ? (
-                <div className="flex flex-col items-center justify-center h-full text-center">
-                    <div className="w-16 h-16 border-4 border-slate-300 border-t-slate-800 rounded-full animate-spin"></div>
-                    <p className="mt-4 font-semibold">{isTranslating ? t('translatingSubtitles') : generationStatus.stage || t('generatingSubtitles')}</p>
-                    {generationStatus.progress > 0 && (
-                      <div className="w-full max-w-xs bg-slate-200 rounded-full h-2 mt-3">
-                        <div className="bg-slate-600 h-2 rounded-full transition-all" style={{width: `${generationStatus.progress}%`}}></div>
-                      </div>
-                    )}
-                    <p className="text-xs text-slate-500 mt-2">
-                      {t('subtitleGenerationWarning')}
-                    </p>
-                    {streamingSubtitles && (
-                      <div className="mt-4 p-3 bg-white/50 rounded-lg border border-slate-200 text-left max-w-lg max-h-48 overflow-y-auto text-xs whitespace-pre-wrap">
-                        <p className="text-slate-600 font-mono">{streamingSubtitles}</p>
-                      </div>
-                    )}
-                </div>
+              <div className="flex h-full flex-col items-center justify-center text-center">
+                <div className="h-16 w-16 animate-spin rounded-full border-4 border-slate-300 border-t-slate-800"></div>
+                <p className="mt-4 text-sm font-semibold text-slate-700">
+                  {isTranslating ? t('translatingSubtitles') : generationStatus.stage || t('generatingSubtitles')}
+                </p>
+                {generationStatus.progress > 0 && (
+                  <div className="mt-3 h-2 w-full max-w-xs overflow-hidden rounded-full bg-slate-200">
+                    <div
+                      className="h-2 rounded-full bg-slate-600 transition-all"
+                      style={{ width: `${generationStatus.progress}%` }}
+                    ></div>
+                  </div>
+                )}
+                <p className="mt-2 text-xs text-slate-500">{t('subtitleGenerationWarning')}</p>
+                {streamingSubtitles && (
+                  <div className="mt-4 max-h-48 w-full max-w-lg overflow-y-auto rounded-2xl border border-[#E5E7EB] bg-white/80 p-4 text-left text-xs text-slate-600 shadow-[0_10px_30px_rgba(15,23,42,0.08)]">
+                    <p className="whitespace-pre-wrap font-mono leading-relaxed">{streamingSubtitles}</p>
+                  </div>
+                )}
+              </div>
             ) : subtitles && subtitles.segments.length > 0 ? (
               <>
-                {subtitles.segments.some(seg => seg.translatedText) && (
-                  <div className="flex items-center gap-2 mb-4">
+                {subtitles.segments.some((seg) => seg.translatedText) && (
+                  <div className="mb-4 flex flex-wrap items-center gap-2">
                     <button
                       onClick={() => setDisplayMode('original')}
-                      className={`text-xs px-2.5 py-1 rounded-lg transition ${
+                      className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
                         displayMode === 'original'
-                          ? 'bg-slate-800 text-white'
-                          : 'bg-white/50 hover:bg-white/80 border border-white/20 text-slate-600'
+                          ? 'border-slate-900 bg-slate-900 text-white'
+                          : 'border-[#E5E7EB] bg-white text-slate-600 hover:bg-white/85'
                       }`}
                     >
                       {language === 'zh' ? '原文' : 'Original'}
                     </button>
                     <button
                       onClick={() => setDisplayMode('translated')}
-                      className={`text-xs px-2.5 py-1 rounded-lg transition ${
+                      className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
                         displayMode === 'translated'
-                          ? 'bg-slate-800 text-white'
-                          : 'bg-white/50 hover:bg-white/80 border border-white/20 text-slate-600'
+                          ? 'border-slate-900 bg-slate-900 text-white'
+                          : 'border-[#E5E7EB] bg-white text-slate-600 hover:bg-white/85'
                       }`}
                     >
                       {language === 'zh' ? '译文' : 'Translated'}
                     </button>
                     <button
                       onClick={() => setDisplayMode('bilingual')}
-                      className={`text-xs px-2.5 py-1 rounded-lg transition ${
+                      className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
                         displayMode === 'bilingual'
-                          ? 'bg-slate-800 text-white'
-                          : 'bg-white/50 hover:bg-white/80 border border-white/20 text-slate-600'
+                          ? 'border-slate-900 bg-slate-900 text-white'
+                          : 'border-[#E5E7EB] bg-white text-slate-600 hover:bg-white/85'
                       }`}
                     >
                       {language === 'zh' ? '双语' : 'Bilingual'}
                     </button>
                   </div>
                 )}
-                <div className="space-y-3 text-sm pr-2">
-                    {subtitles.segments.map((segment, index) => (
-                    <div
+                <div className="space-y-2.5 text-sm leading-[1.65]">
+                  {subtitles.segments.map((segment, index) => {
+                    const isActive = index === activeSegmentIndex;
+                    return (
+                      <button
+                        type="button"
                         key={index}
-                        ref={index === activeSegmentIndex ? activeSegmentRef : null}
+                        ref={isActive ? activeSegmentRef : null}
                         onClick={() => handleSeekTo(segment.startTime)}
-                        className={`p-2 rounded-xl border border-transparent cursor-pointer transition-all duration-200 ${
-                            index === activeSegmentIndex
-                            ? 'bg-slate-800/10 border-slate-200 shadow-sm'
-                            : 'hover:bg-slate-800/5'
+                        className={`w-full rounded-2xl border px-4 py-3 text-left transition-all ${
+                          isActive
+                            ? 'border-[#E5E7EB] bg-slate-900/5 shadow-[0_12px_28px_rgba(15,23,42,0.08)]'
+                            : 'border-transparent hover:border-[#E5E7EB]/80 hover:bg-white'
                         }`}
-                    >
+                      >
                         <span
-                            className={`font-mono text-xs ${
-                                index === activeSegmentIndex
-                                ? 'text-slate-800'
-                                : 'text-slate-500'
-                            }`}
+                          className={`font-mono text-[11px] uppercase tracking-[0.18em] ${
+                            isActive ? 'text-slate-800' : 'text-slate-400'
+                          }`}
                         >
-                            {formatTimestamp(segment.startTime)}
+                          {formatTimestamp(segment.startTime)}
                         </span>
-                        {displayMode === 'original' && (
-                          <p
-                              className={`mt-1 ${
-                                  index === activeSegmentIndex
-                                  ? 'text-slate-900'
-                                  : 'text-slate-700'
-                              }`}
-                          >
-                              {segment.text}
+                        {displayMode !== 'translated' && (
+                          <p className={`mt-2 text-[13px] ${isActive ? 'text-slate-800' : 'text-slate-600'}`}>
+                            {segment.text}
                           </p>
                         )}
-                        {displayMode === 'translated' && segment.translatedText && (
+                        {displayMode !== 'original' && segment.translatedText && (
                           <p
-                              className={`mt-1 ${
-                                  index === activeSegmentIndex
-                                  ? 'text-slate-900'
-                                  : 'text-slate-700'
-                              }`}
+                            className={`mt-2 text-[13px] ${
+                              isActive && displayMode !== 'original' ? 'text-slate-800 font-medium' : 'text-slate-600'
+                            }`}
                           >
-                              {segment.translatedText}
+                            {segment.translatedText}
                           </p>
                         )}
-                        {displayMode === 'bilingual' && (
-                          <>
-                            <p
-                                className={`mt-1 text-sm ${
-                                    index === activeSegmentIndex
-                                    ? 'text-slate-900 font-medium'
-                                    : 'text-slate-700'
-                                }`}
-                            >
-                                {segment.translatedText || segment.text}
-                            </p>
-                            {segment.translatedText && (
-                              <p
-                                  className={`mt-1 text-xs ${
-                                      index === activeSegmentIndex
-                                      ? 'text-slate-600'
-                                      : 'text-slate-500'
-                                  }`}
-                              >
-                                  {segment.text}
-                              </p>
-                            )}
-                          </>
+                        {displayMode === 'bilingual' && segment.translatedText && (
+                          <p className={`mt-1 text-[12px] ${isActive ? 'text-slate-500' : 'text-slate-400'}`}>
+                            {segment.text}
+                          </p>
                         )}
-                    </div>
-                    ))}
+                      </button>
+                    );
+                  })}
                 </div>
               </>
             ) : (
-                <div className="flex flex-col items-center justify-center h-full text-center p-6">
-                    <div className="w-8 h-8 mb-4 text-slate-400">
-                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1} stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-9h3.375c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 0 1-2.25 2.25M16.5 7.5V18a2.25 2.25 0 0 0 2.25 2.25M16.5 7.5V4.875c0-.621-.504-1.125-1.125-1.125H4.125C3.504 3.75 3 4.254 3 4.875V18a2.25 2.25 0 0 0 2.25 2.25h13.5M6 7.5h3v3H6v-3Z" />
-                         </svg>
-                    </div>
-                    <p className="text-sm text-slate-500 mb-4">{t('noSubtitles')}</p>
-                    <div className="flex flex-col sm:flex-row gap-3 w-full max-w-md">
-                        <button
-                            onClick={() => subtitleInputRef.current?.click()}
-                            className="flex-1 h-10 px-4 text-sm font-semibold rounded-lg bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 transition shadow-sm"
-                        >
-                            {t('importSubtitles')}
-                        </button>
-                        <button
-                            onClick={handleGenerateSubtitles}
-                            disabled={isGeneratingSubtitles}
-                            className="flex-1 h-10 px-4 text-sm font-semibold rounded-lg bg-slate-900 text-slate-50 hover:bg-slate-800 transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            {t('generateWithAI')}
-                        </button>
-                    </div>
+              <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
+                <div className="text-slate-400">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={1.2}
+                    stroke="currentColor"
+                    className="h-10 w-10"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-9h3.375c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 0 1-2.25 2.25M16.5 7.5V18a2.25 2.25 0 0 0 2.25 2.25M16.5 7.5V4.875c0-.621-.504-1.125-1.125-1.125H4.125C3.504 3.75 3 4.254 3 4.875V18a2.25 2.25 0 0 0 2.25 2.25h13.5M6 7.5h3v3H6v-3Z"
+                    />
+                  </svg>
                 </div>
+                <p className="text-sm text-slate-500">{t('noSubtitles')}</p>
+                <div className="flex w-full max-w-md flex-col gap-3 sm:flex-row">
+                  <button
+                    onClick={() => subtitleInputRef.current?.click()}
+                    className="flex-1 rounded-xl border border-[#E5E7EB] bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 shadow-[0_2px_6px_rgba(15,23,42,0.05)] transition hover:bg-white/85"
+                  >
+                    {t('importSubtitles')}
+                  </button>
+                  <button
+                    onClick={handleGenerateSubtitles}
+                    disabled={isGeneratingSubtitles}
+                    className="flex-1 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(15,23,42,0.18)] transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {t('generateWithAI')}
+                  </button>
+                </div>
+              </div>
             )}
           </div>
           <input type="file" ref={subtitleInputRef} onChange={handleSubtitleFileChange} className="hidden" accept=".srt,.vtt" />
@@ -689,127 +773,159 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
       </div>
 
       {/* Right Column */}
-      <div className="lg:col-span-5 flex flex-col gap-5 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)]">
-        <div className="bg-white/50 rounded-3xl border border-white/30 shadow-sm flex flex-col flex-1 min-h-0 overflow-hidden">
+      <div className="flex flex-col gap-6 lg:col-span-5 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)]">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[28px] border border-[#E5E7EB] bg-[#FCFCFD] shadow-[0_18px_42px_rgba(15,23,42,0.06)]">
           {/* Tabs */}
-          <div className="flex-shrink-0 p-2 border-b border-slate-300/50">
-            <div className="bg-slate-200/50 p-1 rounded-xl flex items-center" role="tablist">
-                {TABS.map(tab => (
-                    <button
-                        key={tab}
-                        onClick={() => setActiveTab(tab)}
-                        role="tab"
-                        aria-selected={activeTab === tab}
-                        className={`flex-1 py-1.5 text-sm font-semibold transition-all duration-200 rounded-lg ${
-                            activeTab === tab
-                                ? 'bg-white text-slate-900 shadow-sm'
-                                : 'text-slate-500 hover:bg-white/50'
-                        }`}
-                    >
-                        {TABS_MAP[tab]}
-                    </button>
-                ))}
+          <div className="flex-shrink-0 border-b border-[#E5E7EB]/70 px-4 py-4">
+            <div className="flex items-center gap-1 rounded-2xl bg-[#F2F4F7] p-1" role="tablist">
+              {TABS.map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  role="tab"
+                  aria-selected={activeTab === tab}
+                  className={`flex-1 rounded-[16px] px-3 py-2 text-sm font-semibold transition ${
+                    activeTab === tab
+                      ? 'bg-white text-slate-900 shadow-[0_10px_24px_rgba(15,23,42,0.12)]'
+                      : 'text-slate-500 hover:bg-white/70'
+                  }`}
+                >
+                  {TABS_MAP[tab]}
+                </button>
+              ))}
             </div>
           </div>
 
           {/* Tab Content */}
           {activeTab === 'KeyMoments' && (
-              <div className="flex-1 overflow-y-auto custom-scrollbar">
-                <div className="p-4 space-y-3">
-                  {parsedKeyInfo.length > 0 ? (
-                    parsedKeyInfo.map((info, index) => {
-                      const isHighlighted = activeTopic ? info.text.toLowerCase().includes(activeTopic.toLowerCase()) : false;
-                      const itemOpacity = activeTopic && !isHighlighted ? 'opacity-40' : 'opacity-100';
+            <div className="flex-1 overflow-y-auto custom-scrollbar">
+              <div className="space-y-3 px-6 py-5">
+                {parsedKeyInfo.length > 0 ? (
+                  parsedKeyInfo.map((info, index) => {
+                    const isHighlighted = activeTopic
+                      ? info.text.toLowerCase().includes(activeTopic.toLowerCase())
+                      : false;
+                    const itemOpacity = activeTopic && !isHighlighted ? 'opacity-50' : 'opacity-100';
 
-                      return (
-                        <button
-                          key={index}
-                          onClick={() => handleSeekTo(info.timestamp)}
-                          className={`w-full text-left rounded-xl border border-transparent px-3 py-2 transition-all duration-200 ${itemOpacity} ${
-                            isHighlighted
-                              ? 'bg-amber-200/80 text-slate-900 shadow-sm'
-                              : 'hover:bg-slate-100/80 hover:border-slate-200'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="font-mono text-xs text-slate-500">{formatTimestamp(info.timestamp)}</span>
-                            <span className={`text-[10px] uppercase tracking-wider font-semibold ${info.color.replace('bg-', 'text-')}`}>●</span>
-                          </div>
-                          <p className="mt-1 text-sm text-slate-700">{info.text}</p>
-                        </button>
-                      );
-                    })
-                  ) : (
-                    <p className="text-sm text-slate-500 italic">
-                      {keyInfoAnalysis ? t('noKeyMomentsGenerated') : t('keyMomentsTabPlaceholder')}
-                    </p>
-                  )}
-                </div>
+                    return (
+                      <button
+                        type="button"
+                        key={index}
+                        onClick={() => handleSeekTo(info.timestamp)}
+                        className={`w-full rounded-2xl border px-4 py-3 text-left transition ${itemOpacity} ${
+                          isHighlighted
+                            ? 'border-amber-300 bg-amber-50 shadow-[0_14px_32px_rgba(251,191,36,0.28)]'
+                            : 'border-transparent hover:border-[#E5E7EB]/80 hover:bg-white'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-slate-400">
+                            {formatTimestamp(info.timestamp)}
+                          </span>
+                          <span className={`text-[10px] font-semibold uppercase tracking-[0.24em] ${info.color.replace('bg-', 'text-')}`}>
+                            ●
+                          </span>
+                        </div>
+                        <p className="mt-2 text-sm leading-relaxed text-slate-600">{info.text}</p>
+                      </button>
+                    );
+                  })
+                ) : (
+                  <p className="text-sm italic text-slate-500">
+                    {keyInfoAnalysis ? t('noKeyMomentsGenerated') : t('keyMomentsTabPlaceholder')}
+                  </p>
+                )}
               </div>
+            </div>
           )}
           {activeTab === 'Insights' && (
-              <div className="flex-1 overflow-y-auto custom-scrollbar flex">
-                  {generationStatus.active ? (
-                      <div className="flex flex-col items-center justify-center h-full p-4 text-center m-auto">
-                          <div className="w-16 h-16 border-4 border-slate-300 border-t-slate-800 rounded-full animate-spin"></div>
-                          <p className="mt-4 font-semibold">{generationStatus.stage}</p>
-                          {generationStatus.stage === t('insightsPreparingVideo') && (
-                              <div className="w-full bg-slate-200 rounded-full h-2.5 mt-2">
-                                  <div className="bg-slate-600 h-2.5 rounded-full" style={{width: `${generationStatus.progress}%`}}></div>
-                              </div>
-                          )}
-                          <p className="text-xs text-slate-500 mt-2">{t('generatingInsights')}</p>
-                      </div>
-                  ) : summaryAnalysis ? (
-                      <div className="p-4 space-y-6">
-                          <div>
-                              <h3 className="font-semibold mb-2">{t('summary')}</h3>
-                              <div className="text-sm text-slate-700 leading-relaxed"><MarkdownRenderer content={summaryAnalysis.result} onTimestampClick={handleSeekTo} /></div>
-                          </div>
-                          {topicsAnalysis && (
-                            <div>
-                              <h3 className="font-semibold mb-2">{t('topics')}</h3>
-                              {parsedTopics.length > 0 ? (
-                              <div className="flex flex-wrap gap-2">
-                                  {parsedTopics.map((topic, i) => (
-                                  <button
-                                      key={i}
-                                      onClick={() => setActiveTopic(prev => prev === topic ? null : topic)}
-                                      className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
-                                          activeTopic === topic ? 'bg-slate-800 text-white' : 'bg-slate-200/80 hover:bg-slate-300/80 text-slate-700'
-                                      }`}
-                                  >
-                                      {topic}
-                                  </button>
-                                  ))}
-                              </div>
-                               ) : (
-                                  <p className="text-sm text-slate-500 italic">{t('noTopicsGenerated')}</p>
-                              )}
-                            </div>
-                          )}
-                      </div>
-                  ) : (
-                      <div className="flex flex-col items-center p-6 text-center m-auto">
-                           <div className="w-20 h-20 mb-4">
-                              <svg className="w-full h-full text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.375 3.375 0 0114 18.442V21.75a1.5 1.5 0 01-3 0v-3.308c0-.944.345-1.846.945-2.55l.547-.547z" />
-                              </svg>
-                           </div>
-                          <h3 className="font-semibold text-lg">{t('unlockInsights')}</h3>
-                          <p className="text-sm text-slate-500 mb-4">{t('unlockInsightsDesc')}</p>
-                          <button
-                              onClick={handleGenerateInsights}
-                              className="w-full h-10 px-4 py-2 inline-flex items-center justify-center rounded-xl text-sm font-medium transition-colors bg-slate-900 text-slate-50 hover:bg-slate-900/90 shadow-sm"
-                          >
-                              {t('generateInsights')}
-                          </button>
-                      </div>
+            <div className="flex-1 overflow-y-auto custom-scrollbar">
+              {generationStatus.active ? (
+                <div className="m-auto flex h-full flex-col items-center justify-center p-6 text-center">
+                  <div className="h-16 w-16 animate-spin rounded-full border-4 border-slate-300 border-t-slate-800"></div>
+                  <p className="mt-4 text-sm font-semibold text-slate-700">{generationStatus.stage}</p>
+                  {generationStatus.stage === t('insightsPreparingVideo') && (
+                    <div className="mt-3 h-2.5 w-full max-w-sm overflow-hidden rounded-full bg-slate-200">
+                      <div
+                        className="h-2.5 rounded-full bg-slate-600 transition-all"
+                        style={{ width: `${generationStatus.progress}%` }}
+                      ></div>
+                    </div>
                   )}
-              </div>
+                  <p className="mt-2 text-xs text-slate-500">{t('generatingInsights')}</p>
+                </div>
+              ) : summaryAnalysis ? (
+                <div className="space-y-6 px-6 py-5">
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                      {t('summary')}
+                    </h3>
+                    <div className="text-[15px] leading-[1.7] text-slate-600">
+                      <MarkdownRenderer content={summaryAnalysis.result} onTimestampClick={handleSeekTo} />
+                    </div>
+                  </div>
+                  {topicsAnalysis && (
+                    <div className="space-y-2">
+                      <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                        {t('topics')}
+                      </h3>
+                      {parsedTopics.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {parsedTopics.map((topic, i) => (
+                            <button
+                              type="button"
+                              key={i}
+                              onClick={() => setActiveTopic((prev) => (prev === topic ? null : topic))}
+                              className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+                                activeTopic === topic
+                                  ? 'border-slate-900 bg-slate-900 text-white shadow-[0_10px_24px_rgba(15,23,42,0.18)]'
+                                  : 'border-[#E5E7EB] bg-white text-slate-600 hover:bg-white/85'
+                              }`}
+                            >
+                              {topic}
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm italic text-slate-500">{t('noTopicsGenerated')}</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="m-auto flex flex-col items-center gap-4 p-6 text-center">
+                  <div className="h-16 w-16 rounded-full bg-[#F2F4F7] text-slate-400">
+                    <svg
+                      className="h-full w-full p-3"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={1.2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M9.663 17h4.673M12 3v1m6.364 1.636-.707.707M21 12h-1M4 12H3m3.343-5.657-.707-.707m2.828 9.9a5 5 0 1 1 7.072 0l-.548.547A3.375 3.375 0 0 1 14 18.442V21.75a1.5 1.5 0 0 1-3 0v-3.308c0-.944.345-1.846.945-2.55l.547-.547z"
+                      />
+                    </svg>
+                  </div>
+                  <div className="space-y-2">
+                    <h3 className="text-lg font-semibold text-slate-800">{t('unlockInsights')}</h3>
+                    <p className="text-sm text-slate-500">{t('unlockInsightsDesc')}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleGenerateInsights}
+                    className="inline-flex h-11 w-full max-w-xs items-center justify-center rounded-xl bg-slate-900 px-6 text-sm font-semibold text-white shadow-[0_18px_32px_rgba(15,23,42,0.2)] transition hover:bg-slate-800"
+                  >
+                    {t('generateInsights')}
+                  </button>
+                </div>
+              )}
+            </div>
           )}
           {activeTab === 'Chat' && (
-              <div className="flex-1 flex flex-col min-h-0">
+              <div className="flex-1 min-h-0">
                 <ChatPanel
                   video={video}
                   subtitles={subtitles}

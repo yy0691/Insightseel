@@ -2,6 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+body {
+  background-color: #f7f8fa;
+  font-family: 'Inter', 'SF Pro Display', 'Plus Jakarta Sans', 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue',
+    system-ui, sans-serif;
+  color: #1f2937;
+}
+
 /* Global scrollbar styles - only show color when scrolling */
 /* For Webkit-based browsers (Chrome, Safari, etc.) */
 *::-webkit-scrollbar {

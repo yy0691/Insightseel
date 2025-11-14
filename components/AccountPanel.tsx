@@ -3,6 +3,7 @@ import { User } from '@supabase/supabase-js';
 import { authService, Profile } from '../services/authService';
 import { syncService } from '../services/syncService';
 import { exportService } from '../services/exportService';
+import { linuxDoService } from '../services/linuxDoService'; // 新增 Linux.do 服务
 import { useLanguage } from '../contexts/LanguageContext';
 
 interface AccountPanelProps {
@@ -17,6 +18,7 @@ const AccountPanel: React.FC<AccountPanelProps> = ({ user, onSignOut }) => {
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
+  const [linuxDoLoggedIn, setLinuxDoLoggedIn] = useState(false); // 新增状态，跟踪 Linux.do 登录状态
 
   useEffect(() => {
     loadProfile();
@@ -71,6 +73,16 @@ const AccountPanel: React.FC<AccountPanelProps> = ({ user, onSignOut }) => {
     }
   };
 
+  const handleLinuxDoLogin = async () => {
+    try {
+      await linuxDoService.login();  // 调用 Linux.do 登录接口
+      setLinuxDoLoggedIn(true);
+      setSyncMessage(`✓ ${t('linuxDoLoginSuccess')}`);
+    } catch (error) {
+      setSyncMessage(`✗ ${t('linuxDoLoginFailed')}: ${error.message}`);
+    }
+  };
+
   const formatLastSync = (isoString: string | null) => {
     if (!isoString) return t('neverSynced');
 
@@ -91,12 +103,12 @@ const AccountPanel: React.FC<AccountPanelProps> = ({ user, onSignOut }) => {
 
   return (
     <div className="p-6 bg-white rounded-xl shadow-lg space-y-6">
-      <div className="flex items-center justify-between pb-4 border-b border-gray-200">
+      <div className="flex items-center justify-between pb-4 border-b border-slate-200">
         <div>
-          <h2 className="text-xl font-bold text-gray-800">{t('account')}</h2>
-          <p className="text-sm text-gray-600 mt-1">{user.email}</p>
+          <h2 className="text-xl font-bold text-slate-800">{t('account')}</h2>
+          <p className="text-sm text-slate-600 mt-1">{user.email}</p>
           {profile?.full_name && (
-            <p className="text-sm text-gray-500">{profile.full_name}</p>
+            <p className="text-sm text-slate-500">{profile.full_name}</p>
           )}
         </div>
         <button
@@ -108,23 +120,29 @@ const AccountPanel: React.FC<AccountPanelProps> = ({ user, onSignOut }) => {
       </div>
 
       {syncMessage && (
-        <div className={`p-3 rounded-lg text-sm ${
-          syncMessage.startsWith('✓')
-            ? 'bg-green-50 text-green-700 border border-green-200'
-            : 'bg-red-50 text-red-700 border border-red-200'
-        }`}>
+        <div className={`p-3 rounded-lg text-sm ${syncMessage.startsWith('✓') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
           {syncMessage}
         </div>
       )}
 
+      {/* Linux.do Login Section */}
       <div className="space-y-4">
         <div>
-          <h3 className="text-sm font-semibold text-gray-700 mb-3">{t('cloudSync')}</h3>
-          <p className="text-xs text-gray-500 mb-3">
+          <h3 className="text-sm font-semibold text-slate-700 mb-3">{t('linuxDoLogin')}</h3>
+          <button
+            onClick={handleLinuxDoLogin}
+            className="w-full flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors text-sm"
+            disabled={linuxDoLoggedIn}
+          >
+            {linuxDoLoggedIn ? t('loggedIn') : t('loginToLinuxDo')}
+          </button>
+        </div>
+
+        {/* Sync Section */}
+        <div>
+          <h3 className="text-sm font-semibold text-slate-700 mb-3">{t('cloudSync')}</h3>
+          <p className="text-xs text-slate-500 mb-3">
             {t('lastSynced', formatLastSync(lastSyncTime))}
-          </p>
-          <p className="text-xs text-gray-500 mb-3">
-            ⚠️ {t('videoFilesNotSyncedNote')}
           </p>
           <div className="grid grid-cols-2 gap-3">
             <button
@@ -132,9 +150,6 @@ const AccountPanel: React.FC<AccountPanelProps> = ({ user, onSignOut }) => {
               disabled={syncing}
               className="flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors text-sm"
             >
-              <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-              </svg>
               {syncing ? t('uploading') : t('uploadToCloud')}
             </button>
 
@@ -143,25 +158,20 @@ const AccountPanel: React.FC<AccountPanelProps> = ({ user, onSignOut }) => {
               disabled={syncing}
               className="flex items-center justify-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors text-sm"
             >
-              <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l-3-3m0 0l3-3m-3 3h12" />
-              </svg>
               {syncing ? t('downloading') : t('downloadFromCloud')}
             </button>
           </div>
         </div>
 
+        {/* Export Section */}
         <div>
-          <h3 className="text-sm font-semibold text-gray-700 mb-3">{t('localExport')}</h3>
+          <h3 className="text-sm font-semibold text-slate-700 mb-3">{t('localExport')}</h3>
           <div className="space-y-2">
             <button
               onClick={() => handleExport(false)}
               disabled={exporting}
               className="w-full flex items-center justify-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors text-sm"
             >
-              <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
               {exporting ? t('exporting') : t('exportDataOnly')}
             </button>
 
@@ -170,21 +180,18 @@ const AccountPanel: React.FC<AccountPanelProps> = ({ user, onSignOut }) => {
               disabled={exporting}
               className="w-full flex items-center justify-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors text-sm"
             >
-              <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-              </svg>
               {exporting ? t('exporting') : t('exportAll')}
             </button>
 
-            <p className="text-xs text-gray-500 mt-2">
+            <p className="text-xs text-slate-500 mt-2">
               💡 {t('exportTip')}
             </p>
           </div>
         </div>
       </div>
 
-      <div className="pt-4 border-t border-gray-200">
-        <p className="text-xs text-gray-500">
+      <div className="pt-4 border-t border-slate-200">
+        <p className="text-xs text-slate-500">
           <strong>{t('storageLimitsFree')}</strong><br />
           • {t('storageLimitsDatabase')}<br />
           • {t('storageLimitsFiles')}<br />

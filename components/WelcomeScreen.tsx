@@ -16,7 +16,6 @@ import {
 } from "lucide-react";
 import { useLanguage } from "../contexts/LanguageContext";
 
-
 interface WelcomeScreenProps {
   onImportFiles: (files: FileList) => void;
   onImportFolderSelection: (files: FileList) => void;
@@ -161,7 +160,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   ];
 
   // Rotating words for title
-  const rotatingWords = ['数据', '语音', '内容', '场景', '情绪', '洞察'];
+  const rotatingWords = ["数据", "语音", "内容", "场景", "情绪", "洞察"];
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
 
   useEffect(() => {
@@ -187,84 +186,87 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   return (
     <div className="min-h-screen w-full bg-slate-50">
       {/* Navbar */}
-      <nav className="sticky top-0 z-50 w-full px-4 py-4">
-        <div className="mx-auto max-w-[1120px]">
-          <div className="flex items-center justify-between rounded-full border border-slate-200/30 bg-white/50 px-6 py-3 shadow-[0_18px_45px_rgba(15,23,42,0.04)] backdrop-blur-xl">
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600">
-                <span className="text-sm font-semibold text-white">I</span>
-              </div>
-              <span className="text-sm font-medium text-slate-800">insightseel</span>
+      <nav className="sticky top-0 z-50 w-full border-b border-slate-200/70 bg-white/80 backdrop-blur">
+        <div className="mx-auto flex max-w-[1120px] items-center justify-between px-4 py-3">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-slate-50">
+              <span className="text-sm font-semibold text-slate-900">I</span>
             </div>
+            <span className="text-sm font-medium text-slate-800">
+              insightseel
+            </span>
+          </div>
 
-            <div className="flex items-center gap-3">
-              {currentUser ? (
+          <div className="flex items-center gap-2">
+            {currentUser ? (
+              <button
+                onClick={onOpenAccount}
+                className="rounded-full border border-slate-200 bg-white px-4 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+              >
+                {currentUser.email || t("account")}
+              </button>
+            ) : (
+              <>
                 <button
-                  onClick={onOpenAccount}
-                  className="rounded-full border border-slate-200 bg-white/80 px-4 py-2 text-sm font-medium text-slate-600 shadow-sm backdrop-blur-lg transition hover:bg-white"
+                  onClick={onLogin}
+                  className="hidden rounded-full border border-slate-200 bg-white px-4 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 sm:inline-flex"
                 >
-                  {currentUser.email || t('account')}
+                  {t("signIn")}
                 </button>
-              ) : (
-                <>
-                  <button
-                    onClick={onLogin}
-                    className="hidden rounded-full border border-slate-200/80 bg-white/70 px-4 py-2 text-sm font-medium text-slate-600 shadow-sm backdrop-blur-xl transition hover:bg-white sm:block"
-                  >
-                   {t("signIn")}
-                  </button>
-                  <button
-                    onClick={onRegister}
-                    className="rounded-full bg-emerald-600 px-5 py-2 text-sm font-semibold text-white transition-all hover:scale-[1.02] hover:bg-emerald-700"
-                  >
-                    {t("signUp")}
-                  </button>
-                </>
-              )}
-            </div>
+                <button
+                  onClick={onRegister}
+                  className="rounded-full bg-slate-900 px-4 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
+                >
+                  {t("signUp")}
+                </button>
+              </>
+            )}
           </div>
         </div>
       </nav>
 
       {/* Hero Section */}
-      <section className="relative w-full px-4 py-16 md:py-24">
+      <section className="relative w-full px-4 py-14 md:py-20">
         <div className="mx-auto max-w-[1120px]">
-          <div className="mb-12 text-center">
-            <div className="mb-4 inline-block rounded-full border border-emerald-200 bg-emerald-50 px-4 py-1.5">
-              <span className="text-xs font-medium text-emerald-700">{t('welcomeBadge')}</span>
+          <div className="mb-10 text-center">
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              <span className="text-xs font-medium text-slate-700">
+                {t("welcomeBadge")}
+              </span>
             </div>
-            <h1 className="mb-4 text-4xl font-semibold leading-tight text-slate-900 md:text-5xl">
-              {t('welcomeHeroTitle')}
+            <h1 className="mb-4 text-3xl font-semibold leading-tight text-slate-900 md:text-4xl">
+              {t("welcomeHeroTitle")}
               <br />
-              {t('welcomeHeroTitleLine2')}
-              <span className="inline-block ml-3">
+              {t("welcomeHeroTitleLine2")}
+              <span className="ml-2 inline-block">
                 <motion.span
                   key={currentWordIndex}
-                  initial={{ opacity: 0, y: 10 }}
+                  initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.5 }}
-                  className="text-emerald-600"
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.35 }}
+                  className="rounded-md bg-emerald-50 px-2 py-0.5 text-sm text-emerald-700"
                 >
                   {rotatingWords[currentWordIndex]}
                 </motion.span>
               </span>
             </h1>
-            <p className="mx-auto mb-8 max-w-2xl text-sm leading-relaxed text-slate-600 md:text-base">
-              {t('welcomeHeroDescription')}
+            <p className="mx-auto mb-7 max-w-2xl text-sm leading-relaxed text-slate-600 md:text-[15px]">
+              {t("welcomeHeroDescription")}
             </p>
-            <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
+            <div className="flex flex-col items-center justify-center gap-3 sm:flex-row sm:gap-4">
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="rounded-full bg-emerald-600 px-6 py-3 text-sm font-semibold text-white transition-all hover:scale-[1.02] hover:bg-emerald-700"
+                className="inline-flex items-center justify-center rounded-full bg-slate-900 px-6 py-2.5 text-sm font-medium text-white hover:bg-slate-800"
               >
-                {t('welcomeTryButton')}
+                {t("welcomeTryButton")}
               </button>
               <button
                 onClick={() => folderInputRef.current?.click()}
-                className="rounded-full border border-slate-200 bg-white px-6 py-3 text-sm font-medium text-slate-600 transition-all hover:bg-slate-50"
+                className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-6 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
               >
-                {t('welcomeImportFolderButton')}
+                {t("welcomeImportFolderButton")}
               </button>
             </div>
           </div>
@@ -513,30 +515,33 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
 function CentralWorkspace({ scrollProgress }: { scrollProgress: any }) {
   const { t } = useLanguage();
-  const scale = useTransform(scrollProgress, [0.3, 0.35, 0.4], [1, 1.03, 1]);
-  const filesInQueue = useTransform(scrollProgress, [0, 0.6, 0.7, 0.8], [0, 0, 1, 3]);
-  const dropZoneOpacity = useTransform(scrollProgress, [0.5, 0.65], [0.3, 1]);
-  const dropZoneScale = useTransform(scrollProgress, [0.5, 0.65], [0.95, 1]);
-  const glowIntensity = useTransform(scrollProgress, [0.5, 0.65], [0, 0.5]);
+  const scale = useTransform(scrollProgress, [0.3, 0.35, 0.4], [1, 1.02, 1]);
+  const filesInQueue = useTransform(
+    scrollProgress,
+    [0, 0.6, 0.7, 0.8],
+    [0, 0, 1, 3]
+  );
+  const dropZoneOpacity = useTransform(scrollProgress, [0.5, 0.65], [0.4, 1]);
+  const dropZoneScale = useTransform(scrollProgress, [0.5, 0.65], [0.98, 1]);
   const isScanning = useTransform(scrollProgress, [0.5, 0.7], [0, 1]);
-  
+
   // Easter egg: show message after 3 seconds
   const [showEasterEgg, setShowEasterEgg] = useState(false);
-  
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setShowEasterEgg(true);
     }, 3000);
     return () => clearTimeout(timer);
   }, []);
-  
+
   // AI status tags
   const aiStatusMessages = [
-    '正在分析中…',
-    '智能识别中…',
-    '耐心等待…',
-    '正在读取音轨…',
-    '正在解析场景…',
+    "正在分析中…",
+    "智能识别中…",
+    "耐心等待…",
+    "正在读取音轨…",
+    "正在解析场景…",
   ];
 
   return (
@@ -544,292 +549,119 @@ function CentralWorkspace({ scrollProgress }: { scrollProgress: any }) {
       style={{ scale }}
       className="absolute left-1/2 top-1/2 w-full max-w-2xl -translate-x-1/2 -translate-y-1/2"
     >
-      <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.08)]">
-        <div className="border-b border-slate-200 bg-slate-50 px-6 py-4">
+      <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        {/* Notion-style AI analysis badges */}
+        <motion.div
+          style={{ opacity: useTransform(isScanning, [0, 0.3], [0, 1]) }}
+          className="pointer-events-none absolute right-4 top-4 flex flex-col gap-2"
+        >
+          {aiStatusMessages.map((message, i) => (
+            <motion.div
+              key={`status-${i}`}
+              className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white/90 px-3 py-1 text-xs text-slate-600 shadow-sm"
+              animate={{
+                y: [0, -2, 0],
+                opacity: [0.9, 1, 0.9],
+              }}
+              transition={{
+                duration: 3,
+                repeat: Infinity,
+                delay: i * 0.25,
+                ease: "easeInOut",
+              }}
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              <span className="max-w-[180px] truncate">{message}</span>
+            </motion.div>
+          ))}
+        </motion.div>
+
+        <div className="border-b border-slate-200 bg-slate-50 px-6 py-3.5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Folder className="h-5 w-5 text-emerald-600" />
-              <h3 className="text-sm font-medium text-slate-800">{t('welcomeWorkspaceTitle')}</h3>
+              <Folder className="h-5 w-5 text-slate-500" />
+              <h3 className="text-xs font-medium text-slate-800">
+                {t("welcomeWorkspaceTitle")}
+              </h3>
             </div>
-            <motion.span className="text-xs text-slate-600">
-              {filesInQueue.get() > 0 ? t('welcomeVideosInQueue', Math.round(filesInQueue.get())) : t('welcomeWaitingForVideos')}
+            <motion.span className="text-[11px] text-slate-500">
+              {filesInQueue.get() > 0
+                ? t("welcomeVideosInQueue", Math.round(filesInQueue.get()))
+                : t("welcomeWaitingForVideos")}
             </motion.span>
           </div>
         </div>
 
-        <div className="p-8">
-          <motion.div 
-            style={{ 
+        <div className="p-6 md:p-8">
+          {/* Drop zone */}
+          <motion.div
+            style={{
               opacity: dropZoneOpacity,
               scale: dropZoneScale,
-              boxShadow: useTransform(glowIntensity, (intensity) => 
-                `0 0 ${intensity * 40}px rgba(16, 185, 129, ${intensity * 0.3})`
-              )
             }}
-            className="relative flex min-h-[200px] flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-gradient-to-br from-slate-50 to-slate-100/50 p-8 overflow-hidden"
+            className="relative flex min-h-[190px] flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 px-6 py-8"
           >
-            {/* Animated background pattern with breathing effect */}
-            <motion.div 
-              className="absolute inset-0 opacity-30"
-              animate={{
-                scale: [1, 1.005, 1],
-                opacity: [0.3, 0.4, 0.3],
-              }}
-              transition={{
-                duration: 3.5,
-                repeat: Infinity,
-                ease: "easeInOut",
-              }}
-            >
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(16,185,129,0.1),transparent_50%)]"></div>
-            </motion.div>
-            
-            {/* Flowing particles */}
-            {[...Array(12)].map((_, i) => (
-              <motion.div
-                key={`particle-${i}`}
-                className="absolute w-1 h-1 bg-emerald-400/20 rounded-full"
-                style={{
-                  left: `${Math.random() * 100}%`,
-                  bottom: 0,
-                }}
-                animate={{
-                  y: [-10, -200],
-                  x: [0, (Math.random() - 0.5) * 40],
-                  opacity: [0, 0.8, 0],
-                }}
+            <Folder className="mb-3 h-10 w-10 text-slate-400" />
+            <p className="text-sm font-medium text-slate-700">
+              {t("welcomeDropVideosHere")}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              {t("welcomeVideosAnalyzedAuto")}
+            </p>
+
+            {showEasterEgg && scrollProgress.get() < 0.3 && (
+              <motion.p
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: [0, 0.6, 0], y: [4, 0, 0] }}
                 transition={{
-                  duration: 4 + Math.random() * 2,
-                  repeat: Infinity,
-                  delay: Math.random() * 3,
-                  ease: "easeOut",
+                  duration: 4,
+                  times: [0, 0.5, 1],
+                  ease: "easeInOut",
                 }}
-              />
-            ))}
-            
-            {/* Scanning line effect */}
-            <motion.div
-              style={{ 
-                opacity: useTransform(isScanning, [0, 0.5, 1], [0, 1, 0]),
-              }}
-              className="absolute inset-0 pointer-events-none overflow-hidden"
-            >
-              <motion.div
-                className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-transparent via-emerald-400/60 to-transparent blur-sm"
-                animate={{
-                  x: ['-100%', '200%'],
-                }}
-                transition={{
-                  duration: 2,
-                  repeat: Infinity,
-                  ease: "linear",
-                }}
-              />
-            </motion.div>
-            
-            {/* AI status floating tags */}
-            <motion.div
-              style={{ opacity: useTransform(isScanning, [0, 0.3], [0, 1]) }}
-              className="absolute inset-0 pointer-events-none"
-            >
-              {aiStatusMessages.map((message, i) => (
-                <motion.div
-                  key={`status-${i}`}
-                  className="absolute px-3 py-1.5 text-xs font-medium text-slate-600 bg-white/80 backdrop-blur-sm rounded-full border border-emerald-200/50 shadow-sm"
-                  style={{
-                    left: `${15 + i * 18}%`,
-                    top: `${20 + (i % 2) * 40}%`,
-                  }}
-                  animate={{
-                    y: [0, -8, 0],
-                    opacity: [0.7, 1, 0.7],
-                  }}
-                  transition={{
-                    duration: 2.5,
-                    repeat: Infinity,
-                    delay: i * 0.4,
-                    ease: "easeInOut",
-                  }}
-                >
-                  {message}
-                </motion.div>
-              ))}
-            </motion.div>
-            
-            {/* Sparkle effects when files are being dragged */}
-            <motion.div
-              style={{ opacity: useTransform(scrollProgress, [0.5, 0.65], [0, 1]) }}
-              className="absolute inset-0 pointer-events-none"
-            >
-              {[...Array(6)].map((_, i) => (
-                <motion.div
-                  key={i}
-                  className="absolute"
-                  style={{
-                    left: `${20 + i * 15}%`,
-                    top: `${30 + (i % 3) * 20}%`,
-                  }}
-                  animate={{
-                    scale: [1, 1.5, 1],
-                    opacity: [0.3, 0.8, 0.3],
-                  }}
-                  transition={{
-                    duration: 2,
-                    repeat: Infinity,
-                    delay: i * 0.3,
-                  }}
-                >
-                  <Sparkles className="h-4 w-4 text-emerald-400" />
-                </motion.div>
-              ))}
-            </motion.div>
-            
-            <div className="relative z-10 flex flex-col items-center">
-              <Folder className="mb-3 h-12 w-12 text-slate-400" />
-              <p className="text-sm font-medium text-slate-700">{t('welcomeDropVideosHere')}</p>
-              <p className="mt-1 text-xs text-slate-500">{t('welcomeVideosAnalyzedAuto')}</p>
-              
-              {/* Easter egg message */}
-              {showEasterEgg && scrollProgress.get() < 0.3 && (
-                <motion.p
-                  initial={{ opacity: 0, y: 5 }}
-                  animate={{ opacity: [0, 0.6, 0] }}
-                  transition={{ 
-                    duration: 4, 
-                    times: [0, 0.5, 1],
-                    ease: "easeInOut" 
-                  }}
-                  className="mt-3 text-xs text-emerald-600/70 italic"
-                >
-                  把视频给我，让我试试看？
-                </motion.p>
-              )}
-            </div>
+                className="mt-3 text-xs italic text-emerald-600/70"
+              >
+                把视频给我，让我试试看？
+              </motion.p>
+            )}
           </motion.div>
 
-          <div className="mt-4 space-y-2">
+          {/* Queue list – simplified */}
+          <div className="mt-4 space-y-1.5">
             {filesInQueue.get() >= 1 && (
               <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ 
-                  opacity: 1, 
-                  y: 0,
-                  scale: [1, 1.005, 1],
-                  borderColor: ['rgb(226, 232, 240)', 'rgb(167, 243, 208)', 'rgb(226, 232, 240)'],
-                }}
-                transition={{
-                  scale: {
-                    duration: 3.5,
-                    repeat: Infinity,
-                    ease: "easeInOut",
-                  },
-                  borderColor: {
-                    duration: 3.5,
-                    repeat: Infinity,
-                    ease: "easeInOut",
-                  }
-                }}
-                className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 relative overflow-hidden"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3.5 py-2.5"
               >
-                {/* Subtle wave effect inside */}
-                <motion.div
-                  className="absolute inset-0 bg-gradient-to-r from-transparent via-emerald-100/20 to-transparent"
-                  animate={{
-                    x: ['-100%', '100%'],
-                  }}
-                  transition={{
-                    duration: 3,
-                    repeat: Infinity,
-                    ease: "linear",
-                  }}
-                />
-                <Video className="h-4 w-4 text-emerald-600 relative z-10" />
-                <span className="text-xs text-slate-700 relative z-10">product-demo.mp4</span>
-                <span className="ml-auto text-xs text-slate-500 relative z-10">12:47</span>
+                <Video className="h-4 w-4 text-slate-500" />
+                <span className="text-xs text-slate-700">product-demo.mp4</span>
+                <span className="ml-auto text-xs text-slate-500">12:47</span>
               </motion.div>
             )}
             {filesInQueue.get() >= 2 && (
               <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ 
-                  opacity: 1, 
-                  y: 0,
-                  scale: [1, 1.005, 1],
-                  borderColor: ['rgb(226, 232, 240)', 'rgb(167, 243, 208)', 'rgb(226, 232, 240)'],
-                }}
-                transition={{
-                  scale: {
-                    duration: 3.5,
-                    repeat: Infinity,
-                    ease: "easeInOut",
-                    delay: 0.5,
-                  },
-                  borderColor: {
-                    duration: 3.5,
-                    repeat: Infinity,
-                    ease: "easeInOut",
-                    delay: 0.5,
-                  }
-                }}
-                className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 relative overflow-hidden"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.05 }}
+                className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3.5 py-2.5"
               >
-                <motion.div
-                  className="absolute inset-0 bg-gradient-to-r from-transparent via-emerald-100/20 to-transparent"
-                  animate={{
-                    x: ['-100%', '100%'],
-                  }}
-                  transition={{
-                    duration: 3,
-                    repeat: Infinity,
-                    ease: "linear",
-                    delay: 0.5,
-                  }}
-                />
-                <Clapperboard className="h-4 w-4 text-emerald-600 relative z-10" />
-                <span className="text-xs text-slate-700 relative z-10">webinar-snippet.mov</span>
-                <span className="ml-auto text-xs text-slate-500 relative z-10">05:32</span>
+                <Clapperboard className="h-4 w-4 text-slate-500" />
+                <span className="text-xs text-slate-700">
+                  webinar-snippet.mov
+                </span>
+                <span className="ml-auto text-xs text-slate-500">05:32</span>
               </motion.div>
             )}
             {filesInQueue.get() >= 3 && (
               <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ 
-                  opacity: 1, 
-                  y: 0,
-                  scale: [1, 1.005, 1],
-                  borderColor: ['rgb(226, 232, 240)', 'rgb(167, 243, 208)', 'rgb(226, 232, 240)'],
-                }}
-                transition={{
-                  scale: {
-                    duration: 3.5,
-                    repeat: Infinity,
-                    ease: "easeInOut",
-                    delay: 1,
-                  },
-                  borderColor: {
-                    duration: 3.5,
-                    repeat: Infinity,
-                    ease: "easeInOut",
-                    delay: 1,
-                  }
-                }}
-                className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 relative overflow-hidden"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3.5 py-2.5"
               >
-                <motion.div
-                  className="absolute inset-0 bg-gradient-to-r from-transparent via-emerald-100/20 to-transparent"
-                  animate={{
-                    x: ['-100%', '100%'],
-                  }}
-                  transition={{
-                    duration: 3,
-                    repeat: Infinity,
-                    ease: "linear",
-                    delay: 1,
-                  }}
-                />
-                <Film className="h-4 w-4 text-emerald-600 relative z-10" />
-                <span className="text-xs text-slate-700 relative z-10">team-update.webm</span>
-                <span className="ml-auto text-xs text-slate-500 relative z-10">08:15</span>
+                <Film className="h-4 w-4 text-slate-500" />
+                <span className="text-xs text-slate-700">team-update.webm</span>
+                <span className="ml-auto text-xs text-slate-500">08:15</span>
               </motion.div>
             )}
           </div>
@@ -857,33 +689,50 @@ const FileCard: React.FC<FileCardProps> = ({ file, scrollProgress }) => {
   const Icon = file.icon;
   const controls = useAnimation();
 
-  // Continuous floating animation when idle
+  // Continuous floating animation when idle (收敛一点即可)
   useEffect(() => {
     controls.start({
-      y: [0, -8, 0],
-      rotate: [-1, 1, -1],
+      y: [0, -6, 0],
+      rotate: [-0.5, 0.5, -0.5],
       transition: {
-        duration: 3 + file.id * 0.5,
+        duration: 3 + file.id * 0.4,
         repeat: Infinity,
         ease: "easeInOut",
       },
     });
   }, [controls, file.id]);
 
-  const dragX = useTransform(scrollProgress, [file.startProgress, file.endProgress], [file.initialX, 0]);
-  const dragY = useTransform(scrollProgress, [file.startProgress, file.endProgress], [file.initialY, 0]);
-  const dragRotate = useTransform(scrollProgress, [file.startProgress, file.endProgress], [-4, 0]);
-  const dragScale = useTransform(scrollProgress, [file.startProgress, file.endProgress], [1, 0.9]);
-  
-  // Add glow effect when dragging
-  const dragGlow = useTransform(
+  const dragX = useTransform(
     scrollProgress,
     [file.startProgress, file.endProgress],
-    [0, 0.6]
+    [file.initialX, 0]
+  );
+  const dragY = useTransform(
+    scrollProgress,
+    [file.startProgress, file.endProgress],
+    [file.initialY, 0]
+  );
+  const dragRotate = useTransform(
+    scrollProgress,
+    [file.startProgress, file.endProgress],
+    [-3, 0]
+  );
+  const dragScale = useTransform(
+    scrollProgress,
+    [file.startProgress, file.endProgress],
+    [1, 0.96]
   );
 
-  const queueScale = useTransform(scrollProgress, [file.endProgress, 1], [0.9, 0.92]);
-  const opacity = useTransform(scrollProgress, [file.endProgress, file.endProgress + 0.1], [1, 0]);
+  const queueScale = useTransform(
+    scrollProgress,
+    [file.endProgress, 1],
+    [0.94, 0.96]
+  );
+  const opacity = useTransform(
+    scrollProgress,
+    [file.endProgress, file.endProgress + 0.1],
+    [1, 0]
+  );
 
   return (
     <motion.div
@@ -897,36 +746,19 @@ const FileCard: React.FC<FileCardProps> = ({ file, scrollProgress }) => {
       }}
       className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
     >
-      <motion.div 
-        style={{
-          boxShadow: useTransform(dragGlow, (intensity) => 
-            `0 0 ${intensity * 30}px rgba(16, 185, 129, ${intensity * 0.4})`
-          )
-        }}
-        animate={{
-          boxShadow: [
-            '0 8px 24px rgba(15,23,42,0.1)',
-            '0 12px 32px rgba(15,23,42,0.12)',
-            '0 8px 24px rgba(15,23,42,0.1)',
-          ],
-        }}
-        transition={{
-          duration: 3,
-          repeat: Infinity,
-          ease: "easeInOut",
-        }}
-        className="flex w-48 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3"
-      >
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50">
-          <Icon className="h-5 w-5 text-emerald-600" />
+      <div className="flex w-48 items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-50">
+          <Icon className="h-5 w-5 text-slate-600" />
         </div>
         <div className="flex-1 overflow-hidden">
-          <p className="truncate text-xs font-medium text-slate-800">{file.name}</p>
+          <p className="truncate text-xs font-medium text-slate-800">
+            {file.name}
+          </p>
           <p className="text-[11px] text-slate-500">{file.duration}</p>
         </div>
-      </motion.div>
+      </div>
     </motion.div>
   );
-}
+};
 
 export default WelcomeScreen;

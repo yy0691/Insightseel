@@ -5,11 +5,15 @@ export default {
     "./src/**/*.{js,ts,jsx,tsx}",
     "./*.{js,ts,jsx,tsx}",
     "./components/**/*.{js,ts,jsx,tsx}",
+    "./plugin/**/*.{ts,tsx}",
   ],
   theme: {
     extend: {
       fontFamily: {
         sans: ['Inter', 'sans-serif'],
+      },
+      borderRadius: {
+        card: '20px',
       },
     },
   },

@@ -1,0 +1,45 @@
+{
+  "manifest_version": 3,
+  "name": "InsightReel - Video Intelligence",
+  "description": "Analyze any video: get summaries, translated subtitles, key moments, and AI chat",
+  "version": "1.0.0",
+  "icons": {
+    "16": "assets/icon-16.png",
+    "48": "assets/icon-48.png",
+    "128": "assets/icon-128.png"
+  },
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "webRequest",
+    "tabs"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": "assets/icon-48.png",
+    "default_title": "InsightReel"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_end"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["injected.js"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "externally_connectable": {
+    "matches": ["https://*", "http://localhost:*"]
+  }
+}

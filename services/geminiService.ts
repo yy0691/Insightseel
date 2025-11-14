@@ -188,30 +188,69 @@ async function generateContentWithCustomAPI(
         payload.systemInstruction = { parts: [{ text: systemInstruction }] };
     }
 
-    const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-    });
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload),
+        });
 
-    if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: { message: response.statusText } }));
-        throw new Error(`API request failed: ${errorData.error?.message || response.statusText}`);
-    }
-
-    const data = await response.json();
-    
-    const text = data.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join('') ?? '';
-    if (!text && data.candidates?.[0]?.finishReason) {
-        // If there's no text but a finish reason, it could be a safety block or other issue.
-        if (data.candidates[0].finishReason !== "STOP") {
-             throw new Error(`Model returned no content. Finish reason: ${data.candidates[0].finishReason}`);
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ error: { message: response.statusText } }));
+            throw new Error(`API request failed: ${errorData.error?.message || response.statusText}`);
         }
+
+        const data = await response.json();
+        
+        const text = data.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join('') ?? '';
+        if (!text && data.candidates?.[0]?.finishReason) {
+            // If there's no text but a finish reason, it could be a safety block or other issue.
+            if (data.candidates[0].finishReason !== "STOP") {
+                 throw new Error(`Model returned no content. Finish reason: ${data.candidates[0].finishReason}`);
+            }
+        }
+        
+        return text;
+    } catch (error) {
+        // 检测CORS错误
+        if (error instanceof TypeError && (
+            error.message.includes('Failed to fetch') ||
+            error.message.includes('CORS') ||
+            error.message.includes('Access-Control-Allow-Origin')
+        )) {
+            console.error('[Custom API] CORS error detected:', {
+                url: url.replace(/key=[^&]+/, 'key=***'),
+                baseUrl,
+                suggestion: 'Please enable proxy mode in settings to avoid CORS issues'
+            });
+            throw new Error(
+                `CORS错误：自定义API (${baseUrl}) 不支持跨域请求。` +
+                `请在设置中启用代理模式（Proxy Mode）以避免此问题。` +
+                `\n\nCORS Error: Custom API does not support cross-origin requests. ` +
+                `Please enable Proxy Mode in settings to avoid this issue.`
+            );
+        }
+        
+        // 其他网络错误
+        if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+            console.error('[Custom API] Network error:', {
+                url: url.replace(/key=[^&]+/, 'key=***'),
+                baseUrl,
+                error: error.message
+            });
+            throw new Error(
+                `网络错误：无法连接到自定义API (${baseUrl})。` +
+                `请检查网络连接或API地址是否正确。` +
+                `\n\nNetwork Error: Failed to connect to custom API. ` +
+                `Please check your network connection or API URL.`
+            );
+        }
+        
+        // 重新抛出其他错误
+        throw error;
     }
-    
-    return text;
 }
 
 

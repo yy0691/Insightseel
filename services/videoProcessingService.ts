@@ -371,6 +371,7 @@ export async function generateResilientSubtitles(
   }
 
   const pipelineRecommendation = metadata?.recommendedPipeline ?? 'audio';
+  const hasAudioTrack = metadata?.hasAudioTrack ?? true; // Default to true if metadata unavailable
   let visualAttempted = false;
 
   const attemptVisual = async (message: string): Promise<SubtitleGenerationResult> => {
@@ -379,12 +380,21 @@ export async function generateResilientSubtitles(
     return await runVisualSubtitleGeneration({ ...options, metadata: resolveMetadataFallback(video, metadata) });
   };
 
-  if (pipelineRecommendation === 'visual') {
-    try {
-      return await attemptVisual('Audio track appears silent. Switching to visual analysis...');
-    } catch (error) {
-      console.warn('Visual pipeline primary attempt failed, trying audio-based methods.', error);
-      onStatus?.({ stage: 'Visual analysis failed. Falling back to audio transcription...', progress: 35 });
+  // 优先使用音频生成字幕：如果有音频轨道，即使推荐管道是visual，也先尝试音频管道
+  if (hasAudioTrack && pipelineRecommendation !== 'audio') {
+    console.log('[Subtitle] Audio track detected. Prioritizing audio-based transcription over visual pipeline.');
+    onStatus?.({ stage: 'Audio track detected. Using speech pipeline...', progress: 12 });
+  } else if (pipelineRecommendation === 'visual') {
+    // 只有在没有音频轨道时才直接使用视觉管道
+    if (!hasAudioTrack) {
+      try {
+        return await attemptVisual('No audio track detected. Switching to visual analysis...');
+      } catch (error) {
+        console.warn('Visual pipeline primary attempt failed, trying audio-based methods.', error);
+        onStatus?.({ stage: 'Visual analysis failed. Falling back to audio transcription...', progress: 35 });
+      }
+    } else {
+      onStatus?.({ stage: 'Audio track detected. Using speech pipeline...', progress: 12 });
     }
   } else if (pipelineRecommendation === 'hybrid') {
     onStatus?.({ stage: 'Audio quality marginal. Preparing hybrid strategy...', progress: 12 });
@@ -411,9 +421,12 @@ export async function generateResilientSubtitles(
       onSegmentComplete: (segmentIndex, totalSegments, segments) => {
         console.log(`[Router] Segment ${segmentIndex + 1}/${totalSegments} completed with ${segments.length} subtitles`);
         if (onPartialSubtitles) {
-          onPartialSubtitles(segments).catch(err => {
-            console.warn('[Router] Failed to deliver partial subtitles:', err);
-          });
+          const result = onPartialSubtitles(segments);
+          if (result instanceof Promise) {
+            result.catch(err => {
+              console.warn('[Router] Failed to deliver partial subtitles:', err);
+            });
+          }
         }
       },
     });
@@ -426,13 +439,23 @@ export async function generateResilientSubtitles(
 
     // Cache the result
     if (videoHash) {
+      // Map router service types to cache provider types
+      const cacheProvider: 'gemini' | 'whisper' | 'visual' | undefined = 
+        routerResult.usedService === 'deepgram' || 
+        routerResult.usedService === 'deepgram-chunked' || 
+        routerResult.usedService === 'gemini-segmented'
+          ? 'gemini' // Map deepgram and segmented services to gemini for cache
+          : routerResult.usedService === 'gemini'
+          ? 'gemini'
+          : undefined;
+      
       await cacheSubtitles(
         videoHash,
         routerResult.srtContent,
         options.sourceLanguage,
         video.file.size,
         video.duration,
-        { provider: routerResult.usedService, segmentCount: segments.length },
+        { provider: cacheProvider, segmentCount: segments.length },
       );
     }
 

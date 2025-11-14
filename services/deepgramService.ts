@@ -50,19 +50,57 @@ function getDeepgramApiKey(userKey?: string): string | undefined {
 
 /**
  * Check if Deepgram API is available and configured
+ * Also tests the API key by making a simple validation request
  */
 export async function isDeepgramAvailable(): Promise<boolean> {
   const settings = await getEffectiveSettings();
   const apiKey = getDeepgramApiKey(settings.deepgramApiKey);
-  const available = !!apiKey;
-  console.log('[Deepgram] Availability check:', {
-    available,
+  
+  if (!apiKey) {
+    console.log('[Deepgram] ❌ API Key not configured:', {
+      hasUserKey: !!settings.deepgramApiKey,
+      hasSystemKey: !!SYSTEM_DEEPGRAM_KEY,
+    });
+    return false;
+  }
+
+  console.log('[Deepgram] 🔍 Checking API Key availability:', {
     hasUserKey: !!settings.deepgramApiKey,
     hasSystemKey: !!SYSTEM_DEEPGRAM_KEY,
     usingKey: settings.deepgramApiKey ? 'user' : 'system',
-    keyLength: apiKey?.length
+    keyLength: apiKey.length,
+    keyPrefix: apiKey.substring(0, 8) + '...'
   });
-  return available;
+
+  // Test API key by making a simple validation request
+  try {
+    const testResponse = await fetch('https://api.deepgram.com/v1/projects', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Token ${apiKey}`,
+      },
+    });
+
+    if (testResponse.ok) {
+      console.log('[Deepgram] ✅ API Key is valid and working');
+      return true;
+    } else {
+      const errorText = await testResponse.text().catch(() => 'Unknown error');
+      console.warn('[Deepgram] ⚠️ API Key validation failed:', {
+        status: testResponse.status,
+        statusText: testResponse.statusText,
+        error: errorText.substring(0, 200)
+      });
+      return false;
+    }
+  } catch (error) {
+    console.warn('[Deepgram] ⚠️ Failed to validate API Key (network error, but key exists):', {
+      error: error instanceof Error ? error.message : String(error)
+    });
+    // If network error but key exists, assume it might work (could be temporary network issue)
+    // Return true to allow attempt, but log the warning
+    return true;
+  }
 }
 
 /**

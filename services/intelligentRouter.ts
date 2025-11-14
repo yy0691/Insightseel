@@ -41,11 +41,16 @@ export async function generateSubtitlesIntelligent(
   console.log(`[Router] Starting intelligent routing for ${fileSizeMB.toFixed(1)}MB file`);
 
   // Check which services are available
+  console.log('[Router] Checking available services...');
   const deepgramAvailable = await isDeepgramAvailable();
 
   console.log('[Router] Available services:', {
     deepgram: deepgramAvailable,
   });
+
+  if (!deepgramAvailable) {
+    console.log('[Router] ⚠️ Deepgram API Key is not available or invalid. Will use fallback services.');
+  }
 
   // Strategy 1: Try Deepgram for files under reasonable size
   if (deepgramAvailable && fileSizeMB <= 100) {

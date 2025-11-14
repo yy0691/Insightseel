@@ -2,6 +2,8 @@ import path from 'path';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { existsSync, mkdirSync, copyFileSync, readdirSync, statSync, readFileSync, writeFileSync, renameSync } from 'fs';
+import tailwindcss from 'tailwindcss';
+import autoprefixer from 'autoprefixer';
 
 export default defineConfig({
   build: {
@@ -13,6 +15,7 @@ export default defineConfig({
         popup: path.resolve(__dirname, 'plugin/popup.html'),
         content: path.resolve(__dirname, 'plugin/content/index.ts'),
         background: path.resolve(__dirname, 'plugin/background/index.ts'),
+        'bilibili-sidebar': path.resolve(__dirname, 'plugin/injected/video-sidebar.tsx'),
       },
       output: {
         entryFileNames: '[name].js',
@@ -20,6 +23,14 @@ export default defineConfig({
         dir: 'dist/plugin',
         format: 'es',
       },
+    },
+  },
+  css: {
+    postcss: {
+      plugins: [
+        tailwindcss(),
+        autoprefixer(),
+      ],
     },
   },
   plugins: [

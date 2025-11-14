@@ -35,7 +35,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["injected.js"],
+      "resources": ["injected.js", "bilibili-sidebar.js", "assets/*"],
       "matches": ["<all_urls>"]
     }
   ],

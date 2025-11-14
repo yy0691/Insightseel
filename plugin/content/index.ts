@@ -3,6 +3,9 @@
  * Detects videos and communicates with popup
  */
 
+// Import video sidebar injector
+import { injectVideoSidebar } from './video-sidebar-injector';
+
 interface VideoSource {
   url: string;
   type: string;
@@ -206,11 +209,12 @@ function getPageVideoInfo(): PageVideoInfo {
   };
 }
 
-// Listen for messages from popup
+// Listen for messages from popup and injected scripts
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'detectVideo') {
     const videoInfo = getPageVideoInfo();
     sendResponse(videoInfo);
+    return true; // Keep channel open for async response
   } else if (message.action === 'getVideoDetails') {
     const videoElement = document.querySelector('video') as HTMLVideoElement | null;
     if (videoElement) {
@@ -222,7 +226,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     } else {
       sendResponse(null);
     }
+    return true;
   }
+  return false;
 });
 
 // Notify popup on page load
@@ -236,4 +242,18 @@ window.addEventListener('load', () => {
   ).catch(() => {
     // Popup not open, ignore
   });
+
+  // Auto-inject sidebar for any video page
+  const hasVideo = 
+    document.querySelector('video') !== null ||
+    window.location.hostname.includes('youtube.com') ||
+    window.location.hostname.includes('bilibili.com') ||
+    window.location.hostname.includes('vimeo.com') ||
+    document.querySelector('iframe[src*="youtube"], iframe[src*="vimeo"]') !== null;
+
+  if (hasVideo) {
+    setTimeout(() => {
+      injectVideoSidebar();
+    }, 1500); // Wait for dynamic content to load
+  }
 });

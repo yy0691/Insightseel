@@ -33,10 +33,10 @@ export default function App() {
 
       // Check if the tab URL is accessible (not chrome:// or extension pages)
       if (tab.url && (tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://') || tab.url.startsWith('edge://'))) {
-        setError('This page is not accessible. Please open a regular web page.');
-        setLoading(false);
-        return;
-      }
+      setError('This page is not accessible. Please open a regular web page.');
+      setLoading(false);
+      return;
+    }
 
       // Try to send message to content script
       let response;
@@ -67,9 +67,24 @@ export default function App() {
         }
       }
 
-      setVideoInfo(response);
+      if (!response) {
+        throw new Error('Unable to retrieve video data from this page');
+      }
 
-      if (!response.hasVideo) {
+      const normalisedResponse: PageVideoInfo = {
+        ...response,
+        hasSubtitles:
+          typeof response?.hasSubtitles === 'boolean'
+            ? response.hasSubtitles
+            : Array.isArray(response?.videos) &&
+              response.videos.some((video: VideoSource) =>
+                Array.isArray(video?.subtitles) && video.subtitles.length > 0
+              ),
+      };
+
+      setVideoInfo(normalisedResponse);
+
+      if (!normalisedResponse.hasVideo) {
         setError('No video found on this page');
       }
     } catch (err) {
@@ -135,6 +150,21 @@ export default function App() {
           </div>
         ) : view === 'main' ? (
           <>
+            {videoInfo && (
+              <div className="mb-4 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-3 text-xs text-emerald-800 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold">Page insights</span>
+                  <span className="rounded-full bg-white/70 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                    {videoInfo.hasSubtitles ? 'Subtitles detected' : 'Subtitles unavailable'}
+                  </span>
+                </div>
+                <p className="mt-2 text-[11px] leading-relaxed text-emerald-700/80">
+                  {videoInfo.hasSubtitles
+                    ? 'We found caption tracks on this page. Pick a video to inspect the available languages.'
+                    : 'No caption tracks were detected yet. Try playing the video or opening native subtitles if available.'}
+                </p>
+              </div>
+            )}
             {videoInfo && videoInfo.hasVideo && videoInfo.videos.length > 0 ? (
               <VideoSelector
                 videos={videoInfo.videos}

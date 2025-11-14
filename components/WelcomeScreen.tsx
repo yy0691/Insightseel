@@ -1,7 +1,19 @@
 import React, { useRef, useState, useEffect } from "react";
 import { User } from "@supabase/supabase-js";
-import { motion, useScroll, useTransform, useAnimation } from "framer-motion";
-import { Clapperboard, Film, Folder, Video, Sparkles } from "lucide-react";
+import { motion, useScroll, useTransform, useAnimation, useMotionValue, animate } from "framer-motion";
+import {
+  Clapperboard,
+  Film,
+  Folder,
+  Video,
+  Sparkles,
+  BrainCircuit,
+  Radar,
+  AudioLines,
+  MessageSquare,
+  Users,
+  Timer,
+} from "lucide-react";
 import { useLanguage } from "../contexts/LanguageContext";
 
 
@@ -47,6 +59,34 @@ const fileCards = [
   },
 ];
 
+const AnimatedCounter: React.FC<{ value: number; suffix?: string }> = ({ value, suffix = '' }) => {
+  const motionValue = useMotionValue(0);
+  const [displayValue, setDisplayValue] = useState(0);
+
+  useEffect(() => {
+    const unsubscribe = motionValue.on('change', (latest) => {
+      setDisplayValue(Math.round(latest));
+    });
+
+    const controls = animate(motionValue, value, {
+      duration: 1.6,
+      ease: 'easeOut',
+    });
+
+    return () => {
+      unsubscribe();
+      controls.stop();
+    };
+  }, [motionValue, value]);
+
+  return (
+    <span>
+      {displayValue}
+      {suffix}
+    </span>
+  );
+};
+
 const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   onImportFiles,
   onImportFolderSelection,
@@ -64,6 +104,61 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
     target: containerRef,
     offset: ["start end", "end start"],
   });
+
+  const pipelineSteps = [
+    {
+      id: 'detect',
+      title: t('welcomePipelineStepDetect'),
+      description: t('welcomePipelineStepDetectDesc'),
+      icon: Radar,
+      accent: 'from-emerald-400 to-emerald-600',
+    },
+    {
+      id: 'speech',
+      title: t('welcomePipelineStepSpeech'),
+      description: t('welcomePipelineStepSpeechDesc'),
+      icon: AudioLines,
+      accent: 'from-cyan-400 to-emerald-500',
+    },
+    {
+      id: 'reasoning',
+      title: t('welcomePipelineStepUnderstand'),
+      description: t('welcomePipelineStepUnderstandDesc'),
+      icon: BrainCircuit,
+      accent: 'from-blue-400 to-indigo-500',
+    },
+    {
+      id: 'delivery',
+      title: t('welcomePipelineStepDeliver'),
+      description: t('welcomePipelineStepDeliverDesc'),
+      icon: MessageSquare,
+      accent: 'from-purple-400 to-emerald-400',
+    },
+  ];
+
+  const insightStats = [
+    {
+      id: 'videos',
+      icon: Video,
+      target: 12,
+      suffix: 'K+',
+      label: t('welcomeStatsVideosDesc'),
+    },
+    {
+      id: 'teams',
+      icon: Users,
+      target: 180,
+      suffix: '+',
+      label: t('welcomeStatsTeamsDesc'),
+    },
+    {
+      id: 'latency',
+      icon: Timer,
+      target: 4,
+      suffix: 's',
+      label: t('welcomeStatsLatencyDesc'),
+    },
+  ];
 
   // Rotating words for title
   const rotatingWords = ['数据', '语音', '内容', '场景', '情绪', '洞察'];
@@ -199,7 +294,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       <section ref={containerRef} className="relative min-h-[200vh] w-full bg-gradient-to-b from-slate-50 via-slate-50 to-white py-24 overflow-hidden">
         {/* Background decorative elements with drift animation */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <motion.div 
+          <motion.div
             className="absolute top-1/4 left-1/4 w-96 h-96 bg-emerald-100/20 rounded-full blur-3xl"
             animate={{
               x: [0, 30, 0],
@@ -263,7 +358,155 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           </div>
         </div>
       </section>
-      
+
+      {/* AI Pipeline Section */}
+      <section className="relative w-full bg-slate-950 text-white py-24 overflow-hidden">
+        <motion.div
+          className="absolute inset-0 opacity-40"
+          animate={{
+            backgroundPosition: ['0% 50%', '100% 50%'],
+          }}
+          transition={{ duration: 18, repeat: Infinity, ease: 'linear' }}
+          style={{
+            backgroundImage:
+              'radial-gradient(circle at 20% 20%, rgba(16,185,129,0.15), transparent 50%), radial-gradient(circle at 80% 30%, rgba(59,130,246,0.18), transparent 55%), radial-gradient(circle at 50% 80%, rgba(124,58,237,0.15), transparent 45%)',
+            backgroundSize: '120% 120%'
+          }}
+        />
+
+        <div className="relative mx-auto max-w-[1120px] px-4">
+          <motion.span
+            initial={{ opacity: 0, y: 12 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6, delay: 0.1 }}
+            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-1.5 text-[11px] font-medium uppercase tracking-[0.2em] text-emerald-200"
+          >
+            {t('welcomeBadge')}
+          </motion.span>
+          <motion.h2
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.7, delay: 0.15 }}
+            className="mt-6 max-w-2xl text-3xl font-semibold leading-tight text-white md:text-4xl"
+          >
+            {t('welcomePipelineTitle')}
+          </motion.h2>
+          <motion.p
+            initial={{ opacity: 0, y: 12 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.7, delay: 0.25 }}
+            className="mt-4 max-w-2xl text-sm leading-relaxed text-slate-200/80 md:text-base"
+          >
+            {t('welcomePipelineDescription')}
+          </motion.p>
+
+          <div className="mt-12 grid gap-4 md:grid-cols-2">
+            {pipelineSteps.map((step, index) => {
+              const Icon = step.icon;
+              return (
+                <motion.div
+                  key={step.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, amount: 0.4 }}
+                  transition={{ duration: 0.6, delay: index * 0.1 }}
+                  className="relative overflow-hidden rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl"
+                >
+                  <motion.div
+                    initial={{ scaleX: 0 }}
+                    whileInView={{ scaleX: 1 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 1.2, delay: index * 0.12 }}
+                    className="pointer-events-none absolute bottom-0 left-0 h-1 w-full origin-left bg-gradient-to-r from-emerald-400/60 via-white/40 to-transparent"
+                  />
+                  <div className="flex items-center gap-4">
+                    <div className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${step.accent}`}>
+                      <Icon className="h-5 w-5 text-white" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-white">{step.title}</p>
+                      <p className="mt-2 text-xs leading-relaxed text-slate-200/80">{step.description}</p>
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.3 }}
+            transition={{ duration: 0.7, delay: 0.3 }}
+            className="mt-16 rounded-3xl border border-white/10 bg-white/5 p-8 backdrop-blur-2xl"
+          >
+            <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-200">{t('welcomeStatsTitle')}</p>
+                <p className="mt-3 max-w-xl text-sm text-slate-200/80">{t('welcomeStatsSubtitle')}</p>
+              </div>
+              <div className="flex gap-2">
+                {[...Array(6)].map((_, i) => (
+                  <motion.span
+                    key={i}
+                    className="h-2 w-2 rounded-full bg-emerald-300/40"
+                    animate={{ opacity: [0.3, 1, 0.3], scale: [1, 1.3, 1] }}
+                    transition={{ duration: 2, repeat: Infinity, delay: i * 0.25 }}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-10 grid gap-4 md:grid-cols-3">
+              {insightStats.map((stat, idx) => {
+                const Icon = stat.icon;
+                return (
+                  <motion.div
+                    key={stat.id}
+                    initial={{ opacity: 0, y: 18 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, amount: 0.4 }}
+                    transition={{ duration: 0.6, delay: idx * 0.15 }}
+                    className="relative overflow-hidden rounded-2xl border border-white/5 bg-white/5 p-5"
+                  >
+                    <motion.div
+                      className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-emerald-400/10"
+                      animate={{ scale: [1, 1.1, 1], opacity: [0.4, 0.6, 0.4] }}
+                      transition={{ duration: 4, repeat: Infinity, delay: idx * 0.4 }}
+                    />
+                    <div className="relative z-10 flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-400/20">
+                        <Icon className="h-4 w-4 text-emerald-200" />
+                      </div>
+                      <div>
+                        <p className="text-2xl font-semibold text-white">
+                          <AnimatedCounter value={stat.target} suffix={stat.suffix} />
+                        </p>
+                        <p className="mt-1 text-[11px] uppercase tracking-[0.2em] text-slate-200/70">{stat.label}</p>
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          </motion.div>
+        </div>
+
+        <motion.div
+          className="pointer-events-none absolute inset-x-0 bottom-10 flex justify-center"
+          animate={{ opacity: [0.2, 0.5, 0.2], y: [0, -6, 0] }}
+          transition={{ duration: 4.5, repeat: Infinity }}
+        >
+          <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-5 py-2 text-[11px] text-slate-200/90">
+            <Sparkles className="h-3.5 w-3.5 text-emerald-200" />
+            <span>{t('welcomePipelineFooter')}</span>
+          </div>
+        </motion.div>
+      </section>
+
     </div>
   );
 };

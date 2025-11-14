@@ -5,20 +5,62 @@
 
 // Import video sidebar injector
 import { injectVideoSidebar } from './video-sidebar-injector';
+import type { PageVideoInfo, SubtitleTrack, VideoSource } from '../shared/types';
 
-interface VideoSource {
-  url: string;
-  type: string;
-  provider: 'youtube' | 'vimeo' | 'html5' | 'bilibili' | 'other';
-  title?: string;
-  duration?: number;
+const SUBTITLE_KINDS = new Set(['subtitles', 'captions', 'descriptions']);
+
+function uniqueSubtitleTracks(tracks: SubtitleTrack[]): SubtitleTrack[] {
+  const seen = new Set<string>();
+  const unique: SubtitleTrack[] = [];
+
+  tracks.forEach((track) => {
+    const key = `${track.language || 'und'}-${track.label || 'label'}-${track.src || ''}-${track.kind}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      unique.push(track);
+    }
+  });
+
+  return unique;
 }
 
-interface PageVideoInfo {
-  hasVideo: boolean;
-  videos: VideoSource[];
-  pageTitle: string;
-  pageUrl: string;
+function extractSubtitleTracks(videoEl: HTMLVideoElement): SubtitleTrack[] {
+  const subtitleTracks: SubtitleTrack[] = [];
+
+  // Tracks declared in markup
+  const trackElements = videoEl.querySelectorAll('track');
+  trackElements.forEach((trackEl) => {
+    const kind = (trackEl.getAttribute('kind') || '').toLowerCase();
+    if (!SUBTITLE_KINDS.has(kind)) {
+      return;
+    }
+
+    subtitleTracks.push({
+      label: trackEl.getAttribute('label') || trackEl.getAttribute('srclang') || 'Subtitle',
+      language: trackEl.getAttribute('srclang') || 'und',
+      kind,
+      src: trackEl.getAttribute('src') || undefined,
+      isDefault: trackEl.hasAttribute('default'),
+    });
+  });
+
+  // Dynamically attached textTracks (e.g. streaming players)
+  const textTracks = Array.from(videoEl.textTracks || []);
+  textTracks.forEach((textTrack) => {
+    if (!SUBTITLE_KINDS.has(textTrack.kind)) {
+      return;
+    }
+
+    subtitleTracks.push({
+      label: textTrack.label || textTrack.language || 'Subtitle',
+      language: textTrack.language || 'und',
+      kind: textTrack.kind,
+      cues: textTrack.cues?.length,
+      mode: textTrack.mode,
+    });
+  });
+
+  return uniqueSubtitleTracks(subtitleTracks);
 }
 
 function detectYouTubeVideo(): VideoSource | null {
@@ -90,6 +132,9 @@ function detectHTML5Videos(): VideoSource[] {
   const videoElements = document.querySelectorAll('video');
 
   videoElements.forEach((videoEl) => {
+    const subtitles = extractSubtitleTracks(videoEl as HTMLVideoElement);
+    const hasSubtitles = subtitles.length > 0;
+
     // Check for source elements first
     const sources = videoEl.querySelectorAll('source');
     if (sources.length > 0) {
@@ -103,6 +148,8 @@ function detectHTML5Videos(): VideoSource[] {
             provider: 'html5',
             title: videoEl.title || document.title,
             duration: videoEl.duration || undefined,
+            hasSubtitles,
+            subtitles,
           });
         }
       });
@@ -116,6 +163,8 @@ function detectHTML5Videos(): VideoSource[] {
           provider: 'html5',
           title: videoEl.title || document.title,
           duration: videoEl.duration || undefined,
+          hasSubtitles,
+          subtitles,
         });
       } else {
         // If no src, but video element exists, use current page URL
@@ -126,6 +175,8 @@ function detectHTML5Videos(): VideoSource[] {
           provider: 'html5',
           title: videoEl.title || document.title,
           duration: videoEl.duration || undefined,
+          hasSubtitles,
+          subtitles,
         });
       }
     }
@@ -169,6 +220,16 @@ function getPageVideoInfo(): PageVideoInfo {
   // Detect Bilibili (check first as it's a common platform)
   const biliVideo = detectBilibiliVideo();
   if (biliVideo) {
+    if (biliVideo.provider === 'bilibili') {
+      const videoElement = document.querySelector('video') as HTMLVideoElement | null;
+      if (videoElement) {
+        const subtitles = extractSubtitleTracks(videoElement);
+        biliVideo.hasSubtitles = subtitles.length > 0;
+        if (subtitles.length > 0) {
+          biliVideo.subtitles = subtitles;
+        }
+      }
+    }
     videos.push(biliVideo);
     hasVideo = true;
   }
@@ -201,12 +262,72 @@ function getPageVideoInfo(): PageVideoInfo {
     hasVideo = true;
   }
 
+  const hasSubtitles =
+    videos.some((video) => video.hasSubtitles || (video.subtitles && video.subtitles.length > 0)) ||
+    document.querySelectorAll('track[kind="subtitles"], track[kind="captions"]').length > 0;
+
   return {
     hasVideo,
+    hasSubtitles,
     videos: videos.slice(0, 3), // Limit to 3 videos
     pageTitle: document.title,
     pageUrl: window.location.href,
   };
+}
+
+function serializeVideoInfo(info: PageVideoInfo): string {
+  return JSON.stringify({
+    url: info.pageUrl,
+    title: info.pageTitle,
+    hasVideo: info.hasVideo,
+    hasSubtitles: info.hasSubtitles,
+    videos: info.videos.map((video) => ({
+      url: video.url,
+      provider: video.provider,
+      duration: video.duration,
+      subtitles: video.subtitles?.length || 0,
+    })),
+  });
+}
+
+let lastVideoSignature = '';
+let detectionTimeout: number | undefined;
+
+function scheduleVideoDetection() {
+  if (detectionTimeout) {
+    window.clearTimeout(detectionTimeout);
+  }
+
+  detectionTimeout = window.setTimeout(() => {
+    const videoInfo = getPageVideoInfo();
+    const signature = serializeVideoInfo(videoInfo);
+
+    if (signature !== lastVideoSignature) {
+      lastVideoSignature = signature;
+      try {
+        chrome.runtime.sendMessage(
+          { action: 'pageVideoDetected', data: videoInfo },
+          () => void chrome.runtime.lastError
+        );
+      } catch (error) {
+        // Ignore errors when popup/background is not listening
+      }
+    }
+  }, 250);
+}
+
+function observeVideoChanges() {
+  const observer = new MutationObserver(() => scheduleVideoDetection());
+  observer.observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['src', 'data-src', 'poster'],
+  });
+
+  document.addEventListener('loadeddata', scheduleVideoDetection, true);
+  document.addEventListener('emptied', scheduleVideoDetection, true);
+  document.addEventListener('change', scheduleVideoDetection, true);
 }
 
 // Listen for messages from popup and injected scripts
@@ -222,6 +343,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         duration: videoElement.duration,
         currentTime: videoElement.currentTime,
         title: videoElement.title || document.title,
+        subtitles: extractSubtitleTracks(videoElement),
       });
     } else {
       sendResponse(null);
@@ -256,4 +378,8 @@ window.addEventListener('load', () => {
       injectVideoSidebar();
     }, 1500); // Wait for dynamic content to load
   }
+
+  observeVideoChanges();
 });
+
+scheduleVideoDetection();

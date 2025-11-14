@@ -80,12 +80,22 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onSave, onClose
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-gradient-to-br from-slate-50 to-slate-200 rounded-2xl shadow-2xl w-full max-w-lg border border-white/30 text-slate-800">
-        <div className="p-6 border-b border-slate-300/50">
+      <div className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-white/30 bg-gradient-to-br from-slate-50 to-slate-200 text-slate-800 shadow-2xl">
+        <button
+          onClick={onClose}
+          aria-label="Close"
+          className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full border border-slate-300/60 bg-white/70 text-slate-500 transition hover:bg-white hover:text-slate-700"
+        >
+          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M18 6L6 18M6 6l12 12" />
+          </svg>
+        </button>
+
+        <div className="border-b border-slate-300/50 bg-white/60 px-6 py-5">
           <h2 className="text-xl font-semibold">{t('settingsTitle')}</h2>
           <p className="text-sm text-slate-500">{t('settingsDescription')}</p>
         </div>
-        <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
+        <div className="px-6 py-6 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
           <div>
             <label htmlFor="language-select" className="block text-sm font-medium text-slate-700 mb-1">
               {t('language')}
@@ -270,7 +280,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onSave, onClose
             </div>
           </div>
         </div>
-        <div className="p-4 bg-slate-200/50 flex justify-between items-center rounded-b-2xl">
+        <div className="flex items-center justify-between border-t border-slate-300/40 bg-white/60 px-6 py-4">
             <div className="flex items-center space-x-3">
                  <button
                     onClick={handleTest}

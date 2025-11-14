@@ -1,13 +1,26 @@
+export interface SubtitleTrack {
+  label: string;
+  language: string;
+  kind: string;
+  src?: string;
+  cues?: number;
+  mode?: TextTrackMode;
+  isDefault?: boolean;
+}
+
 export interface VideoSource {
   url: string;
   type: string;
   provider: 'youtube' | 'vimeo' | 'html5' | 'bilibili' | 'other';
   title?: string;
   duration?: number;
+  hasSubtitles?: boolean;
+  subtitles?: SubtitleTrack[];
 }
 
 export interface PageVideoInfo {
   hasVideo: boolean;
+  hasSubtitles: boolean;
   videos: VideoSource[];
   pageTitle: string;
   pageUrl: string;

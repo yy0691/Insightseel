@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, Youtube, Video, Globe } from 'lucide-react';
+import { Play, Youtube, Video, Globe, Subtitles } from 'lucide-react';
 import type { VideoSource } from '../../shared/types';
 
 interface VideoSelectorProps {
@@ -39,6 +39,32 @@ export default function VideoSelector({ videos, onSelectVideo }: VideoSelectorPr
                 {video.provider}
                 {video.duration && ` • ${Math.round(video.duration)}s`}
               </p>
+              {video.hasSubtitles && video.subtitles && video.subtitles.length > 0 ? (
+                <div className="flex flex-wrap items-center gap-1 mt-2">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-medium text-emerald-700">
+                    <Subtitles className="w-3 h-3" />
+                    {video.subtitles.length} subtitle
+                    {video.subtitles.length > 1 ? 's' : ''}
+                  </span>
+                  {video.subtitles.slice(0, 4).map((track, trackIdx) => (
+                    <span
+                      key={`${track.language}-${trackIdx}`}
+                      className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600"
+                    >
+                      {track.language?.toUpperCase() || 'UND'}
+                    </span>
+                  ))}
+                  {video.subtitles.length > 4 && (
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500">
+                      +{video.subtitles.length - 4}
+                    </span>
+                  )}
+                </div>
+              ) : video.hasSubtitles === false ? (
+                <p className="text-[10px] text-slate-400 mt-2">
+                  No subtitles detected
+                </p>
+              ) : null}
             </div>
             <div className="text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity">
               <Play className="w-4 h-4" />

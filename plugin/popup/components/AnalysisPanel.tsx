@@ -143,6 +143,30 @@ export default function AnalysisPanel({ video, onClose }: AnalysisPanelProps) {
       <div className="p-3 bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-2xl border border-emerald-200">
         <p className="text-xs font-medium text-emerald-900">{video.title || 'Video'}</p>
         <p className="text-xs text-emerald-700 mt-1 truncate">{video.provider}</p>
+        <div className="mt-3 space-y-1">
+          {video.subtitles && video.subtitles.length > 0 ? (
+            <div className="flex flex-wrap items-center gap-2 text-[10px] text-emerald-800">
+              <span className="inline-flex items-center gap-1 rounded-full bg-white/70 px-2 py-1 font-semibold">
+                <Subtitles className="w-3 h-3" />
+                {video.subtitles.length} subtitle track
+                {video.subtitles.length > 1 ? 's' : ''}
+              </span>
+              {video.subtitles.slice(0, 5).map((track, idx) => (
+                <span
+                  key={`${track.language}-${idx}`}
+                  className="rounded-full bg-white/80 px-2 py-1 font-medium text-emerald-700"
+                >
+                  {track.label || track.language?.toUpperCase() || 'Subtitle'}
+                </span>
+              ))}
+            </div>
+          ) : video.hasSubtitles === false ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-white/60 px-2 py-1 text-[10px] font-medium text-emerald-700">
+              <Subtitles className="w-3 h-3" />
+              No subtitles detected
+            </span>
+          ) : null}
+        </div>
       </div>
 
       {/* Analysis Options */}

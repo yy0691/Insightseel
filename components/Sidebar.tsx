@@ -8,7 +8,7 @@ import { exportService } from '../services/exportService';
 interface SidebarProps {
   videos: Video[];
   selectedVideoId: string | null;
-  onSelectVideo: (id: string) => void;
+  onSelectVideo: (id: string | null) => void;
   onImportFiles: (files: FileList) => void;
   onImportFolderSelection: (files: FileList) => void;
   isCollapsed: boolean;
@@ -21,7 +21,7 @@ interface SidebarProps {
   currentUser?: User | null;
 }
 
-const VideoItem: React.FC<{ video: Video; selectedVideoId: string | null; onSelectVideo: (id: string) => void; isCollapsed: boolean; }> = ({ video, selectedVideoId, onSelectVideo, isCollapsed }) => {
+const VideoItem: React.FC<{ video: Video; selectedVideoId: string | null; onSelectVideo: (id: string | null) => void; isCollapsed: boolean; }> = ({ video, selectedVideoId, onSelectVideo, isCollapsed }) => {
   const isSelected = selectedVideoId === video.id;
   const commonClasses = "flex items-center w-full p-2 rounded-xl transition-colors text-slate-700";
   const selectedClasses = "bg-slate-200/60 font-medium";
@@ -33,9 +33,18 @@ const VideoItem: React.FC<{ video: Video; selectedVideoId: string | null; onSele
         onClick={() => onSelectVideo(video.id)}
         className={`${commonClasses} ${isSelected ? selectedClasses : hoverClasses} ${isCollapsed ? 'justify-center' : ''}`}
       >
-        <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 flex-shrink-0 ${isSelected ? 'text-slate-800' : 'text-slate-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15.91 11.672a.375.375 0 0 1 0 .656l-5.603 3.113a.375.375 0 0 1-.557-.328V8.887c0-.286.307-.466.557-.327l5.603 3.112Z" />
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          className={`h-5 w-5 flex-shrink-0 ${isSelected ? 'text-slate-800' : 'text-slate-500'}`}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5" />
+          <rect x="2" y="6" width="14" height="12" rx="2" />
         </svg>
         {!isCollapsed && (
           <span className="ml-3 text-sm truncate">{video.name}</span>
@@ -140,22 +149,28 @@ const Sidebar: React.FC<SidebarProps> = ({
     <div className={`h-full flex flex-col backdrop-blur-sm bg-white/90 border border-slate-200/40 transition-all duration-300 ease-in-out ${sidebarWidthClass} rounded-2xl shadow-sm`}>
       {/* Header */}
       <div className={`p-4 h-[48px] border-b border-slate-200/40 flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
-        <h1 className="text-xl font-bold text-slate-800 transition-opacity duration-200 flex items-center gap-2">
+        <button
+          onClick={() => {
+            // 跳转到首页：取消选中任何视频
+            onSelectVideo(null);
+          }}
+          className="text-xl font-bold text-slate-800 transition-opacity duration-200 flex items-center gap-2 hover:opacity-70 cursor-pointer"
+        >
           {isCollapsed ? (
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 text-slate-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
               <path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/>
               <rect x="2" y="6" width="14" height="12" rx="2"/>
             </svg>
           ) : (
             <>
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-slate-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-slate-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                 <path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/>
                 <rect x="2" y="6" width="14" height="12" rx="2"/>
               </svg>
               <span>{t('appName')}</span>
             </>
           )}
-        </h1>
+        </button>
         {isMobile && !isCollapsed && (
           <button onClick={onToggle} className="p-2 -mr-2 rounded-full text-slate-600 hover:bg-white/40" aria-label="Close menu">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

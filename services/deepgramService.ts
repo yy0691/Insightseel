@@ -94,8 +94,22 @@ export async function isDeepgramAvailable(): Promise<boolean> {
       return false;
     }
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const isCorsError = errorMessage.includes('CORS') || 
+                       errorMessage.includes('Access-Control-Allow-Origin') ||
+                       errorMessage.includes('Failed to fetch');
+    
+    if (isCorsError) {
+      console.warn('[Deepgram] ⚠️ CORS error detected (API key exists, but browser cannot validate):', {
+        error: errorMessage,
+        note: 'Deepgram API does not support CORS from browser. The API key will be used directly for transcription requests.'
+      });
+      // CORS error but key exists - allow usage (transcription requests may work even if validation fails)
+      return true;
+    }
+    
     console.warn('[Deepgram] ⚠️ Failed to validate API Key (network error, but key exists):', {
-      error: error instanceof Error ? error.message : String(error)
+      error: errorMessage
     });
     // If network error but key exists, assume it might work (could be temporary network issue)
     // Return true to allow attempt, but log the warning

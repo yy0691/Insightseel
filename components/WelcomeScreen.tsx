@@ -2,19 +2,38 @@ import React, { useRef, useState, useEffect } from "react";
 import { User } from "@supabase/supabase-js";
 import { motion, useScroll, useTransform, useAnimation, useMotionValue, animate } from "framer-motion";
 import {
-  Clapperboard,
-  Film,
   Folder,
-  Video,
   Sparkles,
-  BrainCircuit,
-  Radar,
-  AudioLines,
-  MessageSquare,
+  LineChart,
   Users,
-  Timer,
+  Layers,
+  CheckCircle2,
+  FileText,
+  Brain,
+  Subtitles,
+  Mic,
+  Scissors,
+  User as UserIcon,
+  MessageSquare,
 } from "lucide-react";
 import { useLanguage } from "../contexts/LanguageContext";
+
+// 统一的视频图标组件
+const VideoIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className || "h-5 w-5"}
+  >
+    <path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5" />
+    <rect x="2" y="6" width="14" height="12" rx="2" />
+  </svg>
+);
 
 interface WelcomeScreenProps {
   onImportFiles: (files: FileList) => void;
@@ -29,62 +48,34 @@ const fileCards = [
   {
     id: 1,
     name: "product-demo.mp4",
-    icon: Video,
+    icon: VideoIcon,
     duration: "12:47",
     initialX: -200,
-    initialY: -100,
+    initialY: 120,
     startProgress: 0.2,
     endProgress: 0.6,
   },
   {
     id: 2,
     name: "webinar-snippet.mov",
-    icon: Clapperboard,
+    icon: VideoIcon,
     duration: "05:32",
     initialX: 220,
-    initialY: -80,
+    initialY: 100,
     startProgress: 0.3,
     endProgress: 0.7,
   },
   {
     id: 3,
     name: "team-update.webm",
-    icon: Film,
+    icon: VideoIcon,
     duration: "08:15",
     initialX: -180,
-    initialY: 120,
+    initialY: 180,
     startProgress: 0.4,
     endProgress: 0.8,
   },
 ];
-
-const AnimatedCounter: React.FC<{ value: number; suffix?: string }> = ({ value, suffix = '' }) => {
-  const motionValue = useMotionValue(0);
-  const [displayValue, setDisplayValue] = useState(0);
-
-  useEffect(() => {
-    const unsubscribe = motionValue.on('change', (latest) => {
-      setDisplayValue(Math.round(latest));
-    });
-
-    const controls = animate(motionValue, value, {
-      duration: 1.6,
-      ease: 'easeOut',
-    });
-
-    return () => {
-      unsubscribe();
-      controls.stop();
-    };
-  }, [motionValue, value]);
-
-  return (
-    <span>
-      {displayValue}
-      {suffix}
-    </span>
-  );
-};
 
 const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   onImportFiles,
@@ -103,61 +94,6 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
     target: containerRef,
     offset: ["start end", "end start"],
   });
-
-  const pipelineSteps = [
-    {
-      id: 'detect',
-      title: t('welcomePipelineStepDetect'),
-      description: t('welcomePipelineStepDetectDesc'),
-      icon: Radar,
-      accent: 'from-emerald-400 to-emerald-600',
-    },
-    {
-      id: 'speech',
-      title: t('welcomePipelineStepSpeech'),
-      description: t('welcomePipelineStepSpeechDesc'),
-      icon: AudioLines,
-      accent: 'from-cyan-400 to-emerald-500',
-    },
-    {
-      id: 'reasoning',
-      title: t('welcomePipelineStepUnderstand'),
-      description: t('welcomePipelineStepUnderstandDesc'),
-      icon: BrainCircuit,
-      accent: 'from-blue-400 to-indigo-500',
-    },
-    {
-      id: 'delivery',
-      title: t('welcomePipelineStepDeliver'),
-      description: t('welcomePipelineStepDeliverDesc'),
-      icon: MessageSquare,
-      accent: 'from-purple-400 to-emerald-400',
-    },
-  ];
-
-  const insightStats = [
-    {
-      id: 'videos',
-      icon: Video,
-      target: 12,
-      suffix: 'K+',
-      label: t('welcomeStatsVideosDesc'),
-    },
-    {
-      id: 'teams',
-      icon: Users,
-      target: 180,
-      suffix: '+',
-      label: t('welcomeStatsTeamsDesc'),
-    },
-    {
-      id: 'latency',
-      icon: Timer,
-      target: 4,
-      suffix: 's',
-      label: t('welcomeStatsLatencyDesc'),
-    },
-  ];
 
   // Rotating words for title
   const rotatingWords = ["数据", "语音", "内容", "场景", "情绪", "洞察"];
@@ -186,41 +122,45 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   return (
     <div className="min-h-screen w-full bg-slate-50">
       {/* Navbar */}
-      <nav className="sticky top-0 z-50 w-full border-b border-slate-200/70 bg-white/80 backdrop-blur">
-        <div className="mx-auto flex max-w-[1120px] items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-slate-50">
-              <span className="text-sm font-semibold text-slate-900">I</span>
-            </div>
-            <span className="text-sm font-medium text-slate-800">
-              insightseel
-            </span>
-          </div>
+      <nav className="sticky top-0 z-50 px-4 pt-4">
+        <div className="mx-auto flex max-w-[1120px] justify-center">
+          <div className="flex w-full max-w-[720px] items-center justify-between rounded-full border border-slate-200 bg-white/90 px-4 py-2 shadow-sm backdrop-blur-md">
+            {/* 左侧 logo */}
+            <a href="#" className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-teal-400 to-emerald-500 text-white">
+                <VideoIcon className="h-5 w-5" />
+              </div>
+              <span className="text-sm font-medium text-slate-800">
+                insightseel
+              </span>
+            </a>
 
-          <div className="flex items-center gap-2">
-            {currentUser ? (
-              <button
-                onClick={onOpenAccount}
-                className="rounded-full border border-slate-200 bg-white px-4 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-              >
-                {currentUser.email || t("account")}
-              </button>
-            ) : (
-              <>
+            {/* 右侧操作区 */}
+            <div className="flex items-center gap-2 text-xs">
+              {currentUser ? (
                 <button
-                  onClick={onLogin}
-                  className="hidden rounded-full border border-slate-200 bg-white px-4 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 sm:inline-flex"
+                  onClick={onOpenAccount}
+                  className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
                 >
-                  {t("signIn")}
+                  {currentUser.email || t("account")}
                 </button>
-                <button
-                  onClick={onRegister}
-                  className="rounded-full bg-slate-900 px-4 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
-                >
-                  {t("signUp")}
-                </button>
-              </>
-            )}
+              ) : (
+                <>
+                  <button
+                    onClick={onLogin}
+                    className="hidden rounded-full px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 sm:inline-flex"
+                  >
+                    {t("signIn")}
+                  </button>
+                  <button
+                    onClick={onRegister}
+                    className="rounded-full bg-slate-900 px-3.5 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
+                  >
+                    {t("signUp")}
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </nav>
@@ -290,6 +230,9 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             multiple
           />
         </div>
+
+        {/* Hero Preview Card */}
+        <HeroPreviewCard />
       </section>
 
       {/* Scroll Drag Animation Section */}
@@ -333,7 +276,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           >
             <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
               <motion.path
-                d="M 100% 0 Q 50% 50% 0 100%"
+                d="M 1000 0 Q 500 500 0 1000"
                 stroke="rgba(255, 255, 255, 0.05)"
                 strokeWidth="2"
                 fill="none"
@@ -353,161 +296,35 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         
         <div className="sticky top-20 mx-auto flex h-[70vh] max-w-[1120px] items-center justify-center px-4 relative z-10">
           <div className="relative h-full w-full">
-            <CentralWorkspace scrollProgress={scrollYProgress} />
+            <ParallaxBackground scrollProgress={scrollYProgress} />
+            <VideoWaveBackground progress={scrollYProgress} />
+            <DynamicParticles />
+            <SceneTransitionLine progress={scrollYProgress} />
+            <AIScannerBeam progress={scrollYProgress} />
+            <VideoScanParticles progress={scrollYProgress} />
+            <FloatingAIHints progress={scrollYProgress} />
+            <VideoTimeline progress={scrollYProgress} />
+            <WaveformStrip progress={scrollYProgress} />
+            <SceneCutFlash progress={scrollYProgress} />
+            <FloatingStickers progress={scrollYProgress} />
             {fileCards.map((file) => (
               <FileCard key={file.id} file={file} scrollProgress={scrollYProgress} />
             ))}
+            <CentralWorkspace scrollProgress={scrollYProgress} />
+            <VideoFrameBand scrollProgress={scrollYProgress} />
           </div>
         </div>
       </section>
 
-      {/* AI Pipeline Section */}
-      <section className="relative w-full bg-slate-950 text-white py-24 overflow-hidden">
-        <motion.div
-          className="absolute inset-0 opacity-40"
-          animate={{
-            backgroundPosition: ['0% 50%', '100% 50%'],
-          }}
-          transition={{ duration: 18, repeat: Infinity, ease: 'linear' }}
-          style={{
-            backgroundImage:
-              'radial-gradient(circle at 20% 20%, rgba(16,185,129,0.15), transparent 50%), radial-gradient(circle at 80% 30%, rgba(59,130,246,0.18), transparent 55%), radial-gradient(circle at 50% 80%, rgba(124,58,237,0.15), transparent 45%)',
-            backgroundSize: '120% 120%'
-          }}
-        />
+      {/* Feature Sections */}
+      <FeatureSectionOne />
+      <FeatureSectionTwo />
 
-        <div className="relative mx-auto max-w-[1120px] px-4">
-          <motion.span
-            initial={{ opacity: 0, y: 12 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.1 }}
-            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-1.5 text-[11px] font-medium uppercase tracking-[0.2em] text-emerald-200"
-          >
-            {t('welcomeBadge')}
-          </motion.span>
-          <motion.h2
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.7, delay: 0.15 }}
-            className="mt-6 max-w-2xl text-3xl font-semibold leading-tight text-white md:text-4xl"
-          >
-            {t('welcomePipelineTitle')}
-          </motion.h2>
-          <motion.p
-            initial={{ opacity: 0, y: 12 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.7, delay: 0.25 }}
-            className="mt-4 max-w-2xl text-sm leading-relaxed text-slate-200/80 md:text-base"
-          >
-            {t('welcomePipelineDescription')}
-          </motion.p>
+      {/* Bottom CTA */}
+      <BottomCTA />
 
-          <div className="mt-12 grid gap-4 md:grid-cols-2">
-            {pipelineSteps.map((step, index) => {
-              const Icon = step.icon;
-              return (
-                <motion.div
-                  key={step.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, amount: 0.4 }}
-                  transition={{ duration: 0.6, delay: index * 0.1 }}
-                  className="relative overflow-hidden rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl"
-                >
-                  <motion.div
-                    initial={{ scaleX: 0 }}
-                    whileInView={{ scaleX: 1 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 1.2, delay: index * 0.12 }}
-                    className="pointer-events-none absolute bottom-0 left-0 h-1 w-full origin-left bg-gradient-to-r from-emerald-400/60 via-white/40 to-transparent"
-                  />
-                  <div className="flex items-center gap-4">
-                    <div className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${step.accent}`}>
-                      <Icon className="h-5 w-5 text-white" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-white">{step.title}</p>
-                      <p className="mt-2 text-xs leading-relaxed text-slate-200/80">{step.description}</p>
-                    </div>
-                  </div>
-                </motion.div>
-              );
-            })}
-          </div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.3 }}
-            transition={{ duration: 0.7, delay: 0.3 }}
-            className="mt-16 rounded-3xl border border-white/10 bg-white/5 p-8 backdrop-blur-2xl"
-          >
-            <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-200">{t('welcomeStatsTitle')}</p>
-                <p className="mt-3 max-w-xl text-sm text-slate-200/80">{t('welcomeStatsSubtitle')}</p>
-              </div>
-              <div className="flex gap-2">
-                {[...Array(6)].map((_, i) => (
-                  <motion.span
-                    key={i}
-                    className="h-2 w-2 rounded-full bg-emerald-300/40"
-                    animate={{ opacity: [0.3, 1, 0.3], scale: [1, 1.3, 1] }}
-                    transition={{ duration: 2, repeat: Infinity, delay: i * 0.25 }}
-                  />
-                ))}
-              </div>
-            </div>
-
-            <div className="mt-10 grid gap-4 md:grid-cols-3">
-              {insightStats.map((stat, idx) => {
-                const Icon = stat.icon;
-                return (
-                  <motion.div
-                    key={stat.id}
-                    initial={{ opacity: 0, y: 18 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true, amount: 0.4 }}
-                    transition={{ duration: 0.6, delay: idx * 0.15 }}
-                    className="relative overflow-hidden rounded-2xl border border-white/5 bg-white/5 p-5"
-                  >
-                    <motion.div
-                      className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-emerald-400/10"
-                      animate={{ scale: [1, 1.1, 1], opacity: [0.4, 0.6, 0.4] }}
-                      transition={{ duration: 4, repeat: Infinity, delay: idx * 0.4 }}
-                    />
-                    <div className="relative z-10 flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-400/20">
-                        <Icon className="h-4 w-4 text-emerald-200" />
-                      </div>
-                      <div>
-                        <p className="text-2xl font-semibold text-white">
-                          <AnimatedCounter value={stat.target} suffix={stat.suffix} />
-                        </p>
-                        <p className="mt-1 text-[11px] uppercase tracking-[0.2em] text-slate-200/70">{stat.label}</p>
-                      </div>
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
-          </motion.div>
-        </div>
-
-        <motion.div
-          className="pointer-events-none absolute inset-x-0 bottom-10 flex justify-center"
-          animate={{ opacity: [0.2, 0.5, 0.2], y: [0, -6, 0] }}
-          transition={{ duration: 4.5, repeat: Infinity }}
-        >
-          <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-5 py-2 text-[11px] text-slate-200/90">
-            <Sparkles className="h-3.5 w-3.5 text-emerald-200" />
-            <span>{t('welcomePipelineFooter')}</span>
-          </div>
-        </motion.div>
-      </section>
+      {/* Footer */}
+      <Footer />
 
     </div>
   );
@@ -523,7 +340,6 @@ function CentralWorkspace({ scrollProgress }: { scrollProgress: any }) {
   );
   const dropZoneOpacity = useTransform(scrollProgress, [0.5, 0.65], [0.4, 1]);
   const dropZoneScale = useTransform(scrollProgress, [0.5, 0.65], [0.98, 1]);
-  const isScanning = useTransform(scrollProgress, [0.5, 0.7], [0, 1]);
 
   // Easter egg: show message after 3 seconds
   const [showEasterEgg, setShowEasterEgg] = useState(false);
@@ -535,13 +351,13 @@ function CentralWorkspace({ scrollProgress }: { scrollProgress: any }) {
     return () => clearTimeout(timer);
   }, []);
 
-  // AI status tags
-  const aiStatusMessages = [
-    "正在分析中…",
-    "智能识别中…",
-    "耐心等待…",
-    "正在读取音轨…",
-    "正在解析场景…",
+  // 应用特征标签
+  const featureTags = [
+    "自动识别关键片段",
+    "多轨道语音解析",
+    "说话人分离与聚类",
+    "自动生成内容摘要",
+    "支持长视频批量分析",
   ];
 
   return (
@@ -550,32 +366,6 @@ function CentralWorkspace({ scrollProgress }: { scrollProgress: any }) {
       className="absolute left-1/2 top-1/2 w-full max-w-2xl -translate-x-1/2 -translate-y-1/2"
     >
       <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        {/* Notion-style AI analysis badges */}
-        <motion.div
-          style={{ opacity: useTransform(isScanning, [0, 0.3], [0, 1]) }}
-          className="pointer-events-none absolute right-4 top-4 flex flex-col gap-2"
-        >
-          {aiStatusMessages.map((message, i) => (
-            <motion.div
-              key={`status-${i}`}
-              className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white/90 px-3 py-1 text-xs text-slate-600 shadow-sm"
-              animate={{
-                y: [0, -2, 0],
-                opacity: [0.9, 1, 0.9],
-              }}
-              transition={{
-                duration: 3,
-                repeat: Infinity,
-                delay: i * 0.25,
-                ease: "easeInOut",
-              }}
-            >
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              <span className="max-w-[180px] truncate">{message}</span>
-            </motion.div>
-          ))}
-        </motion.div>
-
         <div className="border-b border-slate-200 bg-slate-50 px-6 py-3.5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -609,6 +399,28 @@ function CentralWorkspace({ scrollProgress }: { scrollProgress: any }) {
               {t("welcomeVideosAnalyzedAuto")}
             </p>
 
+            {/* 应用特征标签 */}
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              {featureTags.map((tag, i) => (
+                <motion.span
+                  key={tag}
+                  className="inline-flex items-center rounded-full border border-slate-200 bg-white/90 px-3 py-1 text-[11px] text-slate-600 shadow-sm"
+                  animate={{
+                    y: [0, -2, 0],
+                    opacity: [0.9, 1, 0.9],
+                  }}
+                  transition={{
+                    duration: 3 + i * 0.3,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                  }}
+                >
+                  <Sparkles className="mr-1.5 h-3 w-3 text-emerald-500" />
+                  {tag}
+                </motion.span>
+              ))}
+            </div>
+
             {showEasterEgg && scrollProgress.get() < 0.3 && (
               <motion.p
                 initial={{ opacity: 0, y: 4 }}
@@ -633,7 +445,7 @@ function CentralWorkspace({ scrollProgress }: { scrollProgress: any }) {
                 animate={{ opacity: 1, y: 0 }}
                 className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3.5 py-2.5"
               >
-                <Video className="h-4 w-4 text-slate-500" />
+                <VideoIcon className="h-4 w-4 text-slate-500" />
                 <span className="text-xs text-slate-700">product-demo.mp4</span>
                 <span className="ml-auto text-xs text-slate-500">12:47</span>
               </motion.div>
@@ -645,7 +457,7 @@ function CentralWorkspace({ scrollProgress }: { scrollProgress: any }) {
                 transition={{ delay: 0.05 }}
                 className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3.5 py-2.5"
               >
-                <Clapperboard className="h-4 w-4 text-slate-500" />
+                <VideoIcon className="h-4 w-4 text-slate-500" />
                 <span className="text-xs text-slate-700">
                   webinar-snippet.mov
                 </span>
@@ -659,7 +471,7 @@ function CentralWorkspace({ scrollProgress }: { scrollProgress: any }) {
                 transition={{ delay: 0.1 }}
                 className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3.5 py-2.5"
               >
-                <Film className="h-4 w-4 text-slate-500" />
+                <VideoIcon className="h-4 w-4 text-slate-500" />
                 <span className="text-xs text-slate-700">team-update.webm</span>
                 <span className="ml-auto text-xs text-slate-500">08:15</span>
               </motion.div>
@@ -702,25 +514,44 @@ const FileCard: React.FC<FileCardProps> = ({ file, scrollProgress }) => {
     });
   }, [controls, file.id]);
 
-  const dragX = useTransform(
+  // 磁吸效果：使用 easeOutBack 实现弹性吸附
+  const attract = useTransform(
     scrollProgress,
     [file.startProgress, file.endProgress],
-    [file.initialX, 0]
+    [0, 1]
+  );
+
+  const dragX = useTransform(
+    attract,
+    (a) => file.initialX * (1 - a) + 0 * a
   );
   const dragY = useTransform(
-    scrollProgress,
-    [file.startProgress, file.endProgress],
-    [file.initialY, 0]
+    attract,
+    (a) => file.initialY * (1 - a) + 0 * a
   );
   const dragRotate = useTransform(
-    scrollProgress,
-    [file.startProgress, file.endProgress],
+    attract,
+    [0, 1],
     [-3, 0]
   );
+  
+  // 抵达瞬间的反馈动画
+  const impact = useTransform(
+    scrollProgress,
+    [file.endProgress - 0.05, file.endProgress],
+    [0, 1]
+  );
+  
   const dragScale = useTransform(
     scrollProgress,
-    [file.startProgress, file.endProgress],
-    [1, 0.96]
+    [file.startProgress, file.endProgress - 0.05, file.endProgress],
+    [1, 0.96, 0.9]
+  );
+  
+  const glow = useTransform(
+    impact,
+    [0, 1],
+    [0, 0.35]
   );
 
   const queueScale = useTransform(
@@ -733,6 +564,29 @@ const FileCard: React.FC<FileCardProps> = ({ file, scrollProgress }) => {
     [file.endProgress, file.endProgress + 0.1],
     [1, 0]
   );
+  
+  // 组合缩放效果：在拖拽阶段使用 dragScale，进入队列后使用 queueScale
+  const [currentScale, setCurrentScale] = useState(1);
+  const [currentGlow, setCurrentGlow] = useState(0);
+
+  useEffect(() => {
+    const unsubscribeScale = scrollProgress.on('change', (latest) => {
+      if (latest < file.endProgress) {
+        setCurrentScale(dragScale.get());
+      } else {
+        setCurrentScale(queueScale.get());
+      }
+    });
+    
+    const unsubscribeGlow = impact.on('change', (value) => {
+      setCurrentGlow(value);
+    });
+    
+    return () => {
+      unsubscribeScale();
+      unsubscribeGlow();
+    };
+  }, [scrollProgress, dragScale, queueScale, impact, file.endProgress]);
 
   return (
     <motion.div
@@ -741,9 +595,21 @@ const FileCard: React.FC<FileCardProps> = ({ file, scrollProgress }) => {
         x: dragX,
         y: dragY,
         rotate: scrollProgress.get() >= file.startProgress ? dragRotate : undefined,
-        scale: scrollProgress.get() < file.endProgress ? dragScale : queueScale,
+        scale: currentScale,
         opacity,
+        boxShadow: currentGlow > 0 
+          ? `0 0 ${20 * currentGlow}px rgba(20,184,166,${currentGlow})`
+          : undefined,
       }}
+      transition={
+        scrollProgress.get() >= file.startProgress && scrollProgress.get() < file.endProgress
+          ? {
+              type: "spring",
+              stiffness: 180,
+              damping: 15,
+            }
+          : undefined
+      }
       className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
     >
       <div className="flex w-48 items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
@@ -760,5 +626,556 @@ const FileCard: React.FC<FileCardProps> = ({ file, scrollProgress }) => {
     </motion.div>
   );
 };
+
+// Visual Enhancement Components
+function ParallaxBackground({ scrollProgress }: { scrollProgress: any }) {
+  const backgroundShift = useTransform(scrollProgress, [0, 1], [0, 200]);
+
+  return (
+    <motion.div
+      style={{
+        y: backgroundShift,
+      }}
+      className="absolute inset-0 bg-teal-100/50 rounded-3xl"
+    />
+  );
+}
+
+function VideoWaveBackground({ progress }: { progress: any }) {
+  const waveY = useTransform(progress, [0, 1], [0, 50]);
+  const waveX = useTransform(progress, [0, 1], [0, 100]);
+  
+  return (
+    <motion.div
+      style={{ y: waveY, x: waveX }}
+      className="absolute inset-0 bg-gradient-to-b from-teal-300 via-teal-100 to-slate-100 opacity-60 blur-3xl rounded-3xl"
+    />
+  );
+}
+
+function DynamicParticles() {
+  const particleCount = 20;
+
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden">
+      {new Array(particleCount).fill(0).map((_, i) => {
+        const startX = Math.random() * 100;
+        const driftX = (Math.random() - 0.5) * 15;
+        const duration = 8 + Math.random() * 6;
+        const delay = Math.random() * 3;
+        const size = Math.random() * 1.2 + 0.4;
+
+        return (
+          <motion.div
+            key={i}
+            initial={{ 
+              opacity: 0, 
+              y: "100%", 
+              x: `${startX}%`, 
+            }}
+            animate={{
+              y: ["100%", "-40%"],
+              x: [`${startX}%`, `${startX + driftX}%`],
+              opacity: [0, 0.08, 0],
+            }}
+            transition={{
+              duration,
+              delay,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+            className="absolute rounded-full bg-white"
+            style={{
+              width: `${size}px`,
+              height: `${size}px`,
+              filter: "blur(2px)",
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function SceneTransitionLine({ progress }: { progress: any }) {
+  const opacity = useTransform(progress, [0.4, 0.6], [0, 1]);
+
+  return (
+    <motion.div
+      style={{ opacity }}
+      animate={{
+        y: ["-10%", "120%"],
+      }}
+      transition={{
+        duration: 3,
+        repeat: Infinity,
+        ease: "easeInOut",
+      }}
+      className="pointer-events-none absolute top-0 left-0 right-0 h-2 bg-gradient-to-b from-transparent via-teal-400/40 to-transparent"
+    />
+  );
+}
+
+function AIScannerBeam({ progress }: { progress: any }) {
+  const opacity = useTransform(progress, [0.5, 0.7], [0, 0.35]);
+  const scanY = useMotionValue(0);
+  
+  useEffect(() => {
+    const controls = animate(scanY, 120, {
+      duration: 4,
+      repeat: Infinity,
+      repeatDelay: 1,
+      ease: "linear",
+    });
+    return () => controls.stop();
+  }, [scanY]);
+  
+  return (
+    <motion.div
+      style={{ 
+        opacity,
+        y: scanY,
+      }}
+      className="pointer-events-none absolute left-0 right-0 h-24 bg-gradient-to-b from-transparent via-white/10 to-transparent blur-xl"
+    />
+  );
+}
+
+function VideoScanParticles({ progress }: { progress: any }) {
+  const scanOpacity = useTransform(progress, [0.45, 0.75], [0, 0.35]);
+  const particleCount = 32;
+
+  return (
+    <motion.div
+      style={{ opacity: scanOpacity }}
+      className="pointer-events-none absolute inset-0 overflow-hidden"
+    >
+      {new Array(particleCount).fill(0).map((_, i) => {
+        const startX = Math.random() * 100;
+        const driftX = (Math.random() - 0.5) * 12;
+        const duration = 3 + Math.random() * 3;
+        const delay = Math.random() * 2;
+        const size = Math.random() * 1.4 + 0.4;
+
+        return (
+          <motion.div
+            key={i}
+            initial={{ 
+              opacity: 0, 
+              y: "60%", 
+              x: `${startX}%`, 
+              scale: 1 
+            }}
+            animate={{
+              y: ["60%", "-30%"],
+              x: [`${startX}%`, `${startX + driftX}%`],
+              opacity: [0, 0.15, 0],
+            }}
+            transition={{
+              duration,
+              delay,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+            className="absolute rounded-full bg-white"
+            style={{
+              width: `${size}px`,
+              height: `${size}px`,
+              filter: "blur(2px)",
+            }}
+          />
+        );
+      })}
+    </motion.div>
+  );
+}
+
+const HINTS = [
+  "自动字幕生成",
+  "关键时刻提取",
+  "语音识别",
+  "画面分析",
+  "AI 内容摘要",
+];
+
+function FloatingAIHints({ progress }: { progress: any }) {
+  const baseOpacity = useTransform(progress, [0.4, 0.6], [0, 0.7]);
+  
+  return (
+    <div className="pointer-events-none absolute inset-0">
+      {HINTS.map((hint, i) => (
+        <motion.div
+          key={i}
+          style={{ 
+            opacity: baseOpacity,
+            translateX: `${-50 + (i - 2) * 60}px`,
+            translateY: `${-120 + (i % 3) * 40}px`,
+          }}
+          animate={{
+            y: [0, -20, 0],
+            opacity: [0.3, 0.7, 0.3],
+          }}
+          transition={{
+            duration: 6 + i,
+            repeat: Infinity,
+            delay: i * 0.4,
+            ease: "easeInOut",
+          }}
+          className="absolute left-1/2 top-1/2 rounded-full border border-teal-300/40 bg-white/60 px-3 py-1 text-[10px] text-teal-700 shadow-sm backdrop-blur"
+        >
+          {hint}
+        </motion.div>
+      ))}
+    </div>
+  );
+}
+
+function VideoFrameBand({ scrollProgress }: { scrollProgress: any }) {
+  const trigger = useTransform(scrollProgress, [0.55, 0.6], [0, 1]);
+  const opacity = useTransform(trigger, [0, 1], [0, 1]);
+  const y = useTransform(trigger, [0, 1], [10, 0]);
+  
+  return (
+    <motion.div
+      style={{ opacity, y }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
+      className="absolute left-1/2 top-[60%] flex -translate-x-1/2 gap-1 rounded-xl bg-white/80 p-2 shadow-md backdrop-blur"
+    >
+      {new Array(8).fill(0).map((_, i) => (
+        <div
+          key={i}
+          className="h-10 w-14 rounded-md bg-slate-200/70"
+        />
+      ))}
+    </motion.div>
+  );
+}
+
+function VideoTimeline({ progress }: { progress: any }) {
+  const x = useTransform(progress, [0, 1], ["0%", "-40%"]);
+
+  return (
+    <motion.div
+      style={{ x }}
+      className="pointer-events-none absolute bottom-[14%] left-1/2 w-[140%] -translate-x-1/2 opacity-40"
+    >
+      <div className="h-1 w-full bg-gradient-to-r from-slate-300 via-slate-400 to-slate-300 rounded-full" />
+
+      {/* 小刻度 */}
+      <div className="mt-1 flex justify-between text-[8px] text-slate-400">
+        <span>0:00</span>
+        <span>0:10</span>
+        <span>0:20</span>
+        <span>0:30</span>
+      </div>
+    </motion.div>
+  );
+}
+
+function WaveformStrip({ progress }: { progress: any }) {
+  const opacity = useTransform(progress, [0.4, 0.6], [0, 0.6]);
+
+  return (
+    <motion.div
+      style={{ opacity }}
+      className="pointer-events-none absolute top-[18%] left-1/2 flex -translate-x-1/2 gap-[2px]"
+    >
+      {new Array(80).fill(0).map((_, i) => (
+        <motion.div
+          key={i}
+          animate={{
+            height: [6, 12, 6],
+          }}
+          transition={{
+            duration: 1.4 + i * 0.01,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
+          className="w-[2px] rounded-full bg-teal-400/40"
+        />
+      ))}
+    </motion.div>
+  );
+}
+
+function SceneCutFlash({ progress }: { progress: any }) {
+  const opacity = useTransform(progress, [0.3, 0.5], [0, 0.28]);
+
+  return (
+    <motion.div
+      style={{ opacity }}
+      animate={{
+        x: ["-40%", "140%"],
+      }}
+      transition={{
+        duration: 3,
+        repeat: Infinity,
+        ease: "easeInOut",
+      }}
+      className="pointer-events-none absolute top-0 h-full w-20 bg-gradient-to-r from-transparent via-white/30 to-transparent blur-xl"
+    />
+  );
+}
+
+function FloatingStickers({ progress }: { progress: any }) {
+  return (
+    <div className="pointer-events-none absolute inset-0">
+      {[Subtitles, Mic, UserIcon, Scissors].map((Icon, i) => (
+        <motion.div
+          key={i}
+          className="absolute text-slate-400/40"
+          animate={{
+            y: [0, -20, 0],
+            opacity: [0.3, 0.8, 0.3],
+          }}
+          transition={{
+            duration: 5 + i,
+            repeat: Infinity,
+            delay: i * 0.4,
+          }}
+          style={{
+            left: `${20 + i * 20}%`,
+            top: `${35 + (i % 2) * 20}%`,
+          }}
+        >
+          <Icon className="h-6 w-6" />
+        </motion.div>
+      ))}
+    </div>
+  );
+}
+
+// Content Components
+function HeroPreviewCard() {
+  return (
+    <div className="mx-auto mt-10 w-full max-w-5xl rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm backdrop-blur">
+      {/* Header */}
+      <div className="mb-5 flex items-center justify-between">
+        <span className="text-sm font-medium text-slate-700">Dashboard Overview</span>
+        <button className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600 hover:bg-slate-50">
+          Last 7 days ▾
+        </button>
+      </div>
+
+      {/* Metrics */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <div className="rounded-xl border border-slate-200 bg-teal-50 p-4">
+          <div className="flex items-center justify-between">
+            <Users className="h-5 w-5 text-teal-600" />
+            <span className="text-[11px] text-teal-600">Active</span>
+          </div>
+          <div className="mt-3 text-xl font-semibold text-slate-800">8,432</div>
+          <p className="mt-1 text-xs text-slate-500">+4.3% vs last week</p>
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-emerald-50 p-4">
+          <div className="flex items-center justify-between">
+            <Layers className="h-5 w-5 text-emerald-600" />
+            <span className="text-[11px] text-emerald-600">Insights</span>
+          </div>
+          <div className="mt-3 text-xl font-semibold text-slate-800">1,247</div>
+          <p className="mt-1 text-xs text-slate-500">+12% vs last week</p>
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-lime-50 p-4">
+          <div className="flex items-center justify-between">
+            <LineChart className="h-5 w-5 text-lime-600" />
+            <span className="text-[11px] text-lime-600">Speed</span>
+          </div>
+          <div className="mt-3 text-xl font-semibold text-slate-800">2.3s</div>
+          <p className="mt-1 text-xs text-slate-500">p95 under 4s</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FeatureSectionOne() {
+  const features = [
+    { icon: Subtitles, label: "自动生成字幕" },
+    { icon: Scissors, label: "自动提取关键画面" },
+    { icon: VideoIcon, label: "关键时刻标注" },
+    { icon: FileText, label: "OCR 文本提取" },
+    { icon: UserIcon, label: "说话人分离" },
+    { icon: Sparkles, label: "情绪识别" },
+  ];
+
+  return (
+    <section className="mx-auto w-full max-w-5xl px-6 py-24">
+      <div className="grid items-center gap-12 md:grid-cols-2">
+        {/* Left Text */}
+        <div>
+          <h2 className="text-2xl font-semibold text-slate-800">
+            视频内容全自动解析
+          </h2>
+          <p className="mt-4 text-sm text-slate-600">
+            Insightseel 自动识别视频中的关键信息，包括字幕、场景、人物、情绪等，将视频内容转化为结构化数据。
+          </p>
+
+          <div className="mt-6 grid grid-cols-2 gap-3">
+            {features.map((feature, i) => {
+              const Icon = feature.icon;
+              return (
+                <div
+                  key={i}
+                  className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white p-3"
+                >
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-50">
+                    <Icon className="h-4 w-4 text-teal-600" />
+                  </div>
+                  <span className="text-xs font-medium text-slate-700">{feature.label}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Right Card */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <p className="text-xs font-medium text-slate-500 mb-4">解析示例</p>
+          <div className="space-y-3">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Subtitles className="h-4 w-4 text-teal-600" />
+                <span className="text-xs font-medium text-slate-700">字幕提取</span>
+              </div>
+              <p className="text-xs text-slate-600">"今天我们讨论的是产品的最新功能..."</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Scissors className="h-4 w-4 text-teal-600" />
+                <span className="text-xs font-medium text-slate-700">关键片段</span>
+              </div>
+              <p className="text-xs text-slate-600">0:12 - 0:45 | 产品演示</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <UserIcon className="h-4 w-4 text-teal-600" />
+                <span className="text-xs font-medium text-slate-700">说话人识别</span>
+              </div>
+              <p className="text-xs text-slate-600">Speaker A: 85% | Speaker B: 15%</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function FeatureSectionTwo() {
+  const features = [
+    { icon: FileText, label: "分段摘要" },
+    { icon: Brain, label: "场景语义理解" },
+    { icon: MessageSquare, label: "QA 问答" },
+    { icon: VideoIcon, label: "时间轴导出" },
+    { icon: Folder, label: "JSON result 下载" },
+  ];
+
+  return (
+    <section className="mx-auto w-full max-w-5xl px-6 py-24">
+      <div className="grid items-center gap-12 md:grid-cols-2">
+        
+        {/* Right image first on desktop */}
+        <div className="order-2 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:order-1">
+          <div className="space-y-3">
+            {features.map((feature, i) => {
+              const Icon = feature.icon;
+              return (
+                <div key={i} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Icon className="h-4 w-4 text-teal-600" />
+                    <span className="text-xs font-medium text-slate-700">{feature.label}</span>
+                  </div>
+                  {i === 0 && (
+                    <p className="text-xs text-slate-600">
+                      自动为每个视频片段生成简洁摘要，快速了解内容要点。
+                    </p>
+                  )}
+                  {i === 1 && (
+                    <p className="text-xs text-slate-600">
+                      理解场景语义，识别关键动作、对象和上下文关系。
+                    </p>
+                  )}
+                  {i === 2 && (
+                    <p className="text-xs text-slate-600">
+                      基于视频内容智能问答，快速找到你需要的信息。
+                    </p>
+                  )}
+                  {i === 3 && (
+                    <p className="text-xs text-slate-600">
+                      导出完整的时间轴数据，包含所有标注和元信息。
+                    </p>
+                  )}
+                  {i === 4 && (
+                    <p className="text-xs text-slate-600">
+                      下载结构化 JSON 数据，方便集成到你的工作流。
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Left text */}
+        <div className="order-1 md:order-2">
+          <h2 className="text-2xl font-semibold text-slate-800">
+            视频变成结构化知识
+          </h2>
+          <p className="mt-4 text-sm text-slate-600">
+            将视频内容转化为可搜索、可引用、可计算的结构化知识。支持分段摘要、语义理解、智能问答，并可导出时间轴和 JSON 数据。
+          </p>
+        </div>
+
+      </div>
+    </section>
+  );
+}
+
+function BottomCTA() {
+  return (
+    <section className="mx-auto w-full max-w-3xl px-6 py-24 text-center">
+      <h2 className="text-3xl font-semibold text-slate-800">
+        把一个视频拖给 insightseel
+      </h2>
+      <p className="mt-4 text-sm text-slate-600">
+        即刻生成字幕、关键时刻与摘要
+      </p>
+
+      <button className="mt-8 rounded-full bg-teal-600 px-6 py-3 text-sm font-medium text-white shadow-sm transition hover:bg-teal-700">
+        上传视频试试看
+      </button>
+    </section>
+  );
+}
+
+function Footer() {
+  return (
+    <footer className="border-t border-slate-200 bg-white/90 py-16 backdrop-blur">
+      <div className="mx-auto flex w-full max-w-5xl flex-col items-center gap-6 px-6 text-center">
+
+        {/* Logo */}
+        <div className="flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-200 bg-slate-50">
+            <VideoIcon className="h-5 w-5 text-slate-800" />
+          </div>
+          <span className="text-sm font-medium text-slate-700">
+            insightseel
+          </span>
+        </div>
+
+        {/* Links */}
+        <div className="flex gap-6 text-xs text-slate-500">
+          <a className="hover:text-slate-700" href="#">Privacy</a>
+          <a className="hover:text-slate-700" href="#">Terms</a>
+          <a className="hover:text-slate-700" href="#">Contact</a>
+        </div>
+
+        {/* Copyright */}
+        <p className="text-xs text-slate-400">© 2025 insightseel. All rights reserved.</p>
+      </div>
+    </footer>
+  );
+}
 
 export default WelcomeScreen;

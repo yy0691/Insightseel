@@ -38,7 +38,7 @@ export const PROVIDER_CONFIGS: Record<APIProvider, ProviderConfig> = {
     name: 'Custom API',
     defaultBaseUrl: '',
     defaultModel: 'default',
-    requiresProxy: false,
+    requiresProxy: true, // Custom APIs often have CORS issues, recommend proxy
     supportsStreaming: false,
     supportsVision: false,
     supportsAudio: false,

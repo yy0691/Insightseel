@@ -296,6 +296,17 @@ export async function analyzeVideo(params: {
     }
     
     if (settings.baseUrl) {
+        // Check if custom API requires proxy
+        const provider = settings.provider || 'custom';
+        const config = PROVIDER_CONFIGS[provider];
+        if (config?.requiresProxy && !settings.useProxy) {
+            throw new Error(
+                `CORS错误：自定义API (${settings.baseUrl}) 不支持跨域请求。` +
+                `请在设置中启用代理模式（Proxy Mode）以避免此问题。` +
+                `\n\nCORS Error: Custom API does not support cross-origin requests. ` +
+                `Please enable Proxy Mode in settings to avoid this issue.`
+            );
+        }
         return await generateContentWithCustomAPI(settings, apiKey, contents);
     }
 
@@ -371,6 +382,17 @@ export async function generateChatResponse(
     }
     
     if (settings.baseUrl) {
+        // Check if custom API requires proxy
+        const provider = settings.provider || 'custom';
+        const config = PROVIDER_CONFIGS[provider];
+        if (config?.requiresProxy && !settings.useProxy) {
+            throw new Error(
+                `CORS错误：自定义API (${settings.baseUrl}) 不支持跨域请求。` +
+                `请在设置中启用代理模式（Proxy Mode）以避免此问题。` +
+                `\n\nCORS Error: Custom API does not support cross-origin requests. ` +
+                `Please enable Proxy Mode in settings to avoid this issue.`
+            );
+        }
         return await generateContentWithCustomAPI(settings, apiKey, contents, systemInstruction);
     }
 
@@ -440,6 +462,17 @@ export async function generateSubtitlesStreaming(
     }
     
     if (settings.baseUrl) {
+        // Check if custom API requires proxy
+        const provider = settings.provider || 'custom';
+        const config = PROVIDER_CONFIGS[provider];
+        if (config?.requiresProxy && !settings.useProxy) {
+            throw new Error(
+                `CORS错误：自定义API (${settings.baseUrl}) 不支持跨域请求。` +
+                `请在设置中启用代理模式（Proxy Mode）以避免此问题。` +
+                `\n\nCORS Error: Custom API does not support cross-origin requests. ` +
+                `Please enable Proxy Mode in settings to avoid this issue.`
+            );
+        }
         // Custom API doesn't support streaming, fallback to regular
         return await generateContentWithCustomAPI(settings, apiKey, { parts: [audioPart, textPart] });
     }
@@ -522,6 +555,17 @@ export async function generateSubtitles(
     }
     
     if (settings.baseUrl) {
+        // Check if custom API requires proxy
+        const provider = settings.provider || 'custom';
+        const config = PROVIDER_CONFIGS[provider];
+        if (config?.requiresProxy && !settings.useProxy) {
+            throw new Error(
+                `CORS错误：自定义API (${settings.baseUrl}) 不支持跨域请求。` +
+                `请在设置中启用代理模式（Proxy Mode）以避免此问题。` +
+                `\n\nCORS Error: Custom API does not support cross-origin requests. ` +
+                `Please enable Proxy Mode in settings to avoid this issue.`
+            );
+        }
         return await generateContentWithCustomAPI(settings, apiKey, { parts: [audioPart, textPart] });
     }
 
@@ -547,6 +591,17 @@ export async function translateSubtitles(srtContent: string, targetLanguage: str
     }
     
     if (settings.baseUrl) {
+        // Check if custom API requires proxy
+        const provider = settings.provider || 'custom';
+        const config = PROVIDER_CONFIGS[provider];
+        if (config?.requiresProxy && !settings.useProxy) {
+            throw new Error(
+                `CORS错误：自定义API (${settings.baseUrl}) 不支持跨域请求。` +
+                `请在设置中启用代理模式（Proxy Mode）以避免此问题。` +
+                `\n\nCORS Error: Custom API does not support cross-origin requests. ` +
+                `Please enable Proxy Mode in settings to avoid this issue.`
+            );
+        }
         return await generateContentWithCustomAPI(settings, apiKey, { parts: [{ text: prompt }] });
     }
 

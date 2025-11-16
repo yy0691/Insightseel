@@ -21,6 +21,7 @@ export interface Profile {
   // Linux.do OAuth fields
   linuxdo_user_id?: string;
   linuxdo_username?: string;
+  linuxdo_avatar_url?: string; // Linux.do user avatar/logo URL
   linuxdo_access_token?: string;
   linuxdo_token_expires_at?: string;
   linuxdo_user_data?: any; // JSON data from Linux.do API
@@ -100,6 +101,41 @@ export const authService = {
 
     const { data: { user } } = await supabase.auth.getUser();
     return user;
+  },
+
+  /**
+   * Sync avatar from OAuth provider (Google/GitHub) to profile
+   * Extracts avatar URL from user metadata and updates profile if needed
+   */
+  async syncAvatarFromProvider(user: User): Promise<void> {
+    if (!supabase || !user) return;
+
+    try {
+      // Get current profile
+      const currentProfile = await this.getProfile(user.id);
+      
+      // If profile already has avatar, skip
+      if (currentProfile?.avatar_url) {
+        return;
+      }
+
+      // Extract avatar from user metadata (OAuth providers store it here)
+      // Google: user_metadata.avatar_url or user_metadata.picture
+      // GitHub: user_metadata.avatar_url
+      const avatarUrl = user.user_metadata?.avatar_url || 
+                       user.user_metadata?.picture ||
+                       user.user_metadata?.avatar ||
+                       undefined;
+
+      if (avatarUrl) {
+        // Update profile with avatar
+        await this.updateProfile(user.id, { avatar_url: avatarUrl });
+        console.log('Avatar synced from OAuth provider:', avatarUrl);
+      }
+    } catch (error) {
+      console.error('Error syncing avatar from provider:', error);
+      // Don't throw, this is a non-critical operation
+    }
   },
 
   async getSession(): Promise<Session | null> {

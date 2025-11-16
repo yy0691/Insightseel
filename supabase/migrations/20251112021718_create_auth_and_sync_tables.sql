@@ -301,13 +301,27 @@ CREATE POLICY "Users can delete own chat history"
 -- Create function to handle user profile creation
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger AS $$
+DECLARE
+  avatar_url_value text;
 BEGIN
+  -- Extract avatar URL from multiple possible locations in user metadata
+  -- Google OAuth: avatar_url or picture
+  -- GitHub OAuth: avatar_url
+  avatar_url_value := COALESCE(
+    NEW.raw_user_meta_data->>'avatar_url',
+    NEW.raw_user_meta_data->>'picture',
+    NEW.raw_user_meta_data->>'avatar'
+  );
+
   INSERT INTO public.profiles (id, email, full_name, avatar_url)
   VALUES (
     NEW.id,
     NEW.email,
-    NEW.raw_user_meta_data->>'full_name',
-    NEW.raw_user_meta_data->>'avatar_url'
+    COALESCE(
+      NEW.raw_user_meta_data->>'full_name',
+      NEW.raw_user_meta_data->>'name'
+    ),
+    avatar_url_value
   );
   RETURN NEW;
 END;

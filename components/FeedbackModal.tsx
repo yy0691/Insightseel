@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
+import { BaseModal } from './ui/BaseModal';
 
 interface FeedbackModalProps {
   onClose: () => void;
@@ -35,63 +36,61 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ onClose, feedbackUrl }) =
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-gradient-to-br from-slate-50 to-slate-200 rounded-2xl shadow-2xl w-full max-w-sm border border-white/30 text-slate-800">
-        <div className="p-6 text-center">
-          <h2 className="text-xl font-semibold mb-4">{t('feedbackModalTitle')}</h2>
-          <div className="flex justify-center items-center mb-6 space-x-1">
-            {[1, 2, 3, 4, 5].map((star) => (
-              <StarIcon
-                key={star}
-                filled={(hoverRating || rating) >= star}
-                onHover={() => setHoverRating(star)}
-                onLeave={() => setHoverRating(0)}
-                onClick={() => setRating(star)}
-              />
-            ))}
-          </div>
+    <BaseModal open={true} onOpenChange={onClose} size="sm">
+      <BaseModal.Header title={t('feedbackModalTitle')} />
+      <BaseModal.Body className="text-center">
+        <div className="flex justify-center items-center mb-6 space-x-1">
+          {[1, 2, 3, 4, 5].map((star) => (
+            <StarIcon
+              key={star}
+              filled={(hoverRating || rating) >= star}
+              onHover={() => setHoverRating(star)}
+              onLeave={() => setHoverRating(0)}
+              onClick={() => setRating(star)}
+            />
+          ))}
+        </div>
 
-          <h3 className="text-md font-medium mb-3">{t('feedbackModalQuestion')}</h3>
-          <div className="flex justify-center space-x-6 mb-8">
-            <label className="flex items-center space-x-2 cursor-pointer p-2 rounded-lg hover:bg-slate-200/50 transition-colors">
-              <input 
-                type="radio" 
-                name="feedback-detailed" 
-                className="form-radio h-4 w-4 text-slate-800 border-slate-400 focus:ring-slate-700"
-                checked={wantsDetailed === 'yes'}
-                onChange={() => setWantsDetailed('yes')}
-              />
-              <span className="text-sm font-medium">{t('feedbackModalYes')}</span>
-            </label>
-            <label className="flex items-center space-x-2 cursor-pointer p-2 rounded-lg hover:bg-slate-200/50 transition-colors">
-              <input 
-                type="radio" 
-                name="feedback-detailed" 
-                className="form-radio h-4 w-4 text-slate-800 border-slate-400 focus:ring-slate-700"
-                checked={wantsDetailed === 'no'}
-                onChange={() => setWantsDetailed('no')}
-              />
-              <span className="text-sm font-medium">{t('feedbackModalNo')}</span>
-            </label>
-          </div>
+        <h3 className="text-md font-medium mb-3">{t('feedbackModalQuestion')}</h3>
+        <div className="flex justify-center space-x-6 mb-4">
+          <label className="flex items-center space-x-2 cursor-pointer p-2 rounded-lg hover:bg-slate-100 transition-colors">
+            <input 
+              type="radio" 
+              name="feedback-detailed" 
+              className="form-radio h-4 w-4 text-slate-800 border-slate-400 focus:ring-slate-700"
+              checked={wantsDetailed === 'yes'}
+              onChange={() => setWantsDetailed('yes')}
+            />
+            <span className="text-sm font-medium">{t('feedbackModalYes')}</span>
+          </label>
+          <label className="flex items-center space-x-2 cursor-pointer p-2 rounded-lg hover:bg-slate-100 transition-colors">
+            <input 
+              type="radio" 
+              name="feedback-detailed" 
+              className="form-radio h-4 w-4 text-slate-800 border-slate-400 focus:ring-slate-700"
+              checked={wantsDetailed === 'no'}
+              onChange={() => setWantsDetailed('no')}
+            />
+            <span className="text-sm font-medium">{t('feedbackModalNo')}</span>
+          </label>
         </div>
-        <div className="p-4 bg-slate-200/50 flex justify-end space-x-3 rounded-b-2xl">
-            <button
-                onClick={onClose}
-                className="h-10 px-5 text-sm font-medium rounded-xl transition-colors bg-transparent text-slate-700 hover:bg-slate-900/10"
-            >
-                {t('cancel')}
-            </button>
-            <button
-                onClick={handleSubmit}
-                disabled={rating === 0}
-                className="h-10 px-5 text-sm font-medium rounded-xl transition-colors bg-slate-900 text-slate-50 hover:bg-slate-900/90 shadow-sm disabled:opacity-50"
-            >
-                {t('feedbackModalSubmit')}
-            </button>
-        </div>
-      </div>
-    </div>
+      </BaseModal.Body>
+      <BaseModal.Footer className="flex justify-end gap-3">
+        <button
+          onClick={onClose}
+          className="h-9 px-4 text-xs font-medium rounded-full border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors"
+        >
+          {t('cancel')}
+        </button>
+        <button
+          onClick={handleSubmit}
+          disabled={rating === 0}
+          className="h-9 px-5 text-xs font-medium rounded-full bg-slate-900 text-white hover:bg-slate-800 shadow-sm disabled:opacity-50 transition-colors"
+        >
+          {t('feedbackModalSubmit')}
+        </button>
+      </BaseModal.Footer>
+    </BaseModal>
   );
 };
 

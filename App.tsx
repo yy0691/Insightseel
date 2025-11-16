@@ -24,6 +24,8 @@ import {
   generateDeterministicUUID,
 } from "./utils/helpers";
 import { LanguageProvider, useLanguage } from "./contexts/LanguageContext";
+import { ToastProvider, toast } from "./hooks/useToastStore";
+import { ToastHost } from "./components/ui/ToastHost";
 import { clearOldCache } from "./services/cacheService";
 import { User } from "@supabase/supabase-js";
 import { authService } from "./services/authService";
@@ -160,7 +162,6 @@ const AppContent: React.FC<{
   const [analyses, setAnalyses] = useState<Record<string, Analysis[]>>({});
   const [notes, setNotes] = useState<Record<string, Note>>({});
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -183,7 +184,13 @@ const AppContent: React.FC<{
     const initAuth = async () => {
       if (!authService.isAvailable()) return;
       const user = await authService.getCurrentUser();
-      if (mounted) setCurrentUser(user);
+      if (mounted) {
+        setCurrentUser(user);
+        // Sync avatar from OAuth provider if user just logged in
+        if (user) {
+          authService.syncAvatarFromProvider(user).catch(console.error);
+        }
+      }
     };
 
     initAuth();
@@ -192,6 +199,10 @@ const AppContent: React.FC<{
       const { data } = authService.onAuthStateChange((user) => {
         if (mounted) {
           setCurrentUser(user);
+          // Sync avatar from OAuth provider when user logs in
+          if (user) {
+            authService.syncAvatarFromProvider(user).catch(console.error);
+          }
           if (user && isAuthModalOpen) {
             setIsAuthModalOpen(false);
             setShowAccountPanel(true);
@@ -233,6 +244,7 @@ const AppContent: React.FC<{
         const profileUpdates: Partial<import('./services/authService').Profile> = {
           linuxdo_user_id: linuxDoData.user_id,
           linuxdo_username: linuxDoData.username,
+          linuxdo_avatar_url: linuxDoData.avatar_url || linuxDoData.user_data?.avatar_url || linuxDoData.user_data?.avatar,
           linuxdo_access_token: linuxDoData.access_token,
           linuxdo_token_expires_at: linuxDoData.token_expires_at,
           linuxdo_user_data: linuxDoData.user_data,
@@ -272,23 +284,20 @@ const AppContent: React.FC<{
 
         if (error) {
           console.error('Linux.do OAuth error:', error);
-          setError(`Linux.do 登录失败: ${error}`);
-          setTimeout(() => setError(null), 5000);
+          toast.error({ title: 'Linux.do 登录失败', description: String(error) });
           return;
         }
 
         if (!code || !state) {
           console.error('Missing code or state in OAuth callback');
-          setError('Linux.do 登录回调参数不完整');
-          setTimeout(() => setError(null), 5000);
+          toast.error({ title: 'Linux.do 登录回调参数不完整' });
           return;
         }
 
         // Verify state
         if (!verifyState(state)) {
           console.error('Invalid state parameter');
-          setError('Linux.do 登录验证失败：状态参数不匹配');
-          setTimeout(() => setError(null), 5000);
+          toast.error({ title: 'Linux.do 登录验证失败', description: '状态参数不匹配' });
           return;
         }
 
@@ -301,14 +310,39 @@ const AppContent: React.FC<{
           const userInfo = await getLinuxDoUserInfo(tokenData.access_token);
 
           console.log('Linux.do OAuth success:', { tokenData, userInfo });
+          console.log('Linux.do user info fields:', Object.keys(userInfo));
+          console.log('Linux.do avatar fields check:', {
+            avatar_url: userInfo.avatar_url,
+            avatar: userInfo.avatar,
+            logo: userInfo.logo,
+            picture: userInfo.picture,
+            avatarUrl: userInfo.avatarUrl,
+            profile_image_url: userInfo.profile_image_url,
+            profile_picture: userInfo.profile_picture,
+            image: userInfo.image,
+          });
 
           // Save Linux.do information to profile
           if (currentUser) {
             // User is already logged in to Supabase, update their profile
             try {
+              // Extract avatar URL from user info (try multiple possible field names)
+              const avatarUrl = userInfo.avatar_url || 
+                               userInfo.avatar || 
+                               userInfo.logo || 
+                               userInfo.picture || 
+                               userInfo.avatarUrl ||
+                               userInfo.profile_image_url ||
+                               userInfo.profile_picture ||
+                               userInfo.image ||
+                               userInfo.photo ||
+                               userInfo.thumbnail ||
+                               undefined;
+
               const profileUpdates: Partial<import('./services/authService').Profile> = {
                 linuxdo_user_id: userInfo.id?.toString() || userInfo.user_id?.toString() || undefined,
                 linuxdo_username: userInfo.username || userInfo.name || undefined,
+                linuxdo_avatar_url: avatarUrl,
                 linuxdo_access_token: tokenData.access_token,
                 linuxdo_token_expires_at: tokenData.expires_in 
                   ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
@@ -333,9 +367,23 @@ const AppContent: React.FC<{
             // User is not logged in to Supabase
             // Store in local storage for later use
             try {
+              // Extract avatar URL from user info
+              const avatarUrl = userInfo.avatar_url || 
+                               userInfo.avatar || 
+                               userInfo.logo || 
+                               userInfo.picture || 
+                               userInfo.avatarUrl ||
+                               userInfo.profile_image_url ||
+                               userInfo.profile_picture ||
+                               userInfo.image ||
+                               userInfo.photo ||
+                               userInfo.thumbnail ||
+                               undefined;
+
               const linuxDoData = {
                 user_id: userInfo.id?.toString() || userInfo.user_id?.toString(),
                 username: userInfo.username || userInfo.name,
+                avatar_url: avatarUrl,
                 access_token: tokenData.access_token,
                 token_expires_at: tokenData.expires_in 
                   ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
@@ -349,18 +397,18 @@ const AppContent: React.FC<{
             }
           }
 
-          setError(null);
           // 显示成功消息
-          setError('✓ Linux.do 登录成功！');
+          toast.success({ title: 'Linux.do 登录成功！' });
           setTimeout(() => {
-            setError(null);
             // 刷新页面以更新 UI
             window.location.reload();
           }, 2000);
         } catch (err) {
           console.error('Linux.do OAuth callback error:', err);
-          setError(err instanceof Error ? err.message : 'Linux.do 登录处理失败');
-          setTimeout(() => setError(null), 5000);
+          toast.error({ 
+            title: 'Linux.do 登录处理失败', 
+            description: err instanceof Error ? err.message : '未知错误' 
+          });
         }
       }
     };
@@ -479,8 +527,7 @@ const AppContent: React.FC<{
   // Error handling
   const handleError = (err: unknown, defaultMessage: string) => {
     const message = err instanceof Error ? err.message : defaultMessage;
-    setError(message);
-    setTimeout(() => setError(null), 5000);
+    toast.error({ title: defaultMessage, description: message });
   };
 
   const {
@@ -695,43 +742,7 @@ const AppContent: React.FC<{
 
   return (
     <div className="min-h-screen w-screen flex font-sans relative bg-gradient-to-br from-slate-50 to-slate-200">
-      {/* Error Popup */}
-      {error && (
-        <div
-          role="alert"
-          onClick={() => setError(null)}   // ← 点击即可关闭
-          className="
-            fixed top-5 right-5 z-50 cursor-pointer
-            flex items-start gap-3
-            rounded-2xl
-            border border-slate-900/60
-            bg-slate-900/90
-            px-5 py-4
-            shadow-xl shadow-slate-900/40
-            backdrop-blur-md
-            text-slate-50
-            max-w-sm
-            transition-all
-            hover:bg-slate-900
-            active:scale-95
-          "
-        >
-          {/* 左侧图标 */}
-          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-rose-600/20">
-            <span className="text-lg leading-none text-rose-400">✕</span>
-          </div>
-
-          {/* 文案 */}
-          <div className="flex-1">
-            <p className="text-xs font-semibold tracking-wide text-slate-100">
-              出错了
-            </p>
-            <p className="mt-1 text-xs leading-relaxed text-slate-200/90">
-              {error}
-            </p>
-          </div>
-        </div>
-      )}
+      <ToastHost />
 
 
 
@@ -959,9 +970,11 @@ const App: React.FC = () => {
   }
 
   return (
-    <LanguageProvider language={settings.language || "en"}>
-      <AppContent settings={settings} onSettingsChange={setSettings} />
-    </LanguageProvider>
+    <ToastProvider>
+      <LanguageProvider language={settings.language || "en"}>
+        <AppContent settings={settings} onSettingsChange={setSettings} />
+      </LanguageProvider>
+    </ToastProvider>
   );
 };
 

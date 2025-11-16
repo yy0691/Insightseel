@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { authService } from '../services/authService';
 import { buildLinuxDoAuthUrl } from '../services/linuxDoAuthService';
 import { useLanguage } from '../contexts/LanguageContext';
+import { BaseModal } from './ui/BaseModal';
+import { toast } from '../hooks/useToastStore';
 import type { Translations } from '../i18n/locales/en';
 
 interface AuthModalProps {
@@ -20,10 +22,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess, initi
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
-
-  if (!isOpen) return null;
 
   useEffect(() => {
     if (isOpen) {
@@ -33,42 +31,40 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess, initi
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
-    setMessage(null);
     setLoading(true);
 
     try {
       if (mode === 'signin') {
         await authService.signInWithEmail(email, password);
-        setMessage(t('signedInSuccessfully'));
+        toast.success({ title: t('signedInSuccessfully') });
         setTimeout(() => {
           onSuccess();
           onClose();
         }, 1000);
       } else if (mode === 'signup') {
         await authService.signUpWithEmail(email, password, fullName);
-        setMessage(t('accountCreatedCheckEmail'));
+        toast.success({ title: t('accountCreatedCheckEmail') });
         setTimeout(() => {
           setMode('signin');
-          setMessage(null);
         }, 3000);
       } else if (mode === 'reset') {
         await authService.resetPassword(email);
-        setMessage(t('passwordResetEmailSent'));
+        toast.success({ title: t('passwordResetEmailSent') });
         setTimeout(() => {
           setMode('signin');
-          setMessage(null);
         }, 3000);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('anErrorOccurred'));
+      toast.error({ 
+        title: t('anErrorOccurred'), 
+        description: err instanceof Error ? err.message : t('anErrorOccurred') 
+      });
     } finally {
       setLoading(false);
     }
   };
 
   const handleOAuthSignIn = async (provider: 'google' | 'github') => {
-    setError(null);
     setLoading(true);
 
     try {
@@ -78,13 +74,15 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess, initi
         await authService.signInWithGithub();
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('anErrorOccurred'));
+      toast.error({ 
+        title: t('anErrorOccurred'), 
+        description: err instanceof Error ? err.message : t('anErrorOccurred') 
+      });
       setLoading(false);
     }
   };
 
   const handleLinuxDoSignIn = async () => {
-    setError(null);
     setLoading(true);
 
     try {
@@ -100,7 +98,10 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess, initi
       // 注意：这里不会执行到，因为页面会跳转
       // 如果跳转失败，下面的代码才会执行
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('anErrorOccurred'));
+      toast.error({ 
+        title: t('anErrorOccurred'), 
+        description: err instanceof Error ? err.message : t('anErrorOccurred') 
+      });
       setLoading(false);
     }
   };
@@ -113,39 +114,17 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess, initi
         : 'authSubtitleReset';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-md p-4">
-      <div className="relative w-full max-w-xl overflow-hidden rounded-[32px] bg-white/95 backdrop-blur-xl shadow-[0_18px_80px_rgba(15,23,42,0.32)] border border-white/20 text-slate-900">
-        <button
-          onClick={onClose}
-          aria-label="Close"
-          className="absolute right-5 top-5 flex h-9 w-9 items-center justify-center rounded-full bg-slate-100/80 text-slate-500 hover:bg-slate-200 hover:text-slate-700 transition"
-        >
-          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M18 6L6 18M6 6l12 12" />
-          </svg>
-        </button>
+    <BaseModal open={isOpen} onOpenChange={onClose} size="md">
+      <BaseModal.Header 
+        title={
+          mode === 'signin' ? t('signIn') :
+          mode === 'signup' ? t('createAccount') :
+          t('resetPassword')
+        }
+        subtitle={t(subtitleKey)}
+      />
 
-        <div className="border-b border-slate-100 px-8 py-6">
-          <h2 className="text-lg font-semibold tracking-tight text-slate-900">
-            {mode === 'signin' && t('signIn')}
-            {mode === 'signup' && t('createAccount')}
-            {mode === 'reset' && t('resetPassword')}
-          </h2>
-          <p className="mt-1 text-sm text-slate-500">{t(subtitleKey)}</p>
-        </div>
-
-        <div className="max-h-[70vh] overflow-y-auto px-8 py-6 space-y-4 custom-scrollbar">
-          {error && (
-            <div className="rounded-2xl border border-rose-200/60 bg-rose-50 px-4 py-3 text-xs text-rose-700">
-              {error}
-            </div>
-          )}
-
-          {message && (
-            <div className="rounded-2xl border border-emerald-200/60 bg-emerald-50 px-4 py-3 text-xs text-emerald-700">
-              {message}
-            </div>
-          )}
+      <BaseModal.Body className="max-h-[70vh] overflow-y-auto custom-scrollbar space-y-4">
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === 'signup' && (
@@ -241,57 +220,59 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess, initi
                   className="flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 transition"
                   title={t('linuxDoLogin')}
                 >
+                  {/* Linux.do logo - using a terminal/command line icon as placeholder */}
                   <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/>
+                    <path d="M2 4h20v16H2V4zm2 2v12h16V6H4zm2 2h12v2H6V8zm0 4h8v2H6v-2z"/>
+                    <circle cx="18" cy="10" r="1" fill="currentColor"/>
+                    <circle cx="18" cy="14" r="1" fill="currentColor"/>
                   </svg>
                   <span className="hidden sm:inline">{t('linuxDo')}</span>
                 </button>
               </div>
             </div>
           )}
-        </div>
+      </BaseModal.Body>
 
-        <div className="border-t border-slate-100 bg-slate-50/60 px-8 py-4 text-center text-xs text-slate-600">
-          {mode === 'signin' && (
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-center">
-              <button
-                type="button"
-                onClick={() => setMode('reset')}
-                className="text-slate-600 transition hover:text-slate-900"
-              >
-                {t('forgotPassword')}
-              </button>
-              <span className="hidden sm:inline text-slate-300">•</span>
-              <button
-                type="button"
-                onClick={() => setMode('signup')}
-                className="text-slate-600 transition hover:text-slate-900"
-              >
-                {t('createAccount')}
-              </button>
-            </div>
-          )}
-          {mode === 'signup' && (
+      <BaseModal.Footer className="text-center text-xs text-slate-600">
+        {mode === 'signin' && (
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-center w-full">
             <button
               type="button"
-              onClick={() => setMode('signin')}
+              onClick={() => setMode('reset')}
               className="text-slate-600 transition hover:text-slate-900"
             >
-              {t('alreadyHaveAccount')} {t('signIn')}
+              {t('forgotPassword')}
             </button>
-          )}
-          {mode === 'reset' && (
+            <span className="hidden sm:inline text-slate-300">•</span>
             <button
               type="button"
-              onClick={() => setMode('signin')}
+              onClick={() => setMode('signup')}
               className="text-slate-600 transition hover:text-slate-900"
             >
-              {t('backToSignIn')}
+              {t('createAccount')}
             </button>
-          )}
-        </div>
-      </div>
-    </div>
+          </div>
+        )}
+        {mode === 'signup' && (
+          <button
+            type="button"
+            onClick={() => setMode('signin')}
+            className="text-slate-600 transition hover:text-slate-900"
+          >
+            {t('alreadyHaveAccount')} {t('signIn')}
+          </button>
+        )}
+        {mode === 'reset' && (
+          <button
+            type="button"
+            onClick={() => setMode('signin')}
+            className="text-slate-600 transition hover:text-slate-900"
+          >
+            {t('backToSignIn')}
+          </button>
+        )}
+      </BaseModal.Footer>
+    </BaseModal>
   );
 };
 

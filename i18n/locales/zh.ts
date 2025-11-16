@@ -154,11 +154,21 @@ export const zh: Translations = {
   feedbackModalSubmit: "提交",
 
   // Gemini Prompts
-  generateSubtitlesPrompt: (spokenLang: string, targetLang: string) => `请为该视频转写音频。视频中使用的语言是${spokenLang}。请用${targetLang}提供转写结果。如果${spokenLang}和${targetLang}不同，请进行翻译。最终输出必须为包含时间戳的 SRT (SubRip Text) 格式，且输出内容只能是 SRT 格式文本。`,
-  analysisSummaryPrompt: (targetLang: string) => `请分析该视频，并提供一份内容简洁的摘要。摘要应抓住视频的要点和核心信息。在引用特定时刻时，请以 [HH:MM:SS] 或 [MM:SS] 格式包含时间戳（例如："在 [02:15] 处演讲者讨论了..."）。响应必须使用${targetLang}，并采用 Markdown 格式。`,
-  analysisKeyInfoPrompt: (targetLang: string) => `分析此视频并确定 5-10 个关键时刻或重要的主题转换。对于每一项，请在行首以 [HH:MM:SS] 的确切格式提供时间戳，后跟简要说明。如果没有明确的“事件”，请重点关注演讲者转换到新主题或提出关键论点的时间点。将整个输出格式化为列表。每个项目必须是单行。请不要在列表前添加任何前言或解释。例如：“[00:02:15] 演讲者介绍了神经网络的概念。” 响应必须使用${targetLang}。`,
-  analysisTopicsPrompt: (targetLang: string) => `请识别该视频中讨论或展示的 3 到 5 个最重要的话题或主题。仅以 Markdown 无序列表的形式列出主题名称，不要添加任何解释。响应必须使用${targetLang}。`,
-  chatSystemInstruction: (targetLang: string) => `你是一个乐于助人的人工智能助手。你将回答关于一个视频的问题。用户将在第一条消息中提供视频。你的回答必须使用${targetLang}。\n\n重要提示：在引用视频中的特定时刻时，务必以 [HH:MM:SS] 或 [MM:SS] 格式包含时间戳。例如："在 [02:15] 处演讲者讨论了..." 或 "关键点在 [01:23:45] 被提到..."。这有助于用户导航到你所指的确切时刻。`,
+  generateSubtitlesPrompt: (spokenLang: string, targetLang: string) => 
+    `请将该视频的音频内容转写为字幕文本。视频原语言为 ${spokenLang}，请使用 ${targetLang} 提供转写结果。如果两种语言不同，请将音频内容翻译为 ${targetLang}。最终输出必须为带有时间戳的 SRT（SubRip Text）格式，并且仅包含 SRT 格式的纯文本内容。不得添加任何额外说明或解释。`,
+  
+  analysisSummaryPrompt: (targetLang: string) => 
+    `请分析该视频内容，并生成一份简洁摘要，准确传达视频的主要观点与关键信息。在提及具体时间节点时，务必使用 [HH:MM:SS] 或 [MM:SS] 格式的时间戳（如：“在 [02:15] 处，讲者讨论了……”）。输出必须使用 ${targetLang}，格式为 Markdown。**禁止输出任何与摘要无关的内容，例如说明、引言、标签或提示语。仅输出摘要正文本身。**`,
+  
+  analysisKeyInfoPrompt: (targetLang: string) => 
+    `请分析该视频内容，并识别出 5 至 10 个关键时间点或重要主题转折。每项结果需以 [HH:MM:SS] 格式的时间戳开头，后接一句简要描述。若无明确事件，请标注讲者转换话题或提出关键观点的时间点。将结果按列表格式输出，每行一个时间点描述，不添加任何开头说明或额外文本。输出语言为 ${targetLang}。`,
+  
+  analysisTopicsPrompt: (targetLang: string) => 
+    `请识别视频中最重要的 3 至 5 个讨论话题或核心主题。仅以 Markdown 无序列表列出主题名称，禁止添加任何解释或额外文字。输出语言为 ${targetLang}。`,
+  
+  chatSystemInstruction: (targetLang: string) => 
+    `你是一个严谨且高效的 AI 视频助手。你将回答用户关于特定视频的提问，用户会在首次消息中提供视频内容。你的回答必须使用 ${targetLang}。\n\n注意：在引用视频中的时间点时，需使用 [HH:MM:SS] 或 [MM:SS] 格式的时间戳，例如：“在 [02:15] 处讲者提到了……”或“关键内容出现在 [01:23:45]。”确保时间戳精确，有助于用户定位视频内容。`,
+  
   deleteVideoConfirmation: (videoName: string) => `您确定要删除视频 “${videoName}” 及其所有关联数据吗？此操作无法撤销。`,
   deleteFolderConfirmation: (folderName: string, count: number) => `您确定要删除文件夹 “${folderName}” 及其中的全部 ${count} 个视频吗？此操作无法撤销。`,
   collapseSidebar: "收起",
@@ -249,4 +259,7 @@ export const zh: Translations = {
   syncedStats: (videos: number, subtitles: number, analyses: number, notes: number, chats: number) =>
     `已同步：${videos} 个视频，${subtitles} 个字幕，${analyses} 个分析，${notes} 个笔记，${chats} 个聊天`,
   exportTip: "提示：导出含视频文件可创建包含视频的完整备份。",
+  screenshotCopied: "截图已复制到剪贴板",
+  screenshotSaved: "截图已保存",
+  screenshotAvailableInChat: "可在聊天面板中使用",
 };

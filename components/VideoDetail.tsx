@@ -9,6 +9,7 @@ import { generateVideoHash } from '../services/cacheService';
 import { generateResilientSubtitles, generateResilientInsights } from '../services/videoProcessingService';
 import { isSegmentedProcessingAvailable } from '../services/segmentedProcessor';
 import { isDeepgramAvailable } from '../services/deepgramService';
+import { toast } from '../hooks/useToastStore';
 
 import ChatPanel from './ChatPanel';
 import NotesPanel from './NotesPanel';
@@ -232,7 +233,7 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
     }
   };
 
-  const handleScreenshot = () => {
+  const handleScreenshot = async () => {
     if (!videoRef.current) return;
     const canvas = document.createElement('canvas');
     canvas.width = videoRef.current.videoWidth;
@@ -243,6 +244,94 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
         const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
         setScreenshotDataUrl(dataUrl);
         setActiveTab('Chat');
+        
+        // 复制截图到剪贴板
+        try {
+          // 将 canvas 转换为 Blob (使用 Promise 包装)
+          const blob = await new Promise<Blob | null>((resolve) => {
+            canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.9);
+          });
+
+          if (!blob) {
+            throw new Error('Failed to create blob from canvas');
+          }
+
+          // 检查是否支持 ClipboardItem API
+          if (typeof ClipboardItem === 'undefined') {
+            console.warn('ClipboardItem API not supported in this browser');
+            toast.info({ 
+              title: t('screenshotSaved'),
+              description: t('screenshotAvailableInChat'),
+              duration: 2000
+            });
+            return;
+          }
+
+          // 检查剪贴板权限
+          if (navigator.clipboard && navigator.permissions) {
+            try {
+              const permissionStatus = await navigator.permissions.query({ name: 'clipboard-write' as PermissionName });
+              if (permissionStatus.state === 'denied') {
+                console.warn('Clipboard write permission denied');
+                toast.info({ 
+                  title: t('screenshotSaved'),
+                  description: language === 'zh' ? '剪贴板权限被拒绝，截图已保存到聊天面板' : 'Clipboard permission denied, screenshot saved to chat panel',
+                  duration: 3000
+                });
+                return;
+              }
+            } catch (permError) {
+              // 某些浏览器可能不支持 permissions.query，继续尝试
+              console.log('Could not check clipboard permission:', permError);
+            }
+          }
+
+          try {
+            // 使用 Clipboard API 复制图片
+            // ClipboardItem 需要 Promise，所以将 blob 包装成 Promise
+            const clipboardItem = new ClipboardItem({
+              'image/jpeg': Promise.resolve(blob)
+            });
+            
+            await navigator.clipboard.write([clipboardItem]);
+            
+            // 显示成功提示
+            toast.success({ 
+              title: t('screenshotCopied'),
+              duration: 2000
+            });
+          } catch (clipboardError: any) {
+            // 如果 Clipboard API 失败（可能因为权限或浏览器不支持）
+            console.error('Clipboard API failed:', clipboardError);
+            console.error('Error details:', {
+              name: clipboardError?.name,
+              message: clipboardError?.message,
+              stack: clipboardError?.stack
+            });
+            
+            // 显示错误提示
+            const errorMessage = clipboardError?.message || String(clipboardError);
+            const isPermissionError = errorMessage.includes('permission') || 
+                                     errorMessage.includes('denied') ||
+                                     clipboardError?.name === 'NotAllowedError';
+            
+            toast.info({ 
+              title: t('screenshotSaved'),
+              description: isPermissionError
+                ? (language === 'zh' ? '需要剪贴板权限，截图已保存到聊天面板' : 'Clipboard permission required, screenshot saved to chat panel')
+                : t('screenshotAvailableInChat'),
+              duration: 3000
+            });
+          }
+        } catch (error) {
+          console.error('Failed to copy screenshot to clipboard:', error);
+          // 即使复制失败，截图功能仍然可用
+          toast.info({ 
+            title: t('screenshotSaved'),
+            description: t('screenshotAvailableInChat'),
+            duration: 2000
+          });
+        }
     }
   };
 
@@ -610,7 +699,7 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
         </div>
 
         {/* Transcript Card */}
-        <div className="bg-white rounded-3xl shadow-sm flex flex-col flex-1 min-h-0 overflow-hidden">
+        <div className="bg-white rounded-3xl shadow-sm flex flex-col flex-1 min-h-0  overflow-hidden">
           <div ref={subtitleContainerRef} className="flex-1 min-h-0 overflow-y-auto relative custom-scrollbar">
             {isGeneratingSubtitles || isTranslating ? (
                 <div className="flex flex-col items-center justify-center h-full text-center">
@@ -747,21 +836,21 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
               </>
             ) : (
                 // No subtitles
-                <div className="flex flex-col items-center justify-center h-full text-center">
-                  <p className="text-sm text-slate-600 mb-4">
+                <div className="flex flex-col items-center justify-center h-full text-center px-8 py-12">
+                  <p className="text-sm text-slate-600 mb-6">
                     {t('noSubtitles') || 'No subtitles yet'}
                   </p>
-                  <div className="flex flex-wrap gap-3 justify-center text-xs">
+                  <div className="flex flex-wrap gap-3 justify-center text-xs max-w-md">
                     <button
                       onClick={() => subtitleInputRef.current?.click()}
-                      className="inline-flex items-center px-3 py-1.5 text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-full hover:bg-slate-100"
+                      className="inline-flex items-center px-4 py-2 text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-full hover:bg-slate-100 transition"
                     >
                       {t('importSubtitles')}
                     </button>
                     <button
                       onClick={handleGenerateSubtitles}
                       disabled={isGeneratingSubtitles}
-                      className="inline-flex items-center px-3 py-1.5 text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-full hover:bg-slate-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="inline-flex items-center px-4 py-2 text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-full hover:bg-slate-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {t('generateWithAI')}
                     </button>

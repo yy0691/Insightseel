@@ -10,13 +10,14 @@ console.log('VITE_BASE_URL:', process.env.VITE_BASE_URL);
 
 export default defineConfig({
   server: {
-    port: 5000,
+    port: process.env.PORT ? parseInt(process.env.PORT) : 5000,
     host: '0.0.0.0',
-    strictPort: true,
+    strictPort: false, // 允许 Vercel 使用不同端口
     // @ts-ignore
     allowedHosts: process.env.TEMPO === "true" ? true : true,
     hmr: process.env.TEMPO === "true" ? false : {
-      clientPort: 5000,
+      // 不指定 clientPort，让 Vite 自动使用当前服务器端口
+      // 这样无论是 3000 (vercel dev) 还是 5000 (vite dev) 都能正常工作
     },
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin',

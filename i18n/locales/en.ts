@@ -151,13 +151,17 @@ export const en = {
   feedbackModalSubmit: "Submit",
 
   // Gemini Prompts
-  generateSubtitlesPrompt: (spokenLang: string, targetLang: string) => `Transcribe the audio from this video. The language spoken in the video is ${spokenLang}. Provide the transcription output in ${targetLang}. If ${spokenLang} and ${targetLang} are different, please translate the transcription. The final output must be in SRT (SubRip Text) format, including timestamps. Make sure the output is only the SRT content.`,
-  analysisSummaryPrompt: (targetLang: string) => `Analyze this video and provide a concise summary of its content. The summary should capture the main points and overall message of the video. When referencing specific moments, include timestamps in the format [HH:MM:SS] or [MM:SS] (e.g., "At [02:15] the speaker discusses..."). The response must be in ${targetLang} and in Markdown format.`,
-  analysisKeyInfoPrompt: (targetLang: string) => `Analyze this video and identify 5-10 key moments or significant topic shifts. For each item, provide a timestamp at the start of the line in the exact format [HH:MM:SS], followed by a brief description. If there are no clear "events," focus on when the speaker moves to a new topic or makes a critical point. Format the entire output as a list. Each item must be a single line. Do not add any preamble or explanation before the list. Example: "[00:02:15] The speaker introduces the concept of neural networks." The response must be in ${targetLang}.`,
-  analysisTopicsPrompt: (targetLang: string) => `Identify the 3 to 5 most important topics and themes discussed or shown in this video. List them as just the topic titles in a Markdown bullet point list. Do not add explanations. The response must be in ${targetLang}.`,
-  chatSystemInstruction: (targetLang: string) => `You are a helpful AI assistant. You will be answering questions about a video. The user will provide the video in the first message. You must respond in ${targetLang}.
-
-IMPORTANT: When referencing specific moments in the video, ALWAYS include timestamps in the format [HH:MM:SS] or [MM:SS]. For example: "At [02:15] the speaker discusses..." or "The key point is mentioned at [01:23:45]...". This helps users navigate to the exact moment you're referring to.`,
+  generateSubtitlesPrompt: (spokenLang: string, targetLang: string) => 
+    `Transcribe the audio from this video. The spoken language is ${spokenLang}. Provide the result in ${targetLang}. If ${spokenLang} and ${targetLang} differ, translate the transcription. The final output must be in SRT (SubRip Text) format with timestamps. Output must be plain SRT content only—no extra explanation or formatting.`,
+  analysisSummaryPrompt: (targetLang: string) => 
+    `Analyze the video and generate a concise summary capturing its key ideas and main message. When referencing specific moments, use timestamps in the format [HH:MM:SS] or [MM:SS] (e.g., "At [02:15], the speaker discusses..."). The response must be in ${targetLang} and formatted in Markdown. **Do not include any content other than the summary itself—no introductions, notes, labels, or meta text. Only return the summary body.**`,
+ 
+  analysisKeyInfoPrompt: (targetLang: string) => 
+    `Analyze the video and identify 5–10 key moments or major topic shifts. Each item must start with a timestamp in [HH:MM:SS] format, followed by a brief one-line description. If no clear events are found, focus on topic transitions or critical arguments. Output should be a list with no preamble or explanation. Response must be in ${targetLang}.`,
+  analysisTopicsPrompt: (targetLang: string) => 
+    `Identify the 3–5 most important topics or themes discussed or shown in the video. Return only topic names in a Markdown bullet list. Do not include explanations or extra text. Response must be in ${targetLang}.`,
+  chatSystemInstruction: (targetLang: string) => 
+    `You are a precise and helpful AI assistant for video-related tasks. You will answer user questions about a specific video. The video will be provided in the user's first message. All responses must be in ${targetLang}.\n\nImportant: When referencing specific moments, always include a timestamp in [HH:MM:SS] or [MM:SS] format (e.g., "At [02:15], the speaker discusses..." or "The key point appears at [01:23:45]"). Ensure timestamp precision to help users navigate the video.`,
   deleteVideoConfirmation: (videoName: string) => `Are you sure you want to delete "${videoName}" and all its associated data? This action cannot be undone.`,
   deleteFolderConfirmation: (folderName: string, count: number) => `Are you sure you want to delete the folder "${folderName}" and all ${count} videos inside? This action cannot be undone.`,
   collapseSidebar: "Collapse",
@@ -248,6 +252,9 @@ IMPORTANT: When referencing specific moments in the video, ALWAYS include timest
   syncedStats: (videos: number, subtitles: number, analyses: number, notes: number, chats: number) =>
     `Synced: ${videos} videos, ${subtitles} subtitles, ${analyses} analyses, ${notes} notes, ${chats} chats`,
   exportTip: "Tip: Export with videos creates a complete backup including video files.",
+  screenshotCopied: "Screenshot copied to clipboard",
+  screenshotSaved: "Screenshot saved",
+  screenshotAvailableInChat: "Available in chat panel",
 };
 
 export type Translations = typeof en;

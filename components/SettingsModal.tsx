@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { APISettings } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { testConnection } from '../services/geminiService';
+import { BaseModal } from './ui/BaseModal';
+import { toast } from '../hooks/useToastStore';
 
 interface SettingsModalProps {
   settings: APISettings;
@@ -11,7 +13,7 @@ interface SettingsModalProps {
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onSave, onClose }) => {
   const [currentSettings, setCurrentSettings] = useState<APISettings>(settings);
-  const [testState, setTestState] = useState<{ status: 'idle' | 'testing' | 'success' | 'error'; message: string }>({ status: 'idle', message: '' });
+  const [testLoading, setTestLoading] = useState(false);
   const { t } = useLanguage();
 
   // Check for build-time environment variables to determine UI behavior
@@ -44,14 +46,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onSave, onClose
     }
 
     setCurrentSettings(displaySettings);
-    setTestState({ status: 'idle', message: '' }); // Reset on open
   }, [settings, systemBaseUrl, systemModel, systemDeepgramKey]);
 
   const handleSettingChange = (update: Partial<APISettings>) => {
     setCurrentSettings(prev => ({ ...prev, ...update }));
-    if (testState.status !== 'idle') {
-      setTestState({ status: 'idle', message: '' });
-    }
   };
 
   const handleSave = () => {
@@ -61,7 +59,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onSave, onClose
   };
   
   const handleTest = async () => {
-    setTestState({ status: 'testing', message: t('testingConnection') });
+    setTestLoading(true);
     // For testing, we must use the effective settings
     const settingsToTest: APISettings = {
         ...currentSettings,
@@ -70,32 +68,33 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onSave, onClose
         apiKey: currentSettings.apiKey,
         useProxy: !currentSettings.apiKey && proxyAvailable,
     }
-    const result = await testConnection(settingsToTest);
-    if (result.success) {
-        setTestState({ status: 'success', message: t('testSuccess') });
-    } else {
-        setTestState({ status: 'error', message: t('testFailureDetails', result.message) });
+    try {
+      const result = await testConnection(settingsToTest);
+      if (result.success) {
+        toast.success({ title: t('testSuccess') });
+      } else {
+        toast.error({ 
+          title: t('testFailure'), 
+          description: t('testFailureDetails', result.message) 
+        });
+      }
+    } catch (error) {
+      toast.error({ 
+        title: t('testFailure'), 
+        description: error instanceof Error ? error.message : t('anErrorOccurred')
+      });
+    } finally {
+      setTestLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-md p-4">
-      <div className="relative w-full max-w-xl overflow-hidden rounded-[32px] bg-white/95 backdrop-blur-xl shadow-[0_18px_80px_rgba(15,23,42,0.32)] border border-white/20 text-slate-900">
-        <button
-          onClick={onClose}
-          aria-label="Close"
-          className="absolute right-5 top-5 flex h-9 w-9 items-center justify-center rounded-full bg-slate-100/80 text-slate-500 hover:bg-slate-200 hover:text-slate-700 transition"
-        >
-          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M18 6L6 18M6 6l12 12" />
-          </svg>
-        </button>
-
-        <div className="border-b border-slate-100 px-8 py-6">
-          <h2 className="text-lg font-semibold tracking-tight">{t('settingsTitle')}</h2>
-          <p className="mt-1 text-sm text-slate-500">{t('settingsDescription')}</p>
-        </div>
-        <div className="px-8 py-6 max-h-[70vh] overflow-y-auto custom-scrollbar space-y-6">
+    <BaseModal open={true} onOpenChange={onClose} size="lg">
+      <BaseModal.Header 
+        title={t('settingsTitle')} 
+        subtitle={t('settingsDescription')} 
+      />
+      <BaseModal.Body className="max-h-[70vh] overflow-y-auto custom-scrollbar space-y-6">
           {/* General */}
           <section className="space-y-3">
             <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">General</h3>
@@ -284,45 +283,33 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onSave, onClose
               </div>
             </section>
           )}
+      </BaseModal.Body>
+      <BaseModal.Footer>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleTest}
+            disabled={testLoading}
+            className="h-9 px-4 text-xs font-medium rounded-full bg-white text-slate-700 border border-slate-200 hover:bg-slate-100 disabled:opacity-60 transition"
+          >
+            {testLoading ? t('testingConnection') : t('testConnection')}
+          </button>
         </div>
-        <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/60 px-8 py-4">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleTest}
-              disabled={testState.status === 'testing'}
-              className="h-9 px-4 text-xs font-medium rounded-full bg-white text-slate-700 border border-slate-200 hover:bg-slate-100 disabled:opacity-60 transition"
-            >
-              {testState.status === 'testing' ? t('testingConnection') : t('testConnection')}
-            </button>
-            {testState.status !== 'idle' && (
-              <p className={`text-xs ${
-                testState.status === 'success'
-                  ? 'text-emerald-600'
-                  : testState.status === 'error'
-                  ? 'text-rose-600'
-                  : 'text-slate-500'
-              }`}>
-                {testState.message}
-              </p>
-            )}
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={onClose}
-              className="h-9 px-4 text-xs font-medium rounded-full text-slate-600 hover:bg-slate-100 transition"
-            >
-              {t('cancel')}
-            </button>
-            <button
-              onClick={handleSave}
-              className="h-9 px-5 text-xs font-medium rounded-full bg-slate-900 text-white hover:bg-slate-800 shadow-sm transition"
-            >
-              {t('saveChanges')}
-            </button>
-          </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onClose}
+            className="h-9 px-4 text-xs font-medium rounded-full text-slate-600 hover:bg-slate-100 transition"
+          >
+            {t('cancel')}
+          </button>
+          <button
+            onClick={handleSave}
+            className="h-9 px-5 text-xs font-medium rounded-full bg-slate-900 text-white hover:bg-slate-800 shadow-sm transition"
+          >
+            {t('saveChanges')}
+          </button>
         </div>
-      </div>
-    </div>
+      </BaseModal.Footer>
+    </BaseModal>
   );
 };
 

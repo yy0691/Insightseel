@@ -389,8 +389,9 @@ export const extractFramesFromVideo = (
             video.removeEventListener('seeked', onSeeked);
             video.removeEventListener('error', onError);
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            // Request JPEG for smaller size, 0.6 quality to keep total size under 4.5MB
-            const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+            // Request JPEG for smaller size, 0.5 quality to keep total size under 4MB
+            // Lower quality for better compression, especially for many frames
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.5);
             frames.push(dataUrl.split(',')[1]); // Send only base64 data
             processedFrames++;
             onProgress(Math.round((processedFrames / effectiveMaxFrames) * 100));

@@ -506,7 +506,7 @@ interface InsightGenerationResult {
 
 async function prepareAnalysisPayload(
   options: InsightGenerationOptions,
-): Promise<{ subtitlesText?: string; frames?: string[]; usedTranscript: boolean; }> {
+): Promise<{ subtitlesText?: string; frames?: string[]; audioData?: { data: string; mimeType: string; isUrl?: boolean }; usedTranscript: boolean; }> {
   const { video, subtitles, onStatus } = options;
 
   if (subtitles && subtitles.segments.length > 0) {
@@ -518,6 +518,75 @@ async function prepareAnalysisPayload(
     return { subtitlesText, usedTranscript: true };
   }
 
+  // Check if video has audio track - prefer audio over frames for analysis
+  onStatus?.({ stage: 'Checking video metadata...', progress: 10 });
+  let hasAudioTrack = true; // Default to true
+  try {
+    const { analyzeVideoMetadata } = await import('./videoMetadataService');
+    const metadata = await analyzeVideoMetadata(video.file);
+    hasAudioTrack = metadata.hasAudioTrack;
+    console.log('[Analysis] Video metadata:', { hasAudioTrack, recommendedPipeline: metadata.recommendedPipeline });
+  } catch (error) {
+    console.warn('[Analysis] Failed to analyze video metadata, assuming audio exists:', error);
+  }
+
+  // If video has audio, extract and use audio for analysis (much smaller than frames)
+  if (hasAudioTrack) {
+    try {
+      onStatus?.({ stage: 'Extracting audio for analysis...', progress: 12 });
+      const { extractAudioToBase64 } = await import('../utils/helpers');
+      const audioData = await extractAudioToBase64(video.file, (progress) => {
+        onStatus?.({ stage: 'Extracting audio for analysis...', progress: Math.round(12 + progress * 0.3) });
+      });
+
+      const audioSizeMB = audioData.sizeKB / 1024;
+      console.log(`[Analysis] Audio extracted: ${audioData.sizeKB}KB (${audioSizeMB.toFixed(2)}MB)`);
+
+      // Estimate request size: base64 increases size by ~33%, plus JSON overhead (~0.1MB)
+      const estimatedRequestSizeMB = audioSizeMB * 1.33 + 0.1;
+      const MAX_REQUEST_SIZE_MB = 4.0; // Leave 0.5MB buffer for Vercel's 4.5MB limit
+
+      if (estimatedRequestSizeMB <= MAX_REQUEST_SIZE_MB) {
+        console.log(`[Analysis] Using audio for analysis: ${audioSizeMB.toFixed(2)}MB (estimated request: ${estimatedRequestSizeMB.toFixed(2)}MB)`);
+        return { audioData: { data: audioData.data, mimeType: audioData.mimeType }, usedTranscript: false };
+      } else {
+        // Audio too large - try uploading to object storage instead
+        console.warn(`[Analysis] Audio too large (${audioSizeMB.toFixed(2)}MB, estimated request: ${estimatedRequestSizeMB.toFixed(2)}MB). Trying object storage upload...`);
+        try {
+          onStatus?.({ stage: 'Uploading audio to storage...', progress: 45 });
+          const { uploadFileToStorageWithProgress } = await import('../utils/uploadToStorage');
+          
+          // Convert base64 audio to File
+          const audioBlob = new Blob([Uint8Array.from(atob(audioData.data), c => c.charCodeAt(0))], { type: audioData.mimeType });
+          const audioFile = new File([audioBlob], `audio-${Date.now()}.webm`, { type: audioData.mimeType });
+          
+          const uploadResult = await uploadFileToStorageWithProgress(audioFile, {
+            onProgress: (progress) => {
+              onStatus?.({ stage: 'Uploading audio to storage...', progress: Math.round(45 + progress * 0.1) });
+            },
+          });
+          
+          console.log(`[Analysis] Audio uploaded to storage: ${uploadResult.fileUrl}`);
+          return { 
+            audioData: { 
+              data: uploadResult.fileUrl, // Use URL instead of base64
+              mimeType: audioData.mimeType,
+              isUrl: true, // Flag to indicate this is a URL, not base64
+            }, 
+            usedTranscript: false 
+          };
+        } catch (uploadError) {
+          console.warn('[Analysis] Failed to upload audio to storage, falling back to frames:', uploadError);
+          // Fall through to frame extraction
+        }
+      }
+    } catch (error) {
+      console.warn('[Analysis] Failed to extract audio, falling back to frames:', error);
+      // Fall through to frame extraction
+    }
+  }
+
+  // Fallback to frames if no audio or audio extraction failed
   onStatus?.({ stage: 'Transcript unavailable. Extracting key frames...', progress: 12 });
 
   const lastSubtitle = subtitles?.segments.length
@@ -546,13 +615,18 @@ async function prepareAnalysisPayload(
       const totalSizeMB = frames.reduce((acc, frame) => acc + frame.length, 0) / (1024 * 1024);
       console.log(`Extracted ${frames.length} frames, total size: ${totalSizeMB.toFixed(2)}MB`);
 
-      // Increased limit from 3.5MB to 15MB to support longer videos
-      // Gemini 2.0 Flash can handle up to 20MB of image data
-      if (totalSizeMB <= 15) {
+      // Estimate request size: base64 frames + JSON overhead (~0.1MB)
+      // Base64 encoding adds ~33% overhead, but frames are already base64, so we just add JSON overhead
+      // Keep under 3.5MB to stay under 4MB total (with JSON wrapper) for Vercel's 4.5MB limit
+      const estimatedRequestSizeMB = totalSizeMB + 0.1;
+      const MAX_FRAME_SIZE_MB = 3.5; // Keep frames under 3.5MB to stay under 4MB total request
+      
+      if (estimatedRequestSizeMB <= MAX_FRAME_SIZE_MB) {
+        console.log(`Frame size OK: ${totalSizeMB.toFixed(2)}MB (estimated request: ${estimatedRequestSizeMB.toFixed(2)}MB)`);
         break;
       }
 
-      console.warn(`Frame size (${totalSizeMB.toFixed(2)}MB) exceeds 15MB limit. Retrying with fewer frames...`);
+      console.warn(`Frame size (${totalSizeMB.toFixed(2)}MB, estimated request: ${estimatedRequestSizeMB.toFixed(2)}MB) exceeds ${MAX_FRAME_SIZE_MB}MB limit. Retrying with fewer frames...`);
       onStatus?.({ stage: 'Frames too large. Retrying with fewer frames...', progress: 15 });
       frames = null;
     } catch (error) {

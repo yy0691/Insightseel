@@ -298,8 +298,9 @@ export async function analyzeVideo(params: {
   prompt: string;
   frames?: string[];
   subtitlesText?: string;
+  audioData?: { data: string; mimeType: string; isUrl?: boolean };
 }): Promise<string> {
-  const { prompt, frames, subtitlesText } = params;
+  const { prompt, frames, subtitlesText, audioData } = params;
 
   try {
     const { ai, settings, apiKey } = await getAIConfig();
@@ -309,11 +310,62 @@ export async function analyzeVideo(params: {
     let contents: Content;
 
     if (subtitlesText) {
-      // Use subtitles for analysis
+      // Use subtitles for analysis (best option - text is smallest)
       fullPrompt = `Analyze the following video transcript and respond to the request.\n\nTranscript:\n${subtitlesText}\n\nRequest: ${prompt}`;
       contents = { role: 'user', parts: [{ text: fullPrompt }] };
+    } else if (audioData) {
+      // Use audio for analysis (preferred over frames - audio is much smaller)
+      fullPrompt = `Analyze the audio from this video and respond to the following request.\n\nRequest: ${prompt}`;
+      
+      // If audioData is a URL, we need to fetch it first and convert to base64
+      // Otherwise, use the base64 data directly
+      if (audioData.isUrl && audioData.data.startsWith('http')) {
+        // Fetch audio from URL and convert to base64
+        console.log('[Analysis] Fetching audio from storage URL:', audioData.data);
+        const response = await fetch(audioData.data);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch audio from storage: ${response.status} ${response.statusText}`);
+        }
+        const blob = await response.blob();
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const result = reader.result as string;
+            resolve(result.split(',')[1]); // Remove data:audio/webm;base64, prefix
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+        
+        contents = {
+          role: 'user',
+          parts: [
+            {
+              inlineData: {
+                mimeType: audioData.mimeType,
+                data: base64,
+              },
+            },
+            { text: fullPrompt },
+          ],
+        };
+      } else {
+        // Use base64 data directly
+        contents = {
+          role: 'user',
+          parts: [
+            {
+              inlineData: {
+                mimeType: audioData.mimeType,
+                data: audioData.data,
+              },
+            },
+            { text: fullPrompt },
+          ],
+        };
+      }
     } else if (frames) {
-      // Fallback to frames
+      // Fallback to frames (largest option)
       fullPrompt = `Analyze these sampled frames from a video and respond to the following request. The frames are presented in chronological order.\n\nRequest: ${prompt}`;
       contents = {
         role: 'user',
@@ -328,7 +380,7 @@ export async function analyzeVideo(params: {
         ],
       };
     } else {
-      throw new Error("Either frames or subtitles must be provided for analysis.");
+      throw new Error("Either subtitles, audio, or frames must be provided for analysis.");
     }
     
     if (settings.useProxy) {

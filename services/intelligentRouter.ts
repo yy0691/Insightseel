@@ -52,8 +52,11 @@ export async function generateSubtitlesIntelligent(
     console.log('[Router] ⚠️ Deepgram API Key is not available or invalid. Will use fallback services.');
   }
 
-  // Strategy 1: Try Deepgram for files under reasonable size
-  if (deepgramAvailable && fileSizeMB <= 100) {
+  // Strategy 1: Try Deepgram for files (Deepgram handles large files well)
+  // Deepgram can process files up to 2GB, so we set a generous limit
+  const DEEPGRAM_SIZE_LIMIT_MB = 500;
+  
+  if (deepgramAvailable && fileSizeMB <= DEEPGRAM_SIZE_LIMIT_MB) {
     try {
       console.log('[Router] Attempting Deepgram (high quality)...');
       onProgress?.(0, 'Using Deepgram (high quality)...');
@@ -78,11 +81,11 @@ export async function generateSubtitlesIntelligent(
   } else if (!deepgramAvailable) {
     console.log('[Router] ⚠️ Deepgram not available (API key not configured)');
   } else {
-    console.log(`[Router] ⚠️ File too large for direct Deepgram (${fileSizeMB.toFixed(1)}MB > 100MB)`);
+    console.log(`[Router] ⚠️ File too large for direct Deepgram (${fileSizeMB.toFixed(1)}MB > ${DEEPGRAM_SIZE_LIMIT_MB}MB)`);
   }
 
-  // Strategy 2: For large files, try chunked processing with Deepgram
-  if (fileSizeMB > 100 && video && deepgramAvailable) {
+  // Strategy 2: For extremely large files, try chunked processing with Deepgram
+  if (fileSizeMB > DEEPGRAM_SIZE_LIMIT_MB && video && deepgramAvailable) {
     try {
       console.log('[Router] File too large for direct processing, attempting chunked approach...');
       onProgress?.(0, 'Splitting and processing in chunks...');
@@ -131,7 +134,30 @@ export async function generateSubtitlesIntelligent(
         processingTimeMs,
       };
     } catch (error) {
-      console.warn('[Router] Gemini direct failed:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.warn('[Router] Gemini direct failed:', errorMessage);
+      
+      // Check if it's an API key error
+      if (errorMessage.includes('API Key is not configured')) {
+        console.error('[Router] ❌ No API keys configured. Please configure either:');
+        console.error('[Router]   1. Deepgram API Key (recommended for speech-to-text)');
+        console.error('[Router]   2. Gemini API Key (for fallback)');
+        console.error('[Router]   3. Enable Proxy Mode in settings');
+        
+        throw new Error(
+          '无法生成字幕：未配置 API 密钥\n\n' +
+          '请在设置中配置以下任一选项：\n' +
+          '1. Deepgram API Key（推荐用于语音转文字）\n' +
+          '2. Gemini API Key（备用）\n' +
+          '3. 启用代理模式\n\n' +
+          'Subtitle generation failed: No API keys configured\n\n' +
+          'Please configure one of the following in settings:\n' +
+          '1. Deepgram API Key (recommended for speech-to-text)\n' +
+          '2. Gemini API Key (fallback)\n' +
+          '3. Enable Proxy Mode'
+        );
+      }
+      
       // Continue to ultimate fallback
     }
   }
@@ -167,11 +193,49 @@ export async function generateSubtitlesIntelligent(
       };
     } catch (error) {
       console.error('[Router] All strategies failed:', error);
-      throw new Error('All subtitle generation methods failed. Please check your API keys and try again.');
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      // Provide helpful error message based on what failed
+      if (!deepgramAvailable) {
+        throw new Error(
+          '所有字幕生成方法都失败了\n\n' +
+          `文件大小：${fileSizeMB.toFixed(1)}MB\n\n` +
+          '建议解决方案：\n' +
+          '1. 配置 Deepgram API Key（推荐，支持大文件）\n' +
+          '2. 配置 Gemini API Key 并使用较小的文件（< 50MB）\n' +
+          '3. 启用代理模式\n' +
+          '4. 使用更短的视频片段\n\n' +
+          'All subtitle generation methods failed\n\n' +
+          `File size: ${fileSizeMB.toFixed(1)}MB\n\n` +
+          'Suggested solutions:\n' +
+          '1. Configure Deepgram API Key (recommended, supports large files)\n' +
+          '2. Configure Gemini API Key and use smaller files (< 50MB)\n' +
+          '3. Enable Proxy Mode\n' +
+          '4. Use a shorter video segment'
+        );
+      }
+      
+      throw new Error(`All subtitle generation methods failed. Please check your API keys and try again.\n\nDetails: ${errorMessage}`);
     }
   }
 
-  throw new Error('Unable to process file. Please provide video metadata or use a smaller file.');
+  // If we reach here, no strategies could be attempted
+  throw new Error(
+    '无法处理文件\n\n' +
+    `文件大小：${fileSizeMB.toFixed(1)}MB\n` +
+    `是否有视频元数据：${video ? '是' : '否'}\n\n` +
+    '请尝试：\n' +
+    '1. 配置 Deepgram API Key（推荐）\n' +
+    '2. 使用更小的文件（< 50MB）\n' +
+    '3. 提供完整的视频元数据\n\n' +
+    'Unable to process file\n\n' +
+    `File size: ${fileSizeMB.toFixed(1)}MB\n` +
+    `Has video metadata: ${video ? 'Yes' : 'No'}\n\n` +
+    'Please try:\n' +
+    '1. Configure Deepgram API Key (recommended)\n' +
+    '2. Use a smaller file (< 50MB)\n' +
+    '3. Provide complete video metadata'
+  );
 }
 
 /**

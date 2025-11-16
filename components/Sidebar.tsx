@@ -1,9 +1,26 @@
-import React, { useRef, useMemo, useState } from 'react';
+import React, { useRef, useMemo, useState, useEffect } from 'react';
 import { Video } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { User } from '@supabase/supabase-js';
 import { authService } from '../services/authService';
 import { exportService } from '../services/exportService';
+import { 
+  FolderInput, 
+  Video as VideoIcon, 
+  X, 
+  Search, 
+  ArrowUpDown, 
+  ChevronDown, 
+  Folder, 
+  User as UserIcon, 
+  LogIn, 
+  Download, 
+  Settings, 
+  Menu, 
+  PanelLeft,
+  PanelLeftOpen,
+  Trash2
+} from 'lucide-react';
 
 interface SidebarProps {
   videos: Video[];
@@ -15,42 +32,73 @@ interface SidebarProps {
   onToggle: () => void;
   onOpenSettings: () => void;
   onDeleteFolder: (folderPath: string) => void;
+  onDeleteVideo?: (id: string) => void;
   isMobile?: boolean;
   onOpenAuth?: () => void;
   onOpenAccount?: () => void;
   currentUser?: User | null;
 }
 
-const VideoItem: React.FC<{ video: Video; selectedVideoId: string | null; onSelectVideo: (id: string | null) => void; isCollapsed: boolean; }> = ({ video, selectedVideoId, onSelectVideo, isCollapsed }) => {
+type VideoItemProps = {
+  video: Video;
+  selectedVideoId: string | null;
+  onSelectVideo: (id: string | null) => void;
+  isCollapsed: boolean;
+  onDeleteVideo?: (id: string) => void;
+};
+
+type FolderItemProps = {
+  folderKey: string;
+  folderVideos: Video[];
+  isExpanded: boolean;
+  isCollapsed: boolean;
+  isMobile: boolean;
+  selectedVideoId: string | null;
+  onSelectVideo: (id: string | null) => void;
+  onToggleFolder: (folderPath: string, e?: React.MouseEvent) => void;
+  onDeleteVideo?: (id: string) => void;
+};
+
+const VideoItem: React.FC<VideoItemProps> = ({
+  video,
+  selectedVideoId,
+  onSelectVideo,
+  isCollapsed,
+  onDeleteVideo,
+}) => {
   const isSelected = selectedVideoId === video.id;
-  const commonClasses = "flex items-center w-full p-2 rounded-xl transition-colors text-slate-700";
-  const selectedClasses = "bg-slate-200/60 font-medium";
-  const hoverClasses = "hover:bg-slate-200/40";
+  const commonClasses = `flex items-center w-full rounded-xl text-[13px] transition-colors ${isCollapsed ? 'justify-center p-2' : 'px-3 py-2 pr-8'}`;
+  const selectedClasses = "bg-slate-900 text-slate-50 shadow-sm";
+  const hoverClasses = "text-slate-700 hover:bg-slate-100/80";
 
   return (
     <li className="relative group">
       <button
         onClick={() => onSelectVideo(video.id)}
-        className={`${commonClasses} ${isSelected ? selectedClasses : hoverClasses} ${isCollapsed ? 'justify-center' : ''}`}
+        className={`${commonClasses} ${isSelected ? selectedClasses : hoverClasses}`}
       >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          className={`h-4 w-4 flex-shrink-0 ${isSelected ? 'text-slate-800' : 'text-slate-500'}`}
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z" />
-        </svg>
+          <VideoIcon className={`h-4 w-4 flex-shrink-0 ${isSelected ? 'text-slate-50' : 'text-slate-500'}`} />
         {!isCollapsed && (
-          <span className="ml-3 text-sm truncate">{video.name}</span>
+          <span className={`ml-2.5 truncate ${isSelected ? 'text-slate-50' : 'text-slate-700'}`}>{video.name}</span>
         )}
       </button>
+      {/* Delete button: only when not collapsed and onDeleteVideo is provided */}
+      {!isCollapsed && onDeleteVideo && (
+        <button
+          type="button"
+          className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-xl hover:bg-slate-200"
+          title="Delete"
+          onClick={e => {
+            e.stopPropagation();
+            onDeleteVideo(video.id);
+          }}
+          tabIndex={-1}
+        >
+          <Trash2 className="h-3.5 w-3.5 text-slate-400" />
+        </button>
+      )}
       {isCollapsed && (
-        <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-opacity duration-200 bg-slate-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-50 shadow-lg pointer-events-none">
+        <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-opacity duration-200 bg-slate-900 text-white text-xs px-2.5 py-1.5 rounded-2xl whitespace-nowrap z-50 shadow-lg pointer-events-none">
           {video.name}
         </div>
       )}
@@ -58,6 +106,120 @@ const VideoItem: React.FC<{ video: Video; selectedVideoId: string | null; onSele
   );
 };
 
+const FolderItem: React.FC<FolderItemProps> = ({
+  folderKey,
+  folderVideos,
+  isExpanded,
+  isCollapsed,
+  isMobile,
+  selectedVideoId,
+  onSelectVideo,
+  onToggleFolder,
+  onDeleteVideo,
+}) => {
+  const [showHoverMenu, setShowHoverMenu] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+  const hoverMenuRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  return (
+    <li className="relative group/folder">
+      <button
+        ref={buttonRef}
+        onClick={(e) => onToggleFolder(folderKey, e)}
+        onMouseEnter={() => {
+          if (isCollapsed && !isMobile && buttonRef.current) {
+            const rect = buttonRef.current.getBoundingClientRect();
+            const menuWidth = 200; // 菜单最小宽度
+            const spacing = 8; // 间距
+            
+            // 计算菜单位置，确保不超出视口
+            let left = rect.right + spacing;
+            // 如果菜单会超出右边界，则显示在按钮左侧
+            if (left + menuWidth > window.innerWidth) {
+              left = rect.left - menuWidth - spacing;
+            }
+            
+            setMenuPosition({
+              top: Math.max(8, rect.top), // 至少距离顶部8px
+              left: Math.max(8, left), // 至少距离左侧8px
+            });
+            setShowHoverMenu(true);
+          }
+        }}
+        onMouseLeave={() => {
+          if (isCollapsed && !isMobile) {
+            // 延迟隐藏，以便用户能够移动到弹出菜单
+            setTimeout(() => {
+              if (!hoverMenuRef.current?.matches(':hover')) {
+                setShowHoverMenu(false);
+              }
+            }, 100);
+          }
+        }}
+        className={`flex items-center w-full rounded-xl bg-slate-50 transition-colors text-slate-700 hover:bg-slate-100/80 ${isCollapsed ? 'justify-center p-2' : 'px-3 py-2'}`}
+      >
+        <Folder className="w-4 h-4 text-slate-500 flex-shrink-0" />
+        {!isCollapsed && <span className="truncate ml-2.5 flex-1 text-left text-[13px] font-medium">{folderKey}</span>}
+      </button>
+      {isCollapsed && !showHoverMenu && (
+         <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 invisible opacity-0 group-hover/folder:visible group-hover/folder:opacity-100 transition-opacity duration-200 bg-slate-900 text-white text-xs px-2.5 py-1.5 rounded-2xl whitespace-nowrap z-20 shadow-lg pointer-events-none">
+            {folderKey} ({folderVideos.length})
+          </div>
+      )}
+      {/* 折叠状态下的悬停菜单 */}
+      {isCollapsed && showHoverMenu && !isMobile && (
+        <div
+          ref={hoverMenuRef}
+          onMouseEnter={() => setShowHoverMenu(true)}
+          onMouseLeave={() => setShowHoverMenu(false)}
+          style={{
+            position: 'fixed',
+            top: `${menuPosition.top}px`,
+            left: `${menuPosition.left}px`,
+            zIndex: 9999,
+          }}
+          className="bg-white border border-slate-200/60 rounded-2xl shadow-lg min-w-[200px] max-h-[400px] overflow-y-auto"
+        >
+          <div className="px-3 py-2 border-b border-slate-200/60 bg-slate-50">
+            <div className="flex items-center gap-2">
+              <Folder className="w-3.5 h-3.5 text-slate-500" />
+              <span className="text-xs font-medium text-slate-700 truncate">{folderKey}</span>
+              <span className="text-xs text-slate-500">({folderVideos.length})</span>
+            </div>
+          </div>
+          <ul className="py-1">
+            {folderVideos.map(video => (
+              <li key={video.id}>
+                <button
+                  onClick={() => {
+                    onSelectVideo(video.id);
+                    setShowHoverMenu(false);
+                  }}
+                  className={`w-full text-left px-3 py-1.5 text-xs transition-colors flex items-center gap-2 ${
+                    selectedVideoId === video.id
+                      ? 'bg-slate-100 text-slate-900 font-medium'
+                      : 'text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  <VideoIcon className="w-3.5 h-3.5 flex-shrink-0 text-slate-400" />
+                  <span className="truncate">{video.name}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {isExpanded && !isCollapsed && (
+        <ul className="pl-5 mt-1 space-y-1.5">
+          {folderVideos.map(video => (
+            <VideoItem key={video.id} {...{ video, selectedVideoId, onSelectVideo, isCollapsed, onDeleteVideo }} />
+          ))}
+        </ul>
+      )}
+    </li>
+  );
+};
 
 const Sidebar: React.FC<SidebarProps> = ({
   videos,
@@ -69,6 +231,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onToggle,
   onOpenSettings,
   onDeleteFolder,
+  onDeleteVideo,
   isMobile = false,
   onOpenAuth,
   onOpenAccount,
@@ -81,6 +244,30 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [showImportMenu, setShowImportMenu] = useState(false);
+  const importMenuRef = useRef<HTMLDivElement>(null);
+
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortMode, setSortMode] = useState<"nameAsc" | "nameDesc" | "dateDesc" | "dateAsc" | "sizeDesc" | "sizeAsc">("nameAsc");
+  const [showSortMenu, setShowSortMenu] = useState(false);
+  const sortMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close sort menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (sortMenuRef.current && !sortMenuRef.current.contains(event.target as Node)) {
+        setShowSortMenu(false);
+      }
+      if (importMenuRef.current && !importMenuRef.current.contains(event.target as Node)) {
+        setShowImportMenu(false);
+      }
+    };
+
+    if (showSortMenu || showImportMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showSortMenu, showImportMenu]);
 
   const handleExport = async (includeVideos: boolean) => {
     setExporting(true);
@@ -100,31 +287,84 @@ const Sidebar: React.FC<SidebarProps> = ({
       onImportFiles(event.target.files);
       event.target.value = '';
     }
+    setShowImportMenu(false);
   };
-  const handleImportClick = () => fileInputRef.current?.click();
 
   const handleFolderChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
       onImportFolderSelection(event.target.files);
       event.target.value = '';
     }
+    setShowImportMenu(false);
   };
-  const handleImportFolderClick = () => folderInputRef.current?.click();
 
-  const toggleFolder = (folderPath: string) => {
+  const handleImportClick = () => {
+    setShowImportMenu(!showImportMenu);
+  };
+
+  const handleImportFileClick = () => {
+    fileInputRef.current?.click();
+    setShowImportMenu(false);
+  };
+
+  const handleImportFolderClick = () => {
+    folderInputRef.current?.click();
+    setShowImportMenu(false);
+  };
+
+  const toggleFolder = (folderPath: string, e?: React.MouseEvent) => {
+    // 如果侧边栏是折叠状态，点击文件夹时先展开侧边栏
+    if (isCollapsed && !isMobile) {
+      onToggle();
+      // 展开该文件夹
+      setExpandedFolders(prev => ({ ...prev, [folderPath]: true }));
+      e?.stopPropagation();
+      return;
+    }
     setExpandedFolders(prev => ({ ...prev, [folderPath]: !(prev[folderPath] ?? true) }));
   };
 
+  const processedVideos = useMemo(() => {
+    let result = [...videos];
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase();
+      result = result.filter((video) => {
+        const name = video.name?.toLowerCase() ?? "";
+        const folder = video.folderPath?.toLowerCase() ?? "";
+        return name.includes(q) || folder.includes(q);
+      });
+    }
+    result.sort((a, b) => {
+      switch (sortMode) {
+        case "nameAsc":
+          return a.name.localeCompare(b.name);
+        case "nameDesc":
+          return b.name.localeCompare(a.name);
+        case "dateDesc":
+          return new Date(b.importedAt).getTime() - new Date(a.importedAt).getTime();
+        case "dateAsc":
+          return new Date(a.importedAt).getTime() - new Date(b.importedAt).getTime();
+        case "sizeDesc":
+          return (b.size || 0) - (a.size || 0);
+        case "sizeAsc":
+          return (a.size || 0) - (b.size || 0);
+        default:
+          return a.name.localeCompare(b.name);
+      }
+    });
+    return result;
+  }, [videos, searchTerm, sortMode]);
+
   const groupedVideos = useMemo(() => {
     const groups: Record<string, Video[]> = { '__root__': [] };
-    videos.forEach(video => {
+    processedVideos.forEach(video => {
       const key = video.folderPath || '__root__';
       if (!groups[key]) groups[key] = [];
       groups[key].push(video);
     });
     if (groups['__root__'].length === 0) delete groups['__root__'];
     return groups;
-  }, [videos]);
+  }, [processedVideos]);
 
   const sortedFolderKeys = useMemo(() => {
     return Object.keys(groupedVideos).sort((a, b) => {
@@ -137,239 +377,327 @@ const Sidebar: React.FC<SidebarProps> = ({
   const sidebarWidthClass = isCollapsed ? 'w-16' : 'w-64';
 
   const baseControlButtonClasses =
-    'relative group flex w-full items-center rounded-xl text-slate-600 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300/60';
-  const controlButtonClasses = `${baseControlButtonClasses} ${
-    isCollapsed
-      ? 'justify-center h-10 p-2.5 hover:bg-slate-200/50'
-      : 'justify-start gap-3 px-3 py-2.5 hover:bg-slate-200/60'
-  }`;
+    'relative group flex items-center text-slate-700 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300/70';
+
+  const controlButtonCollapsed =
+    `${baseControlButtonClasses} justify-center w-full h-9 rounded-xl hover:bg-slate-100`;
+
+  const controlButtonPrimary =
+    `${baseControlButtonClasses} justify-center gap-1.5 h-9 px-3 rounded-xl text-[11px] bg-slate-900 text-white hover:bg-slate-800`;
+
+  const controlButtonSecondary =
+    `${baseControlButtonClasses} justify-center gap-1.5 h-9 px-3 rounded-xl text-[11px] bg-slate-100 text-slate-900 hover:bg-slate-200`;
+
+  const controlButtonGhost =
+    `${baseControlButtonClasses} justify-center gap-1.5 h-9 px-3 rounded-xl text-[11px] text-slate-600 hover:bg-slate-100`;
 
   return (
-    <div className={`h-full flex flex-col backdrop-blur-sm bg-white/90 border border-slate-200/40 transition-all duration-300 ease-in-out ${sidebarWidthClass} rounded-2xl shadow-sm`}>
+    <div className={`h-full flex flex-col transition-all duration-300 ease-in-out ${sidebarWidthClass} rounded-[32px] bg-white/95 shadow-[0_18px_80px_rgba(15,23,42,0.16)]`}>
       {/* Header */}
-      <div className={`p-4 h-[48px] border-b border-slate-200/40 flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
+      <div className={`px-4 pt-4 pb-3 flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
         <button
           onClick={() => {
             // 跳转到首页：取消选中任何视频
             onSelectVideo(null);
           }}
-          className="text-xl font-bold text-slate-800 transition-opacity duration-200 flex items-center gap-2 hover:opacity-70 cursor-pointer"
+          className="flex items-center gap-2 rounded-full px-2 py-1 text-[13px] font-medium text-slate-900 hover:bg-slate-100/80 transition-colors"
         >
-          {isCollapsed ? (
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-              <path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/>
-              <rect x="2" y="6" width="14" height="12" rx="2"/>
-            </svg>
-          ) : (
-            <>
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-slate-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                <path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/>
-                <rect x="2" y="6" width="14" height="12" rx="2"/>
-              </svg>
-              <span>{t('appName')}</span>
-            </>
+          <div className="flex h-7 w-7 items-center justify-center rounded-2xl bg-slate-900">
+            <VideoIcon className="h-3.5 w-3.5 text-white" />
+          </div>
+          {!isCollapsed && (
+            <span className="tracking-tight">
+              {t('appName')}
+            </span>
           )}
         </button>
         {isMobile && !isCollapsed && (
-          <button onClick={onToggle} className="p-2 -mr-2 rounded-full text-slate-600 hover:bg-white/40" aria-label="Close menu">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
+          <button onClick={onToggle} className="p-1.5 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition" aria-label="Close menu">
+            <X className="h-4 w-4" />
           </button>
         )}
       </div>
 
       {/* Video List */}
-      <nav className="flex-1 px-2 py-2 overflow-y-auto overflow-x-visible custom-scrollbar">
+      <nav className="flex-1 px-2 pt-1 pb-3 overflow-y-auto overflow-x-visible custom-scrollbar">
         {!isCollapsed && (
-           <p className="px-2 mb-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">
-              {t('myLibrary')}
-            </p>
+          <div className="px-4 pb-2">
+            <div className="relative">
+              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center">
+                <Search className="h-3.5 w-3.5 text-slate-400" />
+              </span>
+              <input
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full rounded-2xl bg-slate-100/80 py-1.5 pl-7 pr-3 text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-slate-900/10 focus:outline-none transition"
+                placeholder={t('searchVideos') || t('search')}
+              />
+            </div>
+          </div>
         )}
-        <ul className="space-y-1">
+        {!isCollapsed && (
+          <div className="flex items-center justify-between px-4 pb-1">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+              {t('myLibrary')}
+            </span>
+            <div className="relative" ref={sortMenuRef}>
+              <button
+                type="button"
+                onClick={() => setShowSortMenu(!showSortMenu)}
+                className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] text-slate-600 hover:bg-slate-200 transition-colors"
+                title={t('sortVideos')}
+              >
+                <ArrowUpDown className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">
+                  {sortMode === 'nameAsc' ? t('sortAZ') : 
+                   sortMode === 'nameDesc' ? t('sortZA') :
+                   sortMode === 'dateDesc' ? t('sortDateNewest') :
+                   sortMode === 'dateAsc' ? t('sortDateOldest') :
+                   sortMode === 'sizeDesc' ? t('sortSizeLargest') :
+                   t('sortSizeSmallest')}
+                </span>
+                <ChevronDown className="h-3 w-3" />
+              </button>
+              
+              {showSortMenu && (
+                <div className="absolute right-0 top-full mt-1 z-50 w-44 bg-white border border-slate-200/60 rounded-2xl py-1 shadow-lg">
+                  <button
+                    onClick={() => { setSortMode('nameAsc'); setShowSortMenu(false); }}
+                    className={`w-full text-left px-3 py-1.5 text-xs hover:bg-slate-100 transition-colors ${sortMode === 'nameAsc' ? 'bg-slate-50 text-slate-900 font-medium' : 'text-slate-600'}`}
+                  >
+                    {t('sortAZ')}
+                  </button>
+                  <button
+                    onClick={() => { setSortMode('nameDesc'); setShowSortMenu(false); }}
+                    className={`w-full text-left px-3 py-1.5 text-xs hover:bg-slate-100 transition-colors ${sortMode === 'nameDesc' ? 'bg-slate-50 text-slate-900 font-medium' : 'text-slate-600'}`}
+                  >
+                    {t('sortZA')}
+                  </button>
+                  <div className="border-t border-slate-200/60 my-1" />
+                  <button
+                    onClick={() => { setSortMode('dateDesc'); setShowSortMenu(false); }}
+                    className={`w-full text-left px-3 py-1.5 text-xs hover:bg-slate-100 transition-colors ${sortMode === 'dateDesc' ? 'bg-slate-50 text-slate-900 font-medium' : 'text-slate-600'}`}
+                  >
+                    {t('sortDateNewest')}
+                  </button>
+                  <button
+                    onClick={() => { setSortMode('dateAsc'); setShowSortMenu(false); }}
+                    className={`w-full text-left px-3 py-1.5 text-xs hover:bg-slate-100 transition-colors ${sortMode === 'dateAsc' ? 'bg-slate-50 text-slate-900 font-medium' : 'text-slate-600'}`}
+                  >
+                    {t('sortDateOldest')}
+                  </button>
+                  <div className="border-t border-slate-200/60 my-1" />
+                  <button
+                    onClick={() => { setSortMode('sizeDesc'); setShowSortMenu(false); }}
+                    className={`w-full text-left px-3 py-1.5 text-xs hover:bg-slate-100 transition-colors ${sortMode === 'sizeDesc' ? 'bg-slate-50 text-slate-900 font-medium' : 'text-slate-600'}`}
+                  >
+                    {t('sortSizeLargest')}
+                  </button>
+                  <button
+                    onClick={() => { setSortMode('sizeAsc'); setShowSortMenu(false); }}
+                    className={`w-full text-left px-3 py-1.5 text-xs hover:bg-slate-100 transition-colors ${sortMode === 'sizeAsc' ? 'bg-slate-50 text-slate-900 font-medium' : 'text-slate-600'}`}
+                  >
+                    {t('sortSizeSmallest')}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+        <ul className="space-y-1.5">
           {sortedFolderKeys.map(folderKey => {
             const folderVideos = groupedVideos[folderKey];
             if (folderKey === '__root__') {
               return folderVideos.map(video => (
-                <VideoItem key={video.id} {...{ video, selectedVideoId, onSelectVideo, isCollapsed }} />
+                <VideoItem key={video.id} {...{ video, selectedVideoId, onSelectVideo, isCollapsed, onDeleteVideo }} />
               ));
             }
 
             const isExpanded = expandedFolders[folderKey] ?? true;
             return (
-              <li key={folderKey} className="relative group/folder">
-                <button
-                  onClick={() => toggleFolder(folderKey)}
-                  className={`flex items-center w-full p-2 rounded-xl transition-colors text-slate-700 hover:bg-slate-200/40 ${isCollapsed ? 'justify-center' : ''}`}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-slate-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
-                  </svg>
-                  {!isCollapsed && <span className="truncate ml-3 flex-1 text-left text-sm font-medium">{folderKey}</span>}
-                </button>
-                {isCollapsed && (
-                   <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 invisible opacity-0 group-hover/folder:visible group-hover/folder:opacity-100 transition-opacity duration-200 bg-slate-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-20 shadow-lg">
-                      {folderKey}
-                    </div>
-                )}
-                {isExpanded && !isCollapsed && (
-                  <ul className="pl-4 mt-1 space-y-1">
-                    {folderVideos.map(video => (
-                      <VideoItem key={video.id} {...{ video, selectedVideoId, onSelectVideo, isCollapsed }} />
-                    ))}
-                  </ul>
-                )}
-              </li>
+              <FolderItem
+                key={folderKey}
+                folderKey={folderKey}
+                folderVideos={folderVideos}
+                isExpanded={isExpanded}
+                isCollapsed={isCollapsed}
+                isMobile={isMobile}
+                selectedVideoId={selectedVideoId}
+                onSelectVideo={onSelectVideo}
+                onToggleFolder={toggleFolder}
+                onDeleteVideo={onDeleteVideo}
+              />
             );
           })}
         </ul>
       </nav>
 
       {/* Footer Controls */}
-      <div className="p-3 border-t border-slate-200/50 space-y-2">
-        {/* Account / Auth Button */}
-        {authService.isAvailable() && (
-          <div className="mb-2">
-            {propCurrentUser ? (
-              <button
-                onClick={() => onOpenAccount?.()}
-                className={`${controlButtonClasses} bg-slate-100/50`}
-                aria-label={t('account')}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                {!isCollapsed && !isMobile && <span className="text-xs font-medium truncate">{propCurrentUser.email?.split('@')[0]}</span>}
-                {isCollapsed && (
-                  <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-opacity duration-200 bg-slate-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-20 shadow-lg">
-                    {propCurrentUser.email}
-                  </div>
-                )}
-              </button>
-            ) : (
-              <button
-                onClick={() => onOpenAuth?.()}
-                className={`${controlButtonClasses} bg-blue-50/50 text-blue-600 hover:bg-blue-100/50`}
-                aria-label={t('signIn')}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
-                </svg>
-                {!isCollapsed && !isMobile && <span className="text-xs font-medium">{t('signIn')}</span>}
-                {isCollapsed && (
-                  <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-opacity duration-200 bg-slate-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-20 shadow-lg">
-                    {t('signIn')}
-                  </div>
-                )}
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Export Button with Menu */}
-        <div className="mb-2 relative">
-          <button
-            onClick={() => {
-              if (isCollapsed) {
-                handleExport(false);
-              } else {
-                setShowExportMenu(!showExportMenu);
-              }
-            }}
-            disabled={exporting}
-            className={`${controlButtonClasses} ${exporting ? 'opacity-50 cursor-not-allowed' : ''}`}
-            aria-label={t('export')}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
-            </svg>
-            {!isCollapsed && !isMobile && <span className="text-xs font-medium">{exporting ? t('exporting') : t('export')}</span>}
-            {isCollapsed && (
-              <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-opacity duration-200 bg-slate-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-20 shadow-lg">
-                {t('exportDataOnly')}
-              </div>
-            )}
-          </button>
-
-          {showExportMenu && !isCollapsed && (
-            <div className="absolute bottom-full mb-2 left-0 right-0 bg-white border border-slate-200 rounded-lg shadow-lg p-2 space-y-1 z-50">
-              <button
-                onClick={() => handleExport(false)}
-                className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-slate-100 rounded transition-colors"
-              >
-                {t('exportDataOnly')}
-              </button>
-              <button
-                onClick={() => handleExport(true)}
-                className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-slate-100 rounded transition-colors"
-              >
-                {t('exportAll')}
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* All Other Buttons */}
-        <div className={`grid gap-2 ${isCollapsed ? 'grid-cols-1' : isMobile ? 'grid-cols-3' : 'grid-cols-2'}`}>
-          <button onClick={handleImportClick} className={controlButtonClasses} aria-label={t('importFile')}>
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0 3 3m-3-3-3 3M6.75 19.5a4.5 4.5 0 0 1-1.41-8.775 5.25 5.25 0 0 1 10.233-2.33 3 3 0 0 1 3.758 3.848A3.752 3.752 0 0 1 18 19.5H6.75Z" />
-            </svg>
-            {!isCollapsed && !isMobile && <span className="text-xs font-medium">{t('importFile')}</span>}
-            {isCollapsed && (
-              <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-opacity duration-200 bg-slate-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-20 shadow-lg">
-                {t('importFile')}
-              </div>
-            )}
-          </button>
-          <button onClick={handleImportFolderClick} className={controlButtonClasses} aria-label={t('importFolder')}>
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 9.75h16.5m-16.5 0A2.25 2.25 0 0 1 5.25 7.5h13.5a2.25 2.25 0 0 1 2.25 2.25m-16.5 0v1.5A2.25 2.25 0 0 0 5.25 13.5h13.5a2.25 2.25 0 0 0 2.25-2.25v-1.5m-16.5 0a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25h16.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H3.75Z" />
-            </svg>
-            {!isCollapsed && !isMobile && <span className="text-xs font-medium">{t('importFolder')}</span>}
-            {isCollapsed && (
-              <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-opacity duration-200 bg-slate-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-20 shadow-lg">
-                {t('importFolder')}
-              </div>
-            )}
-          </button>
-          <button onClick={onOpenSettings} className={controlButtonClasses} aria-label={t('settings')}>
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 0 0-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 0 0-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 0 0-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 0 0-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 0 0 1.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-            {!isCollapsed && !isMobile && <span className="text-xs font-medium">{t('settings')}</span>}
-            {isCollapsed && (
-              <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-opacity duration-200 bg-slate-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-20 shadow-lg">
-                {t('settings')}
-              </div>
-            )}
-          </button>
-          {!isMobile && (
+      {isCollapsed && !isMobile ? (
+        // 收起态：统一成一列 icon pill
+        <div className="flex flex-col items-center gap-1.5 pb-3 pt-2.5 border-t border-slate-100 rounded-[32px] bg-gradient-to-t from-slate-50/80 to-transparent">
+          {authService.isAvailable() && (
             <button
-              onClick={onToggle}
-              className={controlButtonClasses}
-              aria-label={isCollapsed ? t('expandSidebar') : t('collapseSidebar')}
+              onClick={propCurrentUser ? () => onOpenAccount?.() : () => onOpenAuth?.()}
+              className={controlButtonCollapsed}
+              aria-label={propCurrentUser ? t('account') : t('signIn')}
             >
-              {isCollapsed ? (
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12" />
-                </svg>
-              ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5M12 17.25h8.25" />
-                </svg>
-              )}
-              {!isCollapsed && <span className="text-xs font-medium">{t('collapseSidebar')}</span>}
-              {isCollapsed && (
-                <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-opacity duration-200 bg-slate-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-20 shadow-lg">
-                  {t('expandSidebar')}
-                </div>
-              )}
+              {propCurrentUser ? <UserIcon className="h-4 w-4" /> : <LogIn className="h-4 w-4" />}
             </button>
           )}
+          <div className="relative w-full" ref={importMenuRef}>
+            <button
+              onClick={handleImportClick}
+              className={controlButtonCollapsed}
+              aria-label={t('importFile')}
+            >
+              <FolderInput className="h-4 w-4" />
+            </button>
+            {showImportMenu && (
+              <div className="absolute bottom-full left-0 mb-2 z-50 w-44 bg-white rounded-2xl shadow-lg border border-slate-100 py-1">
+                <button
+                  onClick={handleImportFileClick}
+                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-100 transition-colors text-slate-600"
+                >
+                  {t('importFile')}
+                </button>
+                <button
+                  onClick={handleImportFolderClick}
+                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-100 transition-colors text-slate-600"
+                >
+                  {t('importFolder')}
+                </button>
+              </div>
+            )}
+          </div>
+          <button
+            onClick={() => handleExport(false)}
+            disabled={exporting}
+            className={`${controlButtonCollapsed} ${exporting ? 'opacity-50 cursor-not-allowed' : ''}`}
+            aria-label={t('export')}
+          >
+            <Download className="h-4 w-4" />
+          </button>
+          <button
+            onClick={onOpenSettings}
+            className={controlButtonCollapsed}
+            aria-label={t('settings')}
+          >
+            <Settings className="h-4 w-4" />
+          </button>
+          <button
+            onClick={onToggle}
+            className={controlButtonCollapsed}
+            aria-label={t('expandSidebar')}
+          >
+            <PanelLeftOpen className="h-4 w-4" />
+          </button>
         </div>
-      </div>
+      ) : (
+        // 展开态：两段布局
+        <div className="px-3 pb-3 pt-2.5 border-t border-slate-100 rounded-[32px] bg-gradient-to-t from-slate-50/80 to-transparent space-y-2.5">
+          {/* 第一段：账号 + 收起 */}
+          <div className="flex items-center justify-between gap-1.5">
+            {authService.isAvailable() && (
+              <button
+                onClick={propCurrentUser ? () => onOpenAccount?.() : () => onOpenAuth?.()}
+                className={controlButtonSecondary}
+                aria-label={propCurrentUser ? t('account') : t('signIn')}
+              >
+                {propCurrentUser ? <UserIcon className="h-4 w-4" /> : <LogIn className="h-4 w-4" />}
+                {!isMobile && (
+                  <span className="text-xs">
+                    {propCurrentUser ? (propCurrentUser.email?.split('@')[0] ?? t('account')) : t('signIn')}
+                  </span>
+                )}
+              </button>
+            )}
+
+            {/* 设置 */}
+            <button
+              onClick={onOpenSettings}
+              className={controlButtonGhost}
+              aria-label={t('settings')}
+            >
+              <Settings className="h-4 w-4" />
+              {!isMobile && <span className="text-xs">{t('settings')}</span>}
+            </button>
+          </div>
+
+          {/* 第二段：导入 / 导出 / 设置 */}
+          <div className="grid grid-cols-3 gap-1.5">
+            {/* 导入 */}
+            <div className="relative" ref={importMenuRef}>
+              <button
+                onClick={handleImportClick}
+                className={controlButtonSecondary}
+                aria-label={t('importFile')}
+              >
+                <FolderInput className="h-4 w-4" />
+                {!isMobile && <span className="text-xs">{t('importFile')}</span>}
+              </button>
+              {showImportMenu && (
+                <div className="absolute bottom-full left-0 mb-2 z-50 w-44 bg-white rounded-2xl shadow-lg border border-slate-100 py-1">
+                  <button
+                    onClick={handleImportFileClick}
+                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-100 transition-colors text-slate-600"
+                  >
+                    {t('importFile')}
+                  </button>
+                  <button
+                    onClick={handleImportFolderClick}
+                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-100 transition-colors text-slate-600"
+                  >
+                    {t('importFolder')}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* 导出 */}
+            <div className="relative">
+              <button
+                onClick={() => setShowExportMenu(!showExportMenu)}
+                disabled={exporting}
+                className={`${controlButtonSecondary} ${exporting ? 'opacity-50 cursor-not-allowed' : ''}`}
+                aria-label={t('export')}
+              >
+                <Download className="h-4 w-4" />
+                {!isMobile && <span className="text-xs">{exporting ? t('exporting') : t('export')}</span>}
+              </button>
+              {showExportMenu && (
+                <div className="absolute bottom-full left-0 mb-2 z-50 w-44 bg-white rounded-2xl shadow-lg border border-slate-100 py-1">
+                  <button
+                    onClick={() => handleExport(false)}
+                    className="w-full text-left px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 transition-colors"
+                  >
+                    {t('exportDataOnly')}
+                  </button>
+                  <button
+                    onClick={() => handleExport(true)}
+                    className="w-full text-left px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 transition-colors"
+                  >
+                    {t('exportAll')}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* 收起按钮 */}
+            {!isMobile && (
+              <button
+                onClick={onToggle}
+                className={controlButtonGhost}
+                aria-label={t('collapseSidebar')}
+              >
+                <PanelLeft className="h-4 w-4" />
+                {!isMobile && <span className="text-xs">{t('collapseSidebar')}</span>}
+              </button>
+            )}
+            
+          </div>
+        </div>
+      )}
 
       {/* Hidden file inputs */}
       <input

@@ -82,20 +82,30 @@ ${textToTranslate}`;
   let translatedText: string;
 
   if (useProxy) {
+    const settings = await getEffectiveSettings();
+    const payload: any = {
+      provider: settings.provider || 'gemini',
+      contents: [{ parts: [{ text: prompt }] }]
+    };
+
     const response = await fetch('/api/proxy', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        messages: [{ role: 'user', content: prompt }]
-      })
+      body: JSON.stringify(payload)
     });
 
     if (!response.ok) {
-      throw new Error(`Translation API error: ${response.status}`);
+      const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+      throw new Error(`Translation API error: ${errorData.error || response.status}`);
     }
 
     const data = await response.json();
-    translatedText = data.content;
+    // Extract text from Gemini response format
+    translatedText = data.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join('') ?? data.content ?? '';
+    
+    if (!translatedText) {
+      throw new Error('Translation API returned empty response');
+    }
   } else {
     const settings = await getEffectiveSettings();
     const adapter = createAPIAdapter(settings.provider || 'gemini');

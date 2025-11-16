@@ -7,7 +7,7 @@ export const en = {
   error: "Error",
 
   // Sidebar
-  importFile: "Import File",
+  importFile: "Import",
   importFolder: "Import Folder",
   myLibrary: "My Library",
   library: "LIB",
@@ -15,6 +15,15 @@ export const en = {
   collapseAll: "Collapse all folders",
   expandAll: "Expand all folders",
   deleteFolder: "Delete folder",
+  searchVideos: "Search videos",
+  search: "Search",
+  sortVideos: "Sort",
+  sortAZ: "A → Z",
+  sortZA: "Z → A",
+  sortDateNewest: "Newest",
+  sortDateOldest: "Oldest",
+  sortSizeLargest: "Largest",
+  sortSizeSmallest: "Smallest",
 
   // Welcome Screen
   welcomeTitle: "InsightReel",
@@ -24,10 +33,10 @@ export const en = {
   browseFile: "Or Browse Local File",
   welcomeBoxTitle: "Jump to top insights immediately",
   welcomeBoxText: "Upload a local video. We'll generate summaries, key info, and topics for you. All processing is done locally on your machine for complete privacy.",
-  welcomeBadge: "AI-powered analytics",
-  welcomeHeroTitle: "Transform Your Data Into",
-  welcomeHeroTitleLine2: "Actionable Insights",
-  welcomeHeroDescription: "Insightseel helps teams make data-driven decisions with AI-powered analytics. Upload your data, get instant insights, and watch your business grow.",
+  welcomeBadge: "AI-Powered Video Intelligence",
+  welcomeHeroTitle: "Transform your video content into",
+  welcomeHeroTitleLine2: "searchable and computable structured knowledge",
+  welcomeHeroDescription: "Insightseel automatically analyzes subtitles, scenes, speakers, and semantic context, converting raw video into structured insights. Get instant captions, summaries, key moments, and exportable timelines or JSON data.",
   welcomeTryButton: "Try insightseel",
   welcomeImportFolderButton: "Import Folder",
   welcomeWorkspaceTitle: "Insightseel Workspace",
@@ -81,6 +90,8 @@ export const en = {
   keyMomentsTabPlaceholder: "Generate insights to unlock key moments.",
   translateSubtitles: "Translate",
   translatingSubtitles: "Translating...",
+  subtitlesAlreadyTranslated: "Subtitles are already translated!",
+  translationComplete: "Translation complete!",
 
   // Chat Panel
   askQuestion: "Ask a question...",
@@ -96,9 +107,9 @@ export const en = {
   notesPlaceholder: "Write your notes here... Changes are saved automatically.",
 
   // Footer
-  footerInspiredBy: "Inspired by",
-  footerAuthor: "Author",
-  footerFeedback: "Feedback",
+  footerInspiredBy: "Thanks to TLDW",
+  footerAbout: "About",
+  footerFeedback: "Submit Feedback",
 
   // Settings Modal
   settingsTitle: "Settings",
@@ -114,6 +125,14 @@ export const en = {
   baseUrlPlaceholder: "e.g., https://generativelanguage.googleapis.com",
   baseUrlPlaceholderSystem: "Using system default. Enter to override.",
   baseUrlHelpText: "Use a custom API endpoint. If empty, it uses the default.",
+  speechToText: "Speech to Text",
+  deepgramApiKey: "Deepgram API Key",
+  deepgramApiKeyDescription: "$200 free credits (775 hours).",
+  deepgramGetKey: "Get key",
+  openaiApiKey: "OpenAI API Key (Whisper)",
+  openaiApiKeyDescription: "Paid service (~$0.006/minute)",
+  smartRouting: "Smart Routing:",
+  smartRoutingDescription: "Deepgram (if available) → Chunked processing → Gemini (fallback)",
   saveChanges: "Save Changes",
   testConnection: "Test Connection",
   testingConnection: "Testing...",
@@ -159,6 +178,9 @@ IMPORTANT: When referencing specific moments in the video, ALWAYS include timest
   signIn: "Sign In",
   signOut: "Sign Out",
   account: "Account",
+  linuxDo: "Linux.do",
+  linuxDoLogin: "Linux.do Login",
+  linuxDoLoginInitiated: "Linux.do login initiated, please complete authorization in the new window",
   email: "Email",
   password: "Password",
   confirmPassword: "Confirm Password",

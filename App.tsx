@@ -29,6 +29,127 @@ import { User } from "@supabase/supabase-js";
 import { authService } from "./services/authService";
 import autoSyncService, { getSyncStatus } from "./services/autoSyncService";
 import { saveSubtitles } from "./services/subtitleService";
+import { exchangeCodeForToken, getLinuxDoUserInfo, verifyState } from "./services/linuxDoAuthService";
+
+const SUPPORTED_SUBTITLE_EXTENSIONS = [".srt", ".vtt"];
+
+const isSubtitleFileName = (name: string) => {
+  const lower = name.toLowerCase();
+  return SUPPORTED_SUBTITLE_EXTENSIONS.some((ext) => lower.endsWith(ext));
+};
+
+interface FileInfo {
+  file: File;
+  folderPath: string;
+  normalizedBaseName: string;
+}
+
+interface VideoSubtitlePair {
+  video: File;
+  subtitle?: File;
+  folderPath?: string;
+}
+
+const getRelativePath = (file: File): string => {
+  const relativePath = (file as any).webkitRelativePath as string | undefined;
+  return relativePath && relativePath.length > 0 ? relativePath : file.name;
+};
+
+const extractFileInfo = (file: File): FileInfo => {
+  const relativePath = getRelativePath(file);
+  const lastSlash = relativePath.lastIndexOf("/");
+  const folderPath = lastSlash >= 0 ? relativePath.substring(0, lastSlash) : "";
+  const name = file.name;
+  const dotIndex = name.lastIndexOf(".");
+  const baseName = dotIndex > 0 ? name.substring(0, dotIndex) : name;
+  return {
+    file,
+    folderPath,
+    normalizedBaseName: baseName.toLowerCase(),
+  };
+};
+
+const findBestSubtitleMatch = (
+  videoInfo: FileInfo,
+  subtitleInfos: FileInfo[],
+  usedSubtitleIndices: Set<number>,
+): FileInfo | undefined => {
+  if (subtitleInfos.length === 0) return undefined;
+
+  const available = subtitleInfos
+    .map((info, index) => ({ info, index }))
+    .filter(({ index }) => !usedSubtitleIndices.has(index));
+
+  if (available.length === 0) return undefined;
+
+  const sameFolder = available.filter(
+    ({ info }) => info.folderPath === videoInfo.folderPath,
+  );
+
+  const searchPool = sameFolder.length > 0 ? sameFolder : available;
+  const videoBase = videoInfo.normalizedBaseName;
+
+  const prefixMatched = searchPool
+    .filter(({ info }) => {
+      const name = info.normalizedBaseName;
+      if (name === videoBase) return true;
+      return (
+        name.startsWith(`${videoBase}.`) ||
+        name.startsWith(`${videoBase}_`) ||
+        name.startsWith(`${videoBase}-`) ||
+        name.startsWith(`${videoBase} `)
+      );
+    })
+    .sort(
+      (a, b) =>
+        a.info.normalizedBaseName.length - b.info.normalizedBaseName.length,
+    );
+
+  if (prefixMatched.length > 0) {
+    const chosen = prefixMatched[0];
+    usedSubtitleIndices.add(chosen.index);
+    return chosen.info;
+  }
+
+  if (sameFolder.length === 1) {
+    const chosen = sameFolder[0];
+    usedSubtitleIndices.add(chosen.index);
+    return chosen.info;
+  }
+
+  if (searchPool.length === 1) {
+    const chosen = searchPool[0];
+    usedSubtitleIndices.add(chosen.index);
+    return chosen.info;
+  }
+
+  return undefined;
+};
+
+const pairVideosWithSubtitles = (
+  videoFiles: File[],
+  subtitleFiles: File[],
+): VideoSubtitlePair[] => {
+  if (videoFiles.length === 0) return [];
+
+  const subtitleInfos = subtitleFiles.map(extractFileInfo);
+  const usedSubtitleIndices = new Set<number>();
+
+  return videoFiles.map((videoFile) => {
+    const videoInfo = extractFileInfo(videoFile);
+    const matchedSubtitle = findBestSubtitleMatch(
+      videoInfo,
+      subtitleInfos,
+      usedSubtitleIndices,
+    );
+
+    return {
+      video: videoFile,
+      subtitle: matchedSubtitle?.file,
+      folderPath: videoInfo.folderPath.length > 0 ? videoInfo.folderPath : undefined,
+    };
+  });
+};
 
 const AppContent: React.FC<{
   settings: APISettings;
@@ -88,6 +209,164 @@ const AppContent: React.FC<{
       mounted = false;
     };
   }, [isAuthModalOpen]);
+
+  // Migrate Linux.do data from local storage to profile when user logs in
+  useEffect(() => {
+    const migrateLinuxDoData = async () => {
+      if (!currentUser || !authService.isAvailable()) return;
+
+      try {
+        const storedData = localStorage.getItem('linuxdo_oauth_data');
+        if (!storedData) return;
+
+        const linuxDoData = JSON.parse(storedData);
+        
+        // Check if profile already has Linux.do data
+        const profile = await authService.getProfile(currentUser.id);
+        if (profile?.linuxdo_user_id) {
+          // Already migrated, remove from local storage
+          localStorage.removeItem('linuxdo_oauth_data');
+          return;
+        }
+
+        // Migrate to profile
+        const profileUpdates: Partial<import('./services/authService').Profile> = {
+          linuxdo_user_id: linuxDoData.user_id,
+          linuxdo_username: linuxDoData.username,
+          linuxdo_access_token: linuxDoData.access_token,
+          linuxdo_token_expires_at: linuxDoData.token_expires_at,
+          linuxdo_user_data: linuxDoData.user_data,
+        };
+
+        // Remove undefined values
+        Object.keys(profileUpdates).forEach(key => {
+          if (profileUpdates[key as keyof typeof profileUpdates] === undefined) {
+            delete profileUpdates[key as keyof typeof profileUpdates];
+          }
+        });
+
+        await authService.updateProfile(currentUser.id, profileUpdates);
+        localStorage.removeItem('linuxdo_oauth_data');
+        console.log('Linux.do data migrated from local storage to profile');
+      } catch (error) {
+        console.error('Error migrating Linux.do data:', error);
+      }
+    };
+
+    migrateLinuxDoData();
+  }, [currentUser]);
+
+  // Handle Linux.do OAuth callback
+  useEffect(() => {
+    const handleLinuxDoCallback = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const code = urlParams.get('code');
+      const state = urlParams.get('state');
+      const error = urlParams.get('error');
+
+      // Check if this is a Linux.do OAuth callback (has code or error parameter)
+      if (code || error) {
+        // Clean up URL by removing query parameters
+        const cleanUrl = window.location.origin + window.location.pathname;
+        window.history.replaceState({}, document.title, cleanUrl);
+
+        if (error) {
+          console.error('Linux.do OAuth error:', error);
+          setError(`Linux.do 登录失败: ${error}`);
+          setTimeout(() => setError(null), 5000);
+          return;
+        }
+
+        if (!code || !state) {
+          console.error('Missing code or state in OAuth callback');
+          setError('Linux.do 登录回调参数不完整');
+          setTimeout(() => setError(null), 5000);
+          return;
+        }
+
+        // Verify state
+        if (!verifyState(state)) {
+          console.error('Invalid state parameter');
+          setError('Linux.do 登录验证失败：状态参数不匹配');
+          setTimeout(() => setError(null), 5000);
+          return;
+        }
+
+        try {
+          // Exchange code for token
+          const redirectUri = `${window.location.origin}/auth/linuxdo/callback`;
+          const tokenData = await exchangeCodeForToken(code, redirectUri);
+
+          // Get user info
+          const userInfo = await getLinuxDoUserInfo(tokenData.access_token);
+
+          console.log('Linux.do OAuth success:', { tokenData, userInfo });
+
+          // Save Linux.do information to profile
+          if (currentUser) {
+            // User is already logged in to Supabase, update their profile
+            try {
+              const profileUpdates: Partial<import('./services/authService').Profile> = {
+                linuxdo_user_id: userInfo.id?.toString() || userInfo.user_id?.toString() || undefined,
+                linuxdo_username: userInfo.username || userInfo.name || undefined,
+                linuxdo_access_token: tokenData.access_token,
+                linuxdo_token_expires_at: tokenData.expires_in 
+                  ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
+                  : undefined,
+                linuxdo_user_data: userInfo,
+              };
+
+              // Remove undefined values
+              Object.keys(profileUpdates).forEach(key => {
+                if (profileUpdates[key as keyof typeof profileUpdates] === undefined) {
+                  delete profileUpdates[key as keyof typeof profileUpdates];
+                }
+              });
+
+              await authService.updateProfile(currentUser.id, profileUpdates);
+              console.log('Linux.do information saved to profile');
+            } catch (profileError) {
+              console.error('Error saving Linux.do info to profile:', profileError);
+              // Continue anyway, don't fail the OAuth flow
+            }
+          } else {
+            // User is not logged in to Supabase
+            // Store in local storage for later use
+            try {
+              const linuxDoData = {
+                user_id: userInfo.id?.toString() || userInfo.user_id?.toString(),
+                username: userInfo.username || userInfo.name,
+                access_token: tokenData.access_token,
+                token_expires_at: tokenData.expires_in 
+                  ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
+                  : undefined,
+                user_data: userInfo,
+              };
+              localStorage.setItem('linuxdo_oauth_data', JSON.stringify(linuxDoData));
+              console.log('Linux.do information saved to local storage (user not logged in)');
+            } catch (storageError) {
+              console.error('Error saving Linux.do info to local storage:', storageError);
+            }
+          }
+
+          setError(null);
+          // 显示成功消息
+          setError('✓ Linux.do 登录成功！');
+          setTimeout(() => {
+            setError(null);
+            // 刷新页面以更新 UI
+            window.location.reload();
+          }, 2000);
+        } catch (err) {
+          console.error('Linux.do OAuth callback error:', err);
+          setError(err instanceof Error ? err.message : 'Linux.do 登录处理失败');
+          setTimeout(() => setError(null), 5000);
+        }
+      }
+    };
+
+    handleLinuxDoCallback();
+  }, [currentUser]);
 
   useEffect(() => {
     autoSyncService.initAutoSync();
@@ -301,9 +580,7 @@ const AppContent: React.FC<{
     try {
       const allFiles = Array.from(files);
       const videoFiles = allFiles.filter((f) => f.type.startsWith("video/"));
-      const subtitleFiles = allFiles.filter(
-        (f) => f.name.endsWith(".srt") || f.name.endsWith(".vtt"),
-      );
+      const subtitleFiles = allFiles.filter((f) => isSubtitleFileName(f.name));
       if (videoFiles.length === 0) {
         handleError(
           new Error("No video files found in selection."),
@@ -311,20 +588,8 @@ const AppContent: React.FC<{
         );
         return;
       }
-      const videoSubPairs = videoFiles.map((videoFile) => {
-        const videoName = videoFile.name.substring(
-          0,
-          videoFile.name.lastIndexOf("."),
-        );
-        const matchingSubtitle = subtitleFiles.find((subFile) => {
-          const subName = subFile.name.substring(
-            0,
-            subFile.name.lastIndexOf("."),
-          );
-          return subName === videoName;
-        });
-        return { video: videoFile, subtitle: matchingSubtitle };
-      });
+
+      const videoSubPairs = pairVideosWithSubtitles(videoFiles, subtitleFiles);
       for (const { video, subtitle } of videoSubPairs) {
         await handleSingleVideoImport(video, undefined, subtitle);
       }
@@ -338,15 +603,8 @@ const AppContent: React.FC<{
     if (!files || files.length === 0) return;
     try {
       const allFiles = Array.from(files);
-      const videoFiles: File[] = [];
-      const subtitleFiles: File[] = [];
-      for (const file of allFiles) {
-        if (file.type.startsWith("video/")) {
-          videoFiles.push(file);
-        } else if (file.name.endsWith(".srt") || file.name.endsWith(".vtt")) {
-          subtitleFiles.push(file);
-        }
-      }
+      const videoFiles = allFiles.filter((file) => file.type.startsWith("video/"));
+      const subtitleFiles = allFiles.filter((file) => isSubtitleFileName(file.name));
       if (videoFiles.length === 0) {
         handleError(
           new Error("No video files found in the selected folder."),
@@ -354,33 +612,8 @@ const AppContent: React.FC<{
         );
         return;
       }
-      const videoSubPairs = videoFiles.map((videoFile) => {
-        const videoName = videoFile.name.substring(
-          0,
-          videoFile.name.lastIndexOf("."),
-        );
-        const matchingSubtitle = subtitleFiles.find((subFile) => {
-          const subName = subFile.name.substring(
-            0,
-            subFile.name.lastIndexOf("."),
-          );
-          const subPath = (subFile as any).webkitRelativePath;
-          const videoPath = (videoFile as any).webkitRelativePath;
-          const subFolder = subPath.substring(0, subPath.lastIndexOf("/"));
-          const videoFolder = videoPath.substring(
-            0,
-            videoPath.lastIndexOf("/"),
-          );
-          return subName === videoName && subFolder === videoFolder;
-        });
-        return { video: videoFile, subtitle: matchingSubtitle };
-      });
-      for (const { video, subtitle } of videoSubPairs) {
-        const relativePath = (video as any).webkitRelativePath || video.name;
-        const folderPath = relativePath.substring(
-          0,
-          relativePath.lastIndexOf("/"),
-        );
+      const videoSubPairs = pairVideosWithSubtitles(videoFiles, subtitleFiles);
+      for (const { video, subtitle, folderPath } of videoSubPairs) {
         await handleSingleVideoImport(video, folderPath, subtitle);
       }
     } catch (err) {
@@ -465,13 +698,43 @@ const AppContent: React.FC<{
       {/* Error Popup */}
       {error && (
         <div
-          className="absolute top-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg shadow-lg z-50"
           role="alert"
+          onClick={() => setError(null)}   // ← 点击即可关闭
+          className="
+            fixed top-5 right-5 z-50 cursor-pointer
+            flex items-start gap-3
+            rounded-2xl
+            border border-slate-900/60
+            bg-slate-900/90
+            px-5 py-4
+            shadow-xl shadow-slate-900/40
+            backdrop-blur-md
+            text-slate-50
+            max-w-sm
+            transition-all
+            hover:bg-slate-900
+            active:scale-95
+          "
         >
-          <strong className="font-bold">Error: </strong>
-          <span className="block sm:inline">{error}</span>
+          {/* 左侧图标 */}
+          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-rose-600/20">
+            <span className="text-lg leading-none text-rose-400">✕</span>
+          </div>
+
+          {/* 文案 */}
+          <div className="flex-1">
+            <p className="text-xs font-semibold tracking-wide text-slate-100">
+              出错了
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-slate-200/90">
+              {error}
+            </p>
+          </div>
         </div>
       )}
+
+
+
       {/* Settings Modal */}
       {isSettingsModalOpen && settings && (
         <SettingsModal
@@ -524,6 +787,7 @@ const AppContent: React.FC<{
               onToggle={() => setIsSidebarCollapsed((prev) => !prev)}
               onOpenSettings={() => setIsSettingsModalOpen(true)}
               onDeleteFolder={handleDeleteFolder}
+              onDeleteVideo={handleDeleteVideo}
               isMobile={false}
               onOpenAuth={() => openAuthModal("signin")}
               onOpenAccount={() => setShowAccountPanel(true)}
@@ -563,6 +827,7 @@ const AppContent: React.FC<{
                     setIsMobileSidebarOpen(false);
                   }}
                   onDeleteFolder={handleDeleteFolder}
+                  onDeleteVideo={handleDeleteVideo}
                   isMobile={true}
                   onOpenAuth={() => {
                     openAuthModal("signin");

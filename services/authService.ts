@@ -18,6 +18,12 @@ export interface Profile {
   avatar_url?: string;
   created_at: string;
   updated_at: string;
+  // Linux.do OAuth fields
+  linuxdo_user_id?: string;
+  linuxdo_username?: string;
+  linuxdo_access_token?: string;
+  linuxdo_token_expires_at?: string;
+  linuxdo_user_data?: any; // JSON data from Linux.do API
 }
 
 export const authService = {

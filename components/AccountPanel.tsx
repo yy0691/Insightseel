@@ -3,6 +3,7 @@ import type { User } from "@supabase/supabase-js";
 import { authService, type Profile } from "../services/authService";
 import { syncService } from "../services/syncService";
 import { exportService } from "../services/exportService";
+import { buildLinuxDoAuthUrl } from "../services/linuxDoAuthService";
 import { useLanguage } from "../contexts/LanguageContext";
 
 interface AccountPanelProps {
@@ -83,29 +84,25 @@ const AccountPanel: React.FC<AccountPanelProps> = ({ user, onSignOut }) => {
     }
   };
 
-  // 这里先做一个“前端入口”：
-  // 1）跳到 linux.do 的登录 / 授权页面
-  // 2）你后面可以在回调里把 token 写入 profile 或本地存储
-  const handleLinuxDoLogin = () => {
+  const handleLinuxDoLogin = async () => {
     if (linuxDoStatus === "connected") return;
 
     setLinuxDoStatus("connecting");
 
     try {
-      // 这里根据你实际的 OAuth / SSO 地址改
-      const redirectUrl =
-        "https://linux.do"; // TODO: 换成你的 linux.do 授权链接，例如 /oauth/authorize
-
-      // 新开窗口，避免直接踢走当前页面
-      window.open(redirectUrl, "_blank", "noopener,noreferrer");
-
-      // 纯 UI 标记为已连接，真实绑定你后面自己接回调处理
-      setLinuxDoStatus("connected");
-      setSyncMessage(`✓ Linux.do 已发起登录/绑定`);
+      // 构建回调 URL
+      const redirectUri = `${window.location.origin}/auth/linuxdo/callback`;
+      
+      // 构建授权 URL
+      const authUrl = await buildLinuxDoAuthUrl(redirectUri);
+      
+      // 在当前窗口跳转到授权页面（OAuth 标准流程）
+      window.location.href = authUrl;
+      
+      // 注意：这里不会执行到，因为页面会跳转
     } catch (e) {
       setLinuxDoStatus("disconnected");
-      setSyncMessage(`✗ Linux.do 登录跳转失败`);
-    } finally {
+      setSyncMessage(`✗ Linux.do 登录失败: ${e instanceof Error ? e.message : '未知错误'}`);
       setTimeout(() => setSyncMessage(null), 5000);
     }
   };
@@ -133,28 +130,23 @@ const AccountPanel: React.FC<AccountPanelProps> = ({ user, onSignOut }) => {
     initial.trim().length > 0 ? initial.trim()[0]?.toUpperCase() : "U";
 
   return (
-    <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-6">
+    <div className="w-full max-w-lg rounded-[32px] bg-white/95 shadow-[0_18px_80px_rgba(15,23,42,0.18)] backdrop-blur-sm p-7 space-y-6">
       {/* 头部：账号信息 */}
-      <div className="flex items-center justify-between pb-4 border-b border-slate-200/80">
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-700">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-sm font-semibold text-white">
             {initials}
           </div>
           <div>
-            <h2 className="text-sm font-semibold text-slate-900">
-              {t("account")}
-            </h2>
-            <p className="text-xs text-slate-600">{user.email}</p>
-            {profile?.full_name && (
-              <p className="text-[11px] text-slate-500 mt-0.5">
-                {profile.full_name}
-              </p>
-            )}
+            <p className="text-sm font-semibold text-slate-900">
+              {profile?.full_name || t("account")}
+            </p>
+            <p className="text-xs text-slate-500">{user.email}</p>
           </div>
         </div>
         <button
           onClick={onSignOut}
-          className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+          className="rounded-full px-3.5 py-1.5 text-xs font-medium border border-slate-200 text-slate-700 hover:bg-slate-50 transition"
         >
           {t("signOut")}
         </button>
@@ -163,10 +155,10 @@ const AccountPanel: React.FC<AccountPanelProps> = ({ user, onSignOut }) => {
       {/* 顶部提示 / 状态条 */}
       {syncMessage && (
         <div
-          className={`rounded-lg border px-3 py-2 text-xs ${
+          className={`rounded-2xl px-3 py-2 text-xs shadow-[0_8px_22px_rgba(15,23,42,0.06)] ${
             syncMessage.startsWith("✓")
-              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-              : "border-rose-200 bg-rose-50 text-rose-700"
+              ? "bg-emerald-50 text-emerald-700"
+              : "bg-rose-50 text-rose-700"
           }`}
         >
           {syncMessage}
@@ -174,7 +166,7 @@ const AccountPanel: React.FC<AccountPanelProps> = ({ user, onSignOut }) => {
       )}
 
       {/* Linux.do 登录区 */}
-      <section className="rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-3.5 space-y-2">
+      <section className="rounded-2xl bg-slate-50 px-4 py-3.5 space-y-2">
         <div className="flex items-center justify-between gap-2">
           <div>
             <h3 className="text-xs font-semibold text-slate-800">
@@ -195,11 +187,11 @@ const AccountPanel: React.FC<AccountPanelProps> = ({ user, onSignOut }) => {
             {linuxDoStatus === "connected" ? "已连接" : "未连接"}
           </span>
         </div>
-        <div className="flex items-center justify-between gap-2 pt-2">
+        <div className="flex items-center justify-between gap-2 pt-1">
           <button
             onClick={handleLinuxDoLogin}
             disabled={linuxDoStatus === "connecting"}
-            className="inline-flex items-center justify-center rounded-full bg-slate-900 px-3.5 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:bg-slate-400"
+            className="inline-flex items-center justify-center rounded-full bg-slate-900 px-3.5 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:bg-slate-400 transition"
           >
             {linuxDoStatus === "connected"
               ? "重新打开 Linux.do"
@@ -214,7 +206,7 @@ const AccountPanel: React.FC<AccountPanelProps> = ({ user, onSignOut }) => {
       </section>
 
       {/* 云同步 */}
-      <section className="space-y-2 rounded-xl border border-slate-200 bg-white px-4 py-3.5">
+      <section className="rounded-2xl bg-slate-50 px-4 py-3.5 space-y-2">
         <div className="flex items-center justify-between">
           <h3 className="text-xs font-semibold text-slate-800">
             {t("cloudSync")}
@@ -230,14 +222,14 @@ const AccountPanel: React.FC<AccountPanelProps> = ({ user, onSignOut }) => {
           <button
             onClick={() => handleSync("upload")}
             disabled={syncing}
-            className="flex items-center justify-center rounded-lg border border-slate-200 bg-slate-900 px-3 py-2 text-xs font-medium text-white hover:bg-slate-800 disabled:bg-slate-400"
+            className="flex items-center justify-center rounded-full bg-slate-900 px-3 py-2 text-xs font-medium text-white hover:bg-slate-800 disabled:bg-slate-400 transition"
           >
             {syncing ? t("uploading") : t("uploadToCloud")}
           </button>
           <button
             onClick={() => handleSync("download")}
             disabled={syncing}
-            className="flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 hover:bg-slate-50 disabled:bg-slate-200"
+            className="flex items-center justify-center rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 hover:bg-slate-50 disabled:bg-slate-200 transition"
           >
             {syncing ? t("downloading") : t("downloadFromCloud")}
           </button>
@@ -245,7 +237,7 @@ const AccountPanel: React.FC<AccountPanelProps> = ({ user, onSignOut }) => {
       </section>
 
       {/* 本地导出 */}
-      <section className="space-y-2 rounded-xl border border-slate-200 bg-white px-4 py-3.5">
+      <section className="rounded-2xl bg-slate-50 px-4 py-3.5 space-y-2">
         <h3 className="text-xs font-semibold text-slate-800">
           {t("localExport")}
         </h3>
@@ -253,14 +245,14 @@ const AccountPanel: React.FC<AccountPanelProps> = ({ user, onSignOut }) => {
           <button
             onClick={() => handleExport(false)}
             disabled={exporting}
-            className="w-full flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 hover:bg-slate-50 disabled:bg-slate-200"
+            className="w-full flex items-center justify-center rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 hover:bg-slate-50 disabled:bg-slate-200 transition"
           >
             {exporting ? t("exporting") : t("exportDataOnly")}
           </button>
           <button
             onClick={() => handleExport(true)}
             disabled={exporting}
-            className="w-full flex items-center justify-center rounded-lg border border-slate-200 bg-slate-900 px-3 py-2 text-xs font-medium text-white hover:bg-slate-800 disabled:bg-slate-400"
+            className="w-full flex items-center justify-center rounded-full bg-slate-900 px-3 py-2 text-xs font-medium text-white hover:bg-slate-800 disabled:bg-slate-400 transition"
           >
             {exporting ? t("exporting") : t("exportAll")}
           </button>
@@ -271,9 +263,9 @@ const AccountPanel: React.FC<AccountPanelProps> = ({ user, onSignOut }) => {
       </section>
 
       {/* 限额说明 */}
-      <section className="border-t border-slate-200 pt-3">
+      <section className="rounded-2xl bg-slate-50 px-4 py-3.5">
         <p className="text-[11px] text-slate-500 leading-relaxed">
-          <strong>{t("storageLimitsFree")}</strong>
+          <strong className="font-medium">{t("storageLimitsFree")}</strong>
           <br />
           • {t("storageLimitsDatabase")}
           <br />

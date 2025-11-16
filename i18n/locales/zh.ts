@@ -9,7 +9,7 @@ export const zh: Translations = {
   error: "错误",
 
   // Sidebar
-  importFile: "导入文件",
+  importFile: "导入",
   importFolder: "导入文件夹",
   myLibrary: "我的媒体库",
   library: "媒体库",
@@ -17,6 +17,15 @@ export const zh: Translations = {
   collapseAll: "全部折叠",
   expandAll: "全部展开",
   deleteFolder: "删除文件夹",
+  searchVideos: "搜索视频",
+  search: "搜索",
+  sortVideos: "排序",
+  sortAZ: "A → Z",
+  sortZA: "Z → A",
+  sortDateNewest: "最新",
+  sortDateOldest: "最旧",
+  sortSizeLargest: "最大",
+  sortSizeSmallest: "最小",
 
   // Welcome Screen
   welcomeTitle: "洞见",
@@ -27,9 +36,9 @@ export const zh: Translations = {
   welcomeBoxTitle: "立即获得核心见解",
   welcomeBoxText: "上传本地视频。我们将为您生成摘要、关键信息和主题。所有处理都在您的机器上本地完成，以确保完全的隐私。",
   welcomeBadge: "AI 驱动分析",
-  welcomeHeroTitle: "将您的数据转化为",
-  welcomeHeroTitleLine2: "可执行的洞察",
-  welcomeHeroDescription: "Insightseel 帮助团队通过 AI 驱动的分析做出数据驱动的决策。上传您的数据，获得即时洞察，见证业务增长。",
+  welcomeHeroTitle: "将视频内容转化为",
+  welcomeHeroTitleLine2: "可搜索、可计算的结构化知识",
+  welcomeHeroDescription: "Insightseel 自动分析视频中的字幕、场景、说话人和语义内容，将原始视频转化为结构化洞察。上传任意视频，即刻获得字幕、摘要、关键时刻与可导出的分析结果。",
   welcomeTryButton: "试用 Insightseel",
   welcomeImportFolderButton: "导入文件夹",
   welcomeWorkspaceTitle: "Insightseel 工作区",
@@ -83,6 +92,8 @@ export const zh: Translations = {
   keyMomentsTabPlaceholder: "生成见解后即可查看关键时刻。",
   translateSubtitles: "翻译",
   translatingSubtitles: "翻译中...",
+  subtitlesAlreadyTranslated: "字幕已经翻译过了！",
+  translationComplete: "翻译完成！",
 
   // Chat Panel
   askQuestion: "提个问题...",
@@ -99,8 +110,9 @@ export const zh: Translations = {
 
   // Footer
   footerInspiredBy: "灵感来源",
-  footerAuthor: "作者",
-  footerFeedback: "反馈意见",
+  footerAbout: "关于",
+  footerFeedback: "反馈",
+
 
   // Settings Modal
   settingsTitle: "设置",
@@ -116,6 +128,14 @@ export const zh: Translations = {
   baseUrlPlaceholder: "例如 https://generativelanguage.googleapis.com",
   baseUrlPlaceholderSystem: "正在使用系统默认值。输入可覆盖。",
   baseUrlHelpText: "使用自定义 API 端点。如果为空，则使用默认值。",
+  speechToText: "语音转文字",
+  deepgramApiKey: "Deepgram API 密钥",
+  deepgramApiKeyDescription: "$200 免费额度（775 小时）。",
+  deepgramGetKey: "获取密钥",
+  openaiApiKey: "OpenAI API 密钥 (Whisper)",
+  openaiApiKeyDescription: "付费服务（约 $0.006/分钟）",
+  smartRouting: "智能路由：",
+  smartRoutingDescription: "Deepgram（如果可用）→ 分块处理 → Gemini（备用）",
   saveChanges: "保存更改",
   testConnection: "测试连接",
   testingConnection: "测试中...",
@@ -159,6 +179,9 @@ export const zh: Translations = {
   signIn: "登录",
   signOut: "退出登录",
   account: "账户",
+  linuxDo: "Linux.do",
+  linuxDoLogin: "Linux.do 登录",
+  linuxDoLoginInitiated: "Linux.do 登录已启动，请在新窗口中完成授权",
   email: "邮箱",
   password: "密码",
   confirmPassword: "确认密码",

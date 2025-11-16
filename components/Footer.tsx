@@ -1,55 +1,54 @@
 import React from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 
+// Video Icon Component
+const VideoIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className || "h-5 w-5"}
+  >
+    <path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5" />
+    <rect x="2" y="6" width="14" height="12" rx="2" />
+  </svg>
+);
+
 const Footer: React.FC = () => {
   const { t } = useLanguage();
 
   return (
-    <footer className="w-full py-8 px-6 bg-gradient-to-b from-slate-50 to-white border-t border-slate-200/50">
-      <div className="max-w-[1800px] mx-auto">
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 text-sm text-slate-500">
-          <div className="flex items-center gap-2">
-            <span className="text-slate-500">{t('footerInspiredBy')}:</span>
-            <a 
-              href="https://github.com/SamuelZ12/TLDW" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-blue-600 hover:text-blue-700 hover:underline transition-colors"
-            >
-              TLDW
-            </a>
+    <footer className="border-t border-slate-200 py-16 backdrop-blur">
+      <div className="mx-auto flex w-full max-w-5xl flex-col items-center gap-6 px-6 text-center">
+        {/* Logo */}
+        <div className="flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg">
+            <VideoIcon className="h-5 w-5 text-slate-800" />
           </div>
-          
-          <span className="hidden sm:inline text-slate-300">|</span>
-          
-          <div className="flex items-center gap-2">
-            <span className="text-slate-500">{t('footerAuthor')}:</span>
-            <a 
-              href="https://luoyuanai.cn" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-blue-600 hover:text-blue-700 hover:underline transition-colors"
-            >
-              luoyuanai.cn
-            </a>
-          </div>
-          
-          <span className="hidden sm:inline text-slate-300">|</span>
-          
-          <div className="flex items-center gap-2">
-            <a 
-              href="https://n1ddxc0sfaq.feishu.cn/share/base/form/shrcnf7gC1S58t8Av4x4eNxWSlh" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-blue-600 hover:text-blue-700 hover:underline transition-colors flex items-center gap-1"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-              </svg>
-              {t('footerFeedback')}
-            </a>
-          </div>
+          <span className="text-sm font-medium text-slate-700">
+            insightseel
+          </span>
         </div>
+
+        {/* Links */}
+        <div className="flex gap-6 text-xs text-slate-500">
+          <a className="hover:text-slate-700" href="https://github.com/SamuelZ12/TLDW" target="_blank" rel="noopener noreferrer">
+            {t('footerInspiredBy')}
+          </a>
+          <a className="hover:text-slate-700" href="https://luoyuanai.cn/about" target="_blank" rel="noopener noreferrer">
+            {t('footerAbout')}
+          </a>
+          <a className="hover:text-slate-700" href="https://n1ddxc0sfaq.feishu.cn/share/base/form/shrcnf7gC1S58t8Av4x4eNxWSlh" target="_blank" rel="noopener noreferrer">
+            {t('footerFeedback')}
+          </a>
+        </div>
+
+        {/* Copyright */}
+        <p className="text-xs text-slate-400">© 2025 insightseel. All rights reserved.</p>
       </div>
     </footer>
   );

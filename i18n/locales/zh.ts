@@ -251,10 +251,6 @@ export const zh: Translations = {
   minutesAgo: (count: number) => `${count} 分钟前`,
   hoursAgo: (count: number) => `${count} 小时前`,
   daysAgo: (count: number) => `${count} 天前`,
-  storageLimitsFree: "存储限制（免费版）：",
-  storageLimitsDatabase: "数据库：500MB",
-  storageLimitsFiles: "文件：1GB（不用于视频）",
-  storageLimitsBandwidth: "带宽：10GB/月",
   videoFilesNotSyncedNote: "注意：视频文件不会同步（保留在本地）。仅同步元数据、字幕、分析、笔记和聊天记录。",
   syncedStats: (videos: number, subtitles: number, analyses: number, notes: number, chats: number) =>
     `已同步：${videos} 个视频，${subtitles} 个字幕，${analyses} 个分析，${notes} 个笔记，${chats} 个聊天`,

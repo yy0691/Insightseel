@@ -101,8 +101,11 @@ const AccountPanel: React.FC<AccountPanelProps> = ({ user, onSignOut }) => {
     setLinuxDoStatus("connecting");
 
     try {
-      // 构建回调 URL
-      const redirectUri = `${window.location.origin}/auth/linuxdo/callback`;
+      // 构建回调 URL - 使用当前页面的完整路径，确保与注册的回调 URL 完全匹配
+      // Linux.do OAuth 要求 redirect_uri 必须完全匹配注册时的 URI
+      const redirectUri = `${window.location.origin}${window.location.pathname}`;
+      
+      console.log('Building Linux.do OAuth URL with redirect_uri:', redirectUri);
       
       // 构建授权 URL
       const authUrl = await buildLinuxDoAuthUrl(redirectUri);
@@ -113,6 +116,7 @@ const AccountPanel: React.FC<AccountPanelProps> = ({ user, onSignOut }) => {
       // 注意：这里不会执行到，因为页面会跳转
     } catch (e) {
       setLinuxDoStatus("disconnected");
+      console.error('Linux.do login error:', e);
       toast.error({ 
         title: 'Linux.do 登录失败', 
         description: e instanceof Error ? e.message : '未知错误' 
@@ -302,19 +306,7 @@ const AccountPanel: React.FC<AccountPanelProps> = ({ user, onSignOut }) => {
           </p>
         </div>
       </section>
-
-      {/* 限额说明 */}
-      <section className="rounded-2xl bg-slate-50 px-4 py-3.5">
-        <p className="text-[11px] text-slate-500 leading-relaxed">
-          <strong className="font-medium">{t("storageLimitsFree")}</strong>
-          <br />
-          • {t("storageLimitsDatabase")}
-          <br />
-          • {t("storageLimitsFiles")}
-          <br />
-          • {t("storageLimitsBandwidth")}
-        </p>
-      </section>
+      
     </div>
   );
 };

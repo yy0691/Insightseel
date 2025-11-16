@@ -994,7 +994,12 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
               </div>
           )}
           {activeTab === 'Notes' && (
-              <NotesPanel video={video} note={note} />
+              <NotesPanel 
+                video={video} 
+                note={note} 
+                currentTime={currentTime}
+                onSeekTo={handleSeekTo}
+              />
           )}
         </div>
       </div>

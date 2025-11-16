@@ -244,10 +244,6 @@ export const en = {
   minutesAgo: (count: number) => `${count} min ago`,
   hoursAgo: (count: number) => `${count} hour${count > 1 ? 's' : ''} ago`,
   daysAgo: (count: number) => `${count} day${count > 1 ? 's' : ''} ago`,
-  storageLimitsFree: "Storage Limits (Free Tier):",
-  storageLimitsDatabase: "Database: 500MB",
-  storageLimitsFiles: "Files: 1GB (not used for videos)",
-  storageLimitsBandwidth: "Bandwidth: 10GB/month",
   videoFilesNotSyncedNote: "Note: Video files are NOT synced (they stay local). Only metadata, subtitles, analyses, notes, and chat history are synced.",
   syncedStats: (videos: number, subtitles: number, analyses: number, notes: number, chats: number) =>
     `Synced: ${videos} videos, ${subtitles} subtitles, ${analyses} analyses, ${notes} notes, ${chats} chats`,

@@ -86,8 +86,11 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess, initi
     setLoading(true);
 
     try {
-      // 构建回调 URL
-      const redirectUri = `${window.location.origin}/auth/linuxdo/callback`;
+      // 构建回调 URL - 使用当前页面的完整路径，确保与注册的回调 URL 完全匹配
+      // Linux.do OAuth 要求 redirect_uri 必须完全匹配注册时的 URI
+      const redirectUri = `${window.location.origin}${window.location.pathname}`;
+      
+      console.log('Building Linux.do OAuth URL with redirect_uri:', redirectUri);
       
       // 构建授权 URL
       const authUrl = await buildLinuxDoAuthUrl(redirectUri);
@@ -98,6 +101,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess, initi
       // 注意：这里不会执行到，因为页面会跳转
       // 如果跳转失败，下面的代码才会执行
     } catch (err) {
+      console.error('Linux.do login error:', err);
       toast.error({ 
         title: t('anErrorOccurred'), 
         description: err instanceof Error ? err.message : t('anErrorOccurred') 

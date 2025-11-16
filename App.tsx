@@ -303,7 +303,18 @@ const AppContent: React.FC<{
 
         try {
           // Exchange code for token
-          const redirectUri = `${window.location.origin}/auth/linuxdo/callback`;
+          // Use the same redirect_uri that was used in the authorization request
+          // Get it from sessionStorage if available, otherwise use current path
+          const storedRedirectUri = sessionStorage.getItem('linuxdo_redirect_uri');
+          const redirectUri = storedRedirectUri || `${window.location.origin}${window.location.pathname}`;
+          
+          console.log('Exchanging code for token with redirect_uri:', redirectUri);
+          
+          // Clean up stored redirect_uri after use
+          if (storedRedirectUri) {
+            sessionStorage.removeItem('linuxdo_redirect_uri');
+          }
+          
           const tokenData = await exchangeCodeForToken(code, redirectUri);
 
           // Get user info

@@ -145,24 +145,41 @@ export async function buildLinuxDoAuthUrl(redirectUri: string): Promise<string> 
     throw new Error('Linux.do Client ID not configured. Please set it in Supabase database (oauth_config or app_config table) or set VITE_LINUXDO_CLIENT_ID environment variable.');
   }
 
+  // Ensure redirect_uri is properly encoded and matches exactly what's registered
+  // Remove trailing slash if present, as OAuth providers are strict about URI matching
+  const normalizedRedirectUri = redirectUri.replace(/\/$/, '');
+
   const state = generateRandomString();
   const { codeVerifier, codeChallenge } = await generatePKCE();
 
   // Store PKCE values in sessionStorage for later use
   sessionStorage.setItem('linuxdo_code_verifier', codeVerifier);
   sessionStorage.setItem('linuxdo_state', state);
+  sessionStorage.setItem('linuxdo_redirect_uri', normalizedRedirectUri); // Store for verification
 
   const params = new URLSearchParams({
     client_id: clientId,
-    redirect_uri: redirectUri,
+    redirect_uri: normalizedRedirectUri,
     response_type: 'code',
-    scope: 'read', // Adjust scope as needed
+    scope: 'read', // Linux.do OAuth scope - adjust if needed
     state: state,
     code_challenge: codeChallenge,
     code_challenge_method: 'S256',
   });
 
-  return `${LINUXDO_AUTHORIZE_URL}?${params.toString()}`;
+  const authUrl = `${LINUXDO_AUTHORIZE_URL}?${params.toString()}`;
+  
+  // Debug logging (remove in production)
+  console.log('Linux.do OAuth URL:', {
+    clientId: clientId.substring(0, 8) + '...', // Only log partial client ID
+    redirectUri: normalizedRedirectUri,
+    scope: 'read',
+    hasState: !!state,
+    hasCodeChallenge: !!codeChallenge,
+    fullUrl: authUrl
+  });
+
+  return authUrl;
 }
 
 /**

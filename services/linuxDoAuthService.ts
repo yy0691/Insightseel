@@ -142,12 +142,18 @@ async function generatePKCE(): Promise<{ codeVerifier: string; codeChallenge: st
 export async function buildLinuxDoAuthUrl(redirectUri: string): Promise<string> {
   const clientId = await getClientId();
   if (!clientId) {
-    throw new Error('Linux.do Client ID not configured. Please set it in Supabase database (oauth_config or app_config table) or set VITE_LINUXDO_CLIENT_ID environment variable.');
+    console.error('Linux.do Client ID not configured.');
+    throw new Error('Linux.do Client ID 未配置。请在 Supabase 数据库的 oauth_config 或 app_config 表中添加配置，或设置环境变量 VITE_LINUXDO_CLIENT_ID。');
   }
 
   // Ensure redirect_uri is properly encoded and matches exactly what's registered
   // Remove trailing slash if present, as OAuth providers are strict about URI matching
   const normalizedRedirectUri = redirectUri.replace(/\/$/, '');
+
+  // 清除之前可能存在的状态（防止重复登录导致的问题）
+  sessionStorage.removeItem('linuxdo_code_verifier');
+  sessionStorage.removeItem('linuxdo_state');
+  sessionStorage.removeItem('linuxdo_redirect_uri');
 
   const state = generateRandomString();
   const { codeVerifier, codeChallenge } = await generatePKCE();
@@ -176,7 +182,8 @@ export async function buildLinuxDoAuthUrl(redirectUri: string): Promise<string> 
     scope: 'read',
     hasState: !!state,
     hasCodeChallenge: !!codeChallenge,
-    fullUrl: authUrl
+    authorizeUrl: LINUXDO_AUTHORIZE_URL,
+    fullUrl: authUrl.substring(0, 100) + '...', // 只显示部分 URL，避免日志过长
   });
 
   return authUrl;
@@ -198,7 +205,25 @@ export async function exchangeCodeForToken(
 
   const codeVerifier = sessionStorage.getItem('linuxdo_code_verifier');
   if (!codeVerifier) {
-    throw new Error('Code verifier not found. Please restart the authorization flow.');
+    // 提供更详细的错误信息和解决方案
+    const storedRedirectUri = sessionStorage.getItem('linuxdo_redirect_uri');
+    console.error('Code verifier missing. Session storage state:', {
+      hasCodeVerifier: !!codeVerifier,
+      hasState: !!sessionStorage.getItem('linuxdo_state'),
+      storedRedirectUri,
+      currentRedirectUri: redirectUri,
+    });
+    throw new Error('授权验证码已过期。请重新点击登录按钮，不要在新标签页中打开授权页面。');
+  }
+
+  // 验证 redirect_uri 是否匹配
+  const storedRedirectUri = sessionStorage.getItem('linuxdo_redirect_uri');
+  if (storedRedirectUri && storedRedirectUri !== redirectUri) {
+    console.warn('Redirect URI mismatch:', {
+      stored: storedRedirectUri,
+      current: redirectUri,
+    });
+    // 仍然继续，因为可能只是路径略有不同
   }
 
   // Build request body
@@ -215,42 +240,147 @@ export async function exchangeCodeForToken(
     bodyParams.client_secret = clientSecret;
   }
 
-  const response = await fetch(LINUXDO_TOKEN_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: new URLSearchParams(bodyParams),
+  console.log('Exchanging code for token:', {
+    hasCode: !!code,
+    hasCodeVerifier: !!codeVerifier,
+    redirectUri,
+    tokenUrl: LINUXDO_TOKEN_URL,
   });
 
+  let response: Response;
+  let errorText: string = '';
+
+  try {
+    response = await fetch(LINUXDO_TOKEN_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams(bodyParams),
+    });
+
+    errorText = await response.text();
+  } catch (networkError) {
+    console.error('Network error during token exchange:', networkError);
+    throw new Error(`网络请求失败：无法连接到 Linux.do 服务器。请检查网络连接后重试。`);
+  }
+
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Token exchange failed: ${response.status} - ${errorText}`);
+    console.error('Token exchange failed:', {
+      status: response.status,
+      statusText: response.statusText,
+      errorText,
+      redirectUri,
+      hasCodeVerifier: !!codeVerifier,
+    });
+
+    // 根据不同的错误状态码提供更具体的错误信息
+    let errorMessage = `Token exchange failed: ${response.status}`;
+    if (response.status === 400) {
+      errorMessage = '授权码无效或已过期。请重新登录。';
+    } else if (response.status === 401) {
+      errorMessage = 'Client ID 或 Client Secret 配置错误。请检查配置。';
+    } else if (response.status === 403) {
+      errorMessage = '访问被拒绝。请检查回调 URL 是否在 Linux.do 应用中正确配置。';
+    } else if (response.status >= 500) {
+      errorMessage = 'Linux.do 服务器错误。请稍后重试。';
+    }
+
+    // 尝试解析错误响应（可能是 JSON）
+    try {
+      const errorJson = JSON.parse(errorText);
+      if (errorJson.error_description) {
+        errorMessage += ` ${errorJson.error_description}`;
+      } else if (errorJson.error) {
+        errorMessage += ` ${errorJson.error}`;
+      }
+    } catch {
+      // 如果不是 JSON，使用原始错误文本
+      if (errorText) {
+        errorMessage += ` ${errorText}`;
+      }
+    }
+
+    throw new Error(errorMessage);
   }
 
   // Clear stored values
   sessionStorage.removeItem('linuxdo_code_verifier');
   sessionStorage.removeItem('linuxdo_state');
 
-  return await response.json();
+  try {
+    return await response.json();
+  } catch (parseError) {
+    console.error('Failed to parse token response:', parseError);
+    throw new Error('无法解析服务器响应。请重试。');
+  }
 }
 
 /**
  * Get user information from Linux.do API
  */
 export async function getLinuxDoUserInfo(accessToken: string): Promise<any> {
-  const response = await fetch(LINUXDO_USER_INFO_URL, {
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-    },
+  console.log('Fetching user info from Linux.do:', {
+    url: LINUXDO_USER_INFO_URL,
+    hasToken: !!accessToken,
+    tokenPrefix: accessToken.substring(0, 10) + '...',
   });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to fetch user info: ${response.status} - ${errorText}`);
+  let response: Response;
+  let errorText: string = '';
+
+  try {
+    response = await fetch(LINUXDO_USER_INFO_URL, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+      },
+    });
+
+    errorText = await response.text();
+  } catch (networkError) {
+    console.error('Network error during user info fetch:', networkError);
+    throw new Error(`网络请求失败：无法连接到 Linux.do 服务器。请检查网络连接后重试。`);
   }
 
-  return await response.json();
+  if (!response.ok) {
+    console.error('Failed to fetch user info:', {
+      status: response.status,
+      statusText: response.statusText,
+      errorText,
+    });
+
+    let errorMessage = `获取用户信息失败: ${response.status}`;
+    if (response.status === 401) {
+      errorMessage = '访问令牌无效或已过期。请重新登录。';
+    } else if (response.status === 403) {
+      errorMessage = '没有权限访问用户信息。请检查 OAuth 权限范围。';
+    } else if (response.status >= 500) {
+      errorMessage = 'Linux.do 服务器错误。请稍后重试。';
+    }
+
+    // 尝试解析错误响应
+    try {
+      const errorJson = JSON.parse(errorText);
+      if (errorJson.error_description) {
+        errorMessage += ` ${errorJson.error_description}`;
+      } else if (errorJson.error) {
+        errorMessage += ` ${errorJson.error}`;
+      }
+    } catch {
+      if (errorText) {
+        errorMessage += ` ${errorText}`;
+      }
+    }
+
+    throw new Error(errorMessage);
+  }
+
+  try {
+    return await response.json();
+  } catch (parseError) {
+    console.error('Failed to parse user info response:', parseError);
+    throw new Error('无法解析用户信息响应。请重试。');
+  }
 }
 
 /**
@@ -259,14 +389,83 @@ export async function getLinuxDoUserInfo(accessToken: string): Promise<any> {
 export function verifyState(state: string): boolean {
   const storedState = sessionStorage.getItem('linuxdo_state');
   if (!storedState) {
+    console.error('State verification failed: no stored state found', {
+      receivedState: state,
+      hasStoredState: false,
+      sessionStorageKeys: Object.keys(sessionStorage).filter(k => k.startsWith('linuxdo_')),
+    });
     return false;
   }
   
   const isValid = storedState === state;
-  if (isValid) {
+  if (!isValid) {
+    console.error('State verification failed: state mismatch', {
+      receivedState: state,
+      storedState: storedState.substring(0, 8) + '...',
+      statesMatch: false,
+    });
+  } else {
     sessionStorage.removeItem('linuxdo_state');
   }
   
   return isValid;
+}
+
+/**
+ * Diagnostic function to check Linux.do OAuth configuration
+ * Useful for troubleshooting login issues
+ */
+export async function diagnoseLinuxDoConfig(): Promise<{
+  hasClientId: boolean;
+  clientIdSource: 'env' | 'database' | 'none';
+  hasClientSecret: boolean;
+  supabaseConfigured: boolean;
+  sessionStorageState: {
+    hasCodeVerifier: boolean;
+    hasState: boolean;
+    hasRedirectUri: boolean;
+  };
+  recommendations: string[];
+}> {
+  const config = await getLinuxDoConfig();
+  const hasClientId = !!config?.clientId;
+  const hasClientSecret = !!config?.clientSecret;
+  
+  // Determine source
+  let clientIdSource: 'env' | 'database' | 'none' = 'none';
+  if (import.meta.env.VITE_LINUXDO_CLIENT_ID) {
+    clientIdSource = 'env';
+  } else if (config?.clientId) {
+    clientIdSource = 'database';
+  }
+
+  const sessionStorageState = {
+    hasCodeVerifier: !!sessionStorage.getItem('linuxdo_code_verifier'),
+    hasState: !!sessionStorage.getItem('linuxdo_state'),
+    hasRedirectUri: !!sessionStorage.getItem('linuxdo_redirect_uri'),
+  };
+
+  const recommendations: string[] = [];
+
+  if (!hasClientId) {
+    recommendations.push('配置 Linux.do Client ID：在 Supabase 数据库的 oauth_config 或 app_config 表中添加配置，或设置环境变量 VITE_LINUXDO_CLIENT_ID');
+  }
+
+  if (!supabase) {
+    recommendations.push('配置 Supabase：确保 Supabase 客户端已正确初始化');
+  }
+
+  if (sessionStorageState.hasCodeVerifier || sessionStorageState.hasState) {
+    recommendations.push('检测到未完成的登录流程：请清除浏览器 sessionStorage 或重新开始登录流程');
+  }
+
+  return {
+    hasClientId,
+    clientIdSource,
+    hasClientSecret,
+    supabaseConfigured: !!supabase,
+    sessionStorageState,
+    recommendations,
+  };
 }
 

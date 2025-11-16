@@ -296,8 +296,14 @@ const AppContent: React.FC<{
 
         // Verify state
         if (!verifyState(state)) {
-          console.error('Invalid state parameter');
-          toast.error({ title: 'Linux.do 登录验证失败', description: '状态参数不匹配' });
+          console.error('Invalid state parameter', {
+            receivedState: state,
+            sessionStorageKeys: Object.keys(sessionStorage).filter(k => k.startsWith('linuxdo_')),
+          });
+          toast.error({ 
+            title: 'Linux.do 登录验证失败', 
+            description: '状态参数不匹配。这可能是因为：1) 在新标签页打开了授权页面；2) SessionStorage 被清除；3) 跨域问题。请重新点击登录按钮，确保在同一窗口中完成授权。' 
+          });
           return;
         }
 
@@ -447,9 +453,25 @@ const AppContent: React.FC<{
           }, 2000);
         } catch (err) {
           console.error('Linux.do OAuth callback error:', err);
+          
+          // 提供更详细的错误信息
+          let errorMessage = '未知错误';
+          if (err instanceof Error) {
+            errorMessage = err.message;
+          }
+          
+          // 如果是常见的错误，提供解决方案
+          if (errorMessage.includes('Code verifier') || errorMessage.includes('授权验证码')) {
+            errorMessage += ' 提示：请重新点击登录按钮，不要在新标签页中打开授权页面。';
+          } else if (errorMessage.includes('redirect_uri') || errorMessage.includes('回调')) {
+            errorMessage += ' 提示：请确保在 Linux.do 应用中配置的回调 URL 与当前页面 URL 完全匹配。';
+          } else if (errorMessage.includes('Client ID')) {
+            errorMessage += ' 提示：请检查 Linux.do Client ID 是否正确配置。';
+          }
+          
           toast.error({ 
             title: 'Linux.do 登录处理失败', 
-            description: err instanceof Error ? err.message : '未知错误' 
+            description: errorMessage 
           });
         }
       }

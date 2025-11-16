@@ -102,9 +102,20 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess, initi
       // 如果跳转失败，下面的代码才会执行
     } catch (err) {
       console.error('Linux.do login error:', err);
+      
+      let errorMessage = t('anErrorOccurred');
+      if (err instanceof Error) {
+        errorMessage = err.message;
+        
+        // 如果是配置错误，提供更详细的帮助信息
+        if (errorMessage.includes('Client ID') || errorMessage.includes('未配置')) {
+          errorMessage += ' 请检查：1) Supabase 数据库中的 oauth_config 或 app_config 表；2) 环境变量 VITE_LINUXDO_CLIENT_ID；3) 浏览器控制台的详细错误信息。';
+        }
+      }
+      
       toast.error({ 
         title: t('anErrorOccurred'), 
-        description: err instanceof Error ? err.message : t('anErrorOccurred') 
+        description: errorMessage 
       });
       setLoading(false);
     }

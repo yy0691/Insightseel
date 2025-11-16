@@ -117,9 +117,20 @@ const AccountPanel: React.FC<AccountPanelProps> = ({ user, onSignOut }) => {
     } catch (e) {
       setLinuxDoStatus("disconnected");
       console.error('Linux.do login error:', e);
+      
+      let errorMessage = '未知错误';
+      if (e instanceof Error) {
+        errorMessage = e.message;
+        
+        // 如果是配置错误，提供更详细的帮助信息
+        if (errorMessage.includes('Client ID') || errorMessage.includes('未配置')) {
+          errorMessage += ' 请检查：1) Supabase 数据库中的 oauth_config 或 app_config 表；2) 环境变量 VITE_LINUXDO_CLIENT_ID；3) 浏览器控制台的详细错误信息。';
+        }
+      }
+      
       toast.error({ 
         title: 'Linux.do 登录失败', 
-        description: e instanceof Error ? e.message : '未知错误' 
+        description: errorMessage 
       });
     }
   };

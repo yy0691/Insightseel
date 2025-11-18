@@ -84,11 +84,9 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
   const [clickedSegmentIndex, setClickedSegmentIndex] = useState<number | null>(null);
   const [showTranslationLanguageModal, setShowTranslationLanguageModal] = useState(false);
   const [isTranslationFromUser, setIsTranslationFromUser] = useState(false);
-  const [showRegenerateConfirmModal, setShowRegenerateConfirmModal] = useState(false);
-  const [showSubtitleLanguageModal, setShowSubtitleLanguageModal] = useState(false);
-  const [selectedVideoLanguage, setSelectedVideoLanguage] = useState<string | null>(null); // 用户选择的视频语言
   
   const [generationStatus, setGenerationStatus] = useState({ active: false, stage: '', progress: 0 });
+  const abortControllerRef = useRef<AbortController | null>(null);
   const [streamingSubtitles, setStreamingSubtitles] = useState(''); // For real-time subtitle display
   const [videoHash, setVideoHash] = useState<string>(''); // Video hash for caching
   const [segmentedAvailable, setSegmentedAvailable] = useState(false);
@@ -165,6 +163,23 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
   ) ?? -1;
   
   const activeSegmentIndex = clickedSegmentIndex !== null ? clickedSegmentIndex : computedActiveIndex;
+
+  // Cancel subtitle generation
+  const handleCancelSubtitleGeneration = () => {
+    if (abortControllerRef.current) {
+      console.log('[VideoDetail] Cancelling subtitle generation...');
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      setIsGeneratingSubtitles(false);
+      setGenerationStatus({ active: false, stage: '', progress: 0 });
+      setStreamingSubtitles('');
+      toast.info({
+        title: language === 'zh' ? '已取消' : 'Cancelled',
+        description: language === 'zh' ? '字幕生成已取消' : 'Subtitle generation cancelled',
+        duration: 2000
+      });
+    }
+  };
 
   // 滚动到当前字幕位置的函数
   const scrollToActiveSegment = useCallback(() => {
@@ -395,43 +410,11 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
     }
   };
   
-  const handleRegenerateSubtitles = async () => {
-    if (isGeneratingSubtitles) {
-      return;
-    }
-
-    // Clear cache before regenerating
-    if (videoHash) {
-      await clearVideoCache(videoHash);
-      console.log('[Subtitle] 🧹 Cleared cache for regeneration');
-    }
-
-    // 🎯 重新生成时也显示语言选择（如果之前没有选择过）
-    if (!selectedVideoLanguage) {
-      setShowSubtitleLanguageModal(true);
-      return;
-    }
-
-    // Call the original generate function with skipCache flag and selected language
-    await handleGenerateSubtitles(true, selectedVideoLanguage);
-  };
-
-  const handleGenerateSubtitles = async (skipCache: boolean = false, videoLanguage?: string) => {
+  const handleGenerateSubtitles = async () => {
     // Prevent duplicate calls
     if (isGeneratingSubtitles) {
       console.log('Subtitle generation already in progress, ignoring duplicate call');
       return;
-    }
-
-    // 🎯 如果提供了语言参数，使用它；否则显示语言选择模态框
-    if (!videoLanguage && !selectedVideoLanguage) {
-      setShowSubtitleLanguageModal(true);
-      return;
-    }
-
-    // 如果用户选择了语言，保存它
-    if (videoLanguage) {
-      setSelectedVideoLanguage(videoLanguage);
     }
 
     // Validate file size (max 2GB)
@@ -443,7 +426,10 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
       return;
     }
 
-    console.log(`Starting subtitle generation for ${fileSizeMB.toFixed(1)}MB video`);
+    console.log(`Starting subtitle generation for ${fileSizeMB.toFixed(1)}MB video in ${videoLanguage === 'zh' ? 'Chinese' : videoLanguage === 'en' ? 'English' : 'Auto-detect'}`);
+
+    // Create abort controller for cancellation
+    abortControllerRef.current = new AbortController();
 
     // Set initial state early to show UI feedback
     setIsGeneratingSubtitles(true);
@@ -517,8 +503,10 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
     setStreamingSubtitles('');
     setGenerationStatus({ active: true, stage: 'Checking cache...', progress: 5 });
 
+    // Use selected video language, not UI language
+    const videoSourceLanguage = videoLanguage === 'zh' ? 'Chinese' : videoLanguage === 'en' ? 'English' : 'Auto-detect';
     const targetLanguageName = language === 'zh' ? 'Chinese' : 'English';
-    const prompt = t('generateSubtitlesPrompt', sourceLanguage, targetLanguageName);
+    const prompt = t('generateSubtitlesPrompt', videoSourceLanguage, targetLanguageName);
 
     try {
       const result = await generateResilientSubtitles({
@@ -526,7 +514,6 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
         videoHash,
         prompt,
         sourceLanguage,
-        skipCache,
         onStatus: ({ stage, progress }) => setGenerationStatus({ active: true, stage, progress }),
         onStreamText: (text) => setStreamingSubtitles(text),
         onPartialSubtitles: async (segments) => {
@@ -562,8 +549,14 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
           'Check browser console (F12) for detailed logs.';
       }
 
-      alert(`${userMessage}\n\nPartial results may have been saved. Try reloading the page.`);
+      // Check if error was due to cancellation
+      if (errorMessage.includes('aborted') || errorMessage.includes('cancelled')) {
+        console.log('[VideoDetail] Subtitle generation was cancelled by user');
+      } else {
+        alert(`${userMessage}\n\nPartial results may have been saved. Try reloading the page.`);
+      }
     } finally {
+      abortControllerRef.current = null;
       setIsGeneratingSubtitles(false);
       setStreamingSubtitles('');
       setTimeout(() => {
@@ -756,7 +749,7 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
         <div className="bg-white rounded-3xl shadow-sm flex flex-col flex-1 min-h-0  overflow-hidden">
           <div ref={subtitleContainerRef} className="flex-1 min-h-0 overflow-y-auto relative custom-scrollbar">
             {isGeneratingSubtitles || isTranslating ? (
-                <div className="flex flex-col items-center justify-center h-full text-center">
+                <div className="flex flex-col items-center justify-center h-full text-center px-6">
                     <p className="mt-4 text-sm text-slate-700">{isTranslating ? t('translatingSubtitles') : generationStatus.stage || t('generatingSubtitles')}</p>
                     {generationStatus.progress > 0 && (
                       <div className="w-full max-w-xs bg-slate-200 rounded-full h-1.5 mt-3">
@@ -766,6 +759,14 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
                     <p className="text-xs text-slate-500 mt-2">
                       {t('subtitleGenerationWarning')}
                     </p>
+                    {isGeneratingSubtitles && (
+                      <button
+                        onClick={handleCancelSubtitleGeneration}
+                        className="mt-4 px-4 py-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-full hover:bg-red-100 transition"
+                      >
+                        {language === 'zh' ? '取消生成' : 'Cancel'}
+                      </button>
+                    )}
                     {streamingSubtitles && (
                       <div className="mt-4 p-3 bg-slate-50 rounded-xl border border-slate-200 text-left max-w-lg max-h-48 overflow-y-auto text-xs whitespace-pre-wrap">
                         <p className="text-slate-600 font-mono">{streamingSubtitles}</p>
@@ -1071,6 +1072,63 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
         </div>
       </div>
       </div>
+
+      {/* 字幕语言选择模态框 */}
+      {showSubtitleLanguageModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="relative w-full max-w-md overflow-hidden rounded-[32px] bg-white shadow-[0_18px_80px_rgba(15,23,42,0.32)] text-slate-900">
+            <button
+              onClick={() => setShowSubtitleLanguageModal(false)}
+              className="absolute right-5 top-5 flex h-9 w-9 items-center justify-center rounded-full bg-slate-100/80 text-slate-500 hover:bg-slate-200 hover:text-slate-700 transition"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <div className="border-b border-slate-100 px-8 py-6">
+              <h2 className="text-lg font-semibold tracking-tight">
+                {language === 'zh' ? '选择视频语言' : 'Select Video Language'}
+              </h2>
+              <p className="text-sm text-slate-500 mt-1">
+                {language === 'zh' ? '选择视频中说话的语言' : 'Choose the language spoken in the video'}
+              </p>
+            </div>
+            <div className="px-8 py-6 space-y-3">
+              <button
+                onClick={() => handleGenerateSubtitles('auto')}
+                className="w-full rounded-2xl bg-slate-50 px-4 py-3 text-left text-sm border border-slate-200 hover:bg-slate-100 hover:border-slate-300 transition"
+              >
+                <div className="font-medium text-slate-900">
+                  {language === 'zh' ? '自动检测' : 'Auto-detect'}
+                </div>
+                <div className="text-xs text-slate-500 mt-0.5">
+                  {language === 'zh' ? '让 AI 自动识别视频语言' : 'Let AI automatically detect the language'}
+                </div>
+              </button>
+              <button
+                onClick={() => handleGenerateSubtitles('en')}
+                className="w-full rounded-2xl bg-slate-50 px-4 py-3 text-left text-sm border border-slate-200 hover:bg-slate-100 hover:border-slate-300 transition"
+              >
+                <div className="font-medium text-slate-900">English</div>
+                <div className="text-xs text-slate-500 mt-0.5">
+                  {language === 'zh' ? '视频是英语的' : 'Video is in English'}
+                </div>
+              </button>
+              <button
+                onClick={() => handleGenerateSubtitles('zh')}
+                className="w-full rounded-2xl bg-slate-50 px-4 py-3 text-left text-sm border border-slate-200 hover:bg-slate-100 hover:border-slate-300 transition"
+              >
+                <div className="font-medium text-slate-900">
+                  {language === 'zh' ? '中文' : 'Chinese'}
+                </div>
+                <div className="text-xs text-slate-500 mt-0.5">
+                  {language === 'zh' ? '视频是中文的' : 'Video is in Chinese'}
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 翻译语言选择模态框 */}
       {showTranslationLanguageModal && (

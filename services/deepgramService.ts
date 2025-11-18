@@ -238,7 +238,8 @@ function normalizeLanguageCode(language?: string): string | undefined {
 export async function generateSubtitlesWithDeepgram(
   file: File | Blob,
   language?: string,
-  onProgress?: (progress: number) => void
+  onProgress?: (progress: number) => void,
+  abortSignal?: AbortSignal
 ): Promise<DeepgramResponse> {
   const settings = await getEffectiveSettings();
   const apiKey = getDeepgramApiKey(settings.deepgramApiKey);
@@ -996,6 +997,11 @@ export async function generateSubtitlesWithDeepgram(
     hasAuth: !!apiKey,
     keySource: settings.deepgramApiKey ? 'user' : 'system'
   });
+
+  // Check if aborted before making request
+  if (abortSignal?.aborted) {
+    throw new Error('Operation cancelled by user');
+  }
 
   // Call Deepgram API through proxy (使用带超时的fetch，并添加重试机制)
   const response = await retryWithBackoff(

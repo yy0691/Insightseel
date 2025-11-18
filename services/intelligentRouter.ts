@@ -23,6 +23,7 @@ interface RouterOptions {
   video?: Video;
   language?: string;
   prompt?: string;
+  abortSignal?: AbortSignal;
   onProgress?: (progress: number, stage: string) => void;
   onSegmentComplete?: (segmentIndex: number, totalSegments: number, segments: SubtitleSegment[]) => void;
 }
@@ -33,7 +34,7 @@ interface RouterOptions {
 export async function generateSubtitlesIntelligent(
   options: RouterOptions
 ): Promise<RouterResult> {
-  const { file, video, language, prompt, onProgress, onSegmentComplete } = options;
+  const { file, video, language, prompt, onProgress, onSegmentComplete, abortSignal } = options;
   const startTime = Date.now();
   const fileSizeMB = file.size / (1024 * 1024);
 
@@ -68,10 +69,16 @@ export async function generateSubtitlesIntelligent(
       // Adapt onProgress: generateSubtitlesWithDeepgram expects (progress: number) => void
       // but RouterOptions provides (progress: number, stage: string) => void
       const adaptedOnProgress = onProgress 
-        ? (progress: number) => onProgress(progress, 'Transcribing with Deepgram...')
+        ? (progress: number) => {
+            // Check abort before progress update
+            if (abortSignal?.aborted) {
+              throw new Error('Operation cancelled by user');
+            }
+            onProgress(progress, 'Transcribing with Deepgram...');
+          }
         : undefined;
 
-      const result = await generateSubtitlesWithDeepgram(file, language, adaptedOnProgress);
+      const result = await generateSubtitlesWithDeepgram(file, language, adaptedOnProgress, abortSignal);
       const srtContent = deepgramToSrt(result);
       
       // 🎯 记录Deepgram返回的字幕数量

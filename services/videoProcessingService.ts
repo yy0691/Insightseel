@@ -44,6 +44,7 @@ interface SubtitleGenerationOptions {
   videoHash?: string;
   prompt: string;
   sourceLanguage: string;
+  abortSignal?: AbortSignal;
   onStatus?: (status: StatusUpdate) => void;
   onStreamText?: (text: string) => void;
   onPartialSubtitles?: (segments: SubtitleSegment[]) => Promise<void> | void;
@@ -459,6 +460,11 @@ export async function generateResilientSubtitles(
   onStatus?.({ stage: 'Selecting best transcription service...', progress: 15 });
 
   try {
+    // Check if aborted before starting
+    if (abortSignal?.aborted) {
+      throw new Error('Operation cancelled by user');
+    }
+
     const languageCode = LANGUAGE_CODE_MAP[options.sourceLanguage] ?? undefined;
 
     const routerResult: RouterResult = await generateSubtitlesIntelligent({
@@ -466,6 +472,7 @@ export async function generateResilientSubtitles(
       video: video,
       language: languageCode,
       prompt: options.prompt,
+      abortSignal,
       onProgress: (progress, stage) => {
         onStatus?.({ stage, progress: 15 + progress * 0.80 });
       },

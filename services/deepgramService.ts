@@ -166,8 +166,11 @@ export async function generateSubtitlesWithDeepgram(
   // 尝试直接调用（如果文件不是太大）
   const shouldTryDirectFirst = fileSizeMB <= DEEPGRAM_DIRECT_LIMIT_MB;
   
-  if (shouldTryDirectFirst && fileSizeMB > VERCEL_SIZE_LIMIT_MB) {
+  // 🎯 对于大文件，先尝试直接调用（如果不是太大）
+  let directCallFailed = false;
+  if (shouldTryDirectFirst && fileSizeMB > VERCEL_SIZE_LIMIT_MB && fileSizeMB <= 500) {
     console.log(`[Deepgram] 🚀 Large file (${fileSizeMB.toFixed(2)}MB), will try direct API call first (bypassing Vercel)`);
+    console.log('[Deepgram] ⚠️ Warning: Large files may take longer or timeout. If this fails, will compress and retry.');
     
     // 先尝试直接调用，不压缩
     try {
@@ -208,17 +211,27 @@ export async function generateSubtitlesWithDeepgram(
         return result;
       } else {
         const errorText = await directResponse.text();
-        console.warn('[Deepgram] ⚠️ Direct API call failed, will try compression:', errorText);
+        console.warn('[Deepgram] ⚠️ Direct API call failed (will compress and retry):', errorText);
+        directCallFailed = true;
       }
     } catch (directError) {
-      console.log('[Deepgram] ℹ️ Direct API call failed, will try compression:', directError);
+      const errorMsg = directError instanceof Error ? directError.message : String(directError);
+      console.log('[Deepgram] ℹ️ Direct API call failed (will compress and retry):', errorMsg);
+      directCallFailed = true;
     }
   }
 
   // For large files that need compression or if direct call failed
-  if (fileSizeMB > VERCEL_SIZE_LIMIT_MB) {
-    console.log(`[Deepgram] File too large for direct transfer (${fileSizeMB.toFixed(2)}MB > ${VERCEL_SIZE_LIMIT_MB}MB)`);
-    console.log('[Deepgram] Compressing audio to reduce size...');
+  if (fileSizeMB > VERCEL_SIZE_LIMIT_MB || directCallFailed) {
+    if (fileSizeMB > 100) {
+      console.log(`[Deepgram] 🔥 Very large file (${fileSizeMB.toFixed(2)}MB), skipping direct call`);
+      console.log('[Deepgram] 🎯 Will compress first for optimal performance...');
+    } else if (directCallFailed) {
+      console.log(`[Deepgram] ⚠️ Direct call failed or timed out, trying compression approach...`);
+    } else {
+      console.log(`[Deepgram] File too large for proxy (${fileSizeMB.toFixed(2)}MB > ${VERCEL_SIZE_LIMIT_MB}MB)`);
+      console.log('[Deepgram] Compressing audio to reduce size...');
+    }
     
     try {
       // Import audio extraction service
@@ -411,13 +424,16 @@ export async function generateSubtitlesWithDeepgram(
       }
 
       // Use compressed audio
-      console.log('[Deepgram] Using compressed audio for transcription');
+      console.log('[Deepgram] ✅ Compression successful! Using compressed audio for transcription');
       file = audioBlob;
       
-      // 🎯 压缩后的音频也尝试直接调用（不受4MB限制）
+      // 🎯 压缩后的音频优先尝试直接调用（绕过Vercel和Storage）
       const compressedFileSizeMB = file.size / (1024 * 1024);
+      console.log(`[Deepgram] 📊 Compressed audio size: ${compressedFileSizeMB.toFixed(2)}MB`);
+      
       if (compressedFileSizeMB <= DEEPGRAM_DIRECT_LIMIT_MB) {
-        console.log(`[Deepgram] 🚀 Compressed audio (${compressedFileSizeMB.toFixed(2)}MB), trying direct API call first`);
+        console.log(`[Deepgram] 🚀 Compressed audio (${compressedFileSizeMB.toFixed(2)}MB) is small enough for direct API call`);
+        console.log('[Deepgram] 🎯 Attempting direct call (bypassing Vercel & Storage)...');
         
         try {
           onProgress?.(55);
@@ -437,7 +453,7 @@ export async function generateSubtitlesWithDeepgram(
           const contentType = 'audio/wav';
           const directUrl = `https://api.deepgram.com/v1/listen?${params.toString()}`;
           
-          console.log('[Deepgram] 📤 Uploading compressed audio to Deepgram directly...');
+          console.log('[Deepgram] 📤 Uploading compressed audio directly to Deepgram...');
           
           const directResponse = await fetch(directUrl, {
             method: 'POST',
@@ -453,15 +469,22 @@ export async function generateSubtitlesWithDeepgram(
           if (directResponse.ok) {
             const result: DeepgramResponse = await directResponse.json();
             onProgress?.(100);
-            console.log('[Deepgram] ✅ Direct API call with compressed audio successful!');
+            console.log('[Deepgram] ✅✅✅ SUCCESS! Direct API call with compressed audio worked!');
+            console.log('[Deepgram] 🎉 No Vercel proxy, no Storage, no login required!');
             return result;
           } else {
             const errorText = await directResponse.text();
             console.warn('[Deepgram] ⚠️ Direct API call with compressed audio failed:', errorText);
+            console.log('[Deepgram] Will try proxy mode as fallback...');
           }
         } catch (compressedDirectError) {
-          console.log('[Deepgram] ℹ️ Direct API call with compressed audio failed, will try proxy:', compressedDirectError);
+          const errorMsg = compressedDirectError instanceof Error ? compressedDirectError.message : String(compressedDirectError);
+          console.log('[Deepgram] ℹ️ Direct API call with compressed audio failed:', errorMsg);
+          console.log('[Deepgram] Will try proxy mode as fallback...');
         }
+      } else {
+        console.log(`[Deepgram] ⚠️ Compressed audio (${compressedFileSizeMB.toFixed(2)}MB) still too large for direct call`);
+        console.log('[Deepgram] Will try uploading to Storage or use proxy...');
       }
       
     } catch (error) {

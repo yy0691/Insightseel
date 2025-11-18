@@ -163,10 +163,13 @@ export async function generateSubtitlesWithDeepgram(
   // 2. 如果文件 4MB-2GB：尝试直接调用（绕过Vercel限制）
   // 3. 如果文件 > 2GB：必须压缩
   
-  // 尝试直接调用（如果文件不是太大）
+  // 🎯 检查是否应该尝试直接调用
+  // 注意：Deepgram API 的某些端点（如 /v1/projects）不支持CORS
+  // 如果在验证阶段检测到CORS错误，这里也会遇到相同问题
   const shouldTryDirectFirst = fileSizeMB <= DEEPGRAM_DIRECT_LIMIT_MB;
   
   // 🎯 对于大文件，先尝试直接调用（如果不是太大）
+  // 注意：如果遇到CORS错误，会自动降级到压缩+proxy模式
   let directCallFailed = false;
   if (shouldTryDirectFirst && fileSizeMB > VERCEL_SIZE_LIMIT_MB && fileSizeMB <= 500) {
     console.log(`[Deepgram] 🚀 Large file (${fileSizeMB.toFixed(2)}MB), will try direct API call first (bypassing Vercel)`);

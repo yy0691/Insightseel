@@ -115,18 +115,72 @@ export async function analyzeVideoMetadata(
       video.src = objectUrl;
     });
 
-    let hasAudioTrack = inferHasAudioTrack(video);
-    console.log('[Audio Analysis] Initial hasAudioTrack detection:', hasAudioTrack);
     let averageLoudness = 0;
     let peakLoudness = 0;
     let silenceRatio = 1;
     let sampledWindowSeconds = 0;
+    
+    // 🎯 暂时不在这里检测hasAudioTrack，因为音频数据还没加载
+    // 将在音频数据加载后再检测
+    let hasAudioTrack = false;
 
     try {
       const AudioContextCls = (window.AudioContext || (window as any).webkitAudioContext) as typeof AudioContext | undefined;
       if (!AudioContextCls) {
         throw new Error('AudioContext is not supported in this environment.');
       }
+
+      // 🎯 关键修复：在分析音频前，确保视频数据已加载
+      // preload='metadata' 只加载元数据，不加载音频数据
+      // 我们需要等待足够的数据加载才能进行音频分析
+      console.log('[Audio Analysis] 🔄 Waiting for audio data to load... (readyState:', video.readyState, ')');
+      
+      // 如果readyState < HAVE_FUTURE_DATA (3)，需要等待更多数据
+      if (video.readyState < 3) {
+        // 临时改变preload以加载音频数据
+        video.preload = 'auto';
+        
+        // 等待canplay事件（readyState >= HAVE_FUTURE_DATA）
+        await new Promise<void>((resolve, reject) => {
+          const timeoutId = setTimeout(() => {
+            console.warn('[Audio Analysis] ⚠️ Timeout waiting for audio data. Proceeding anyway...');
+            resolve();
+          }, 5000); // 5秒超时
+          
+          const onCanPlay = () => {
+            clearTimeout(timeoutId);
+            console.log('[Audio Analysis] ✅ Audio data loaded (readyState:', video.readyState, ')');
+            resolve();
+          };
+          
+          const onError = () => {
+            clearTimeout(timeoutId);
+            console.warn('[Audio Analysis] ⚠️ Error loading audio data');
+            resolve(); // 不要reject，继续尝试分析
+          };
+          
+          video.addEventListener('canplay', onCanPlay, { once: true });
+          video.addEventListener('error', onError, { once: true });
+          
+          // 如果已经可以播放了，立即resolve
+          if (video.readyState >= 3) {
+            clearTimeout(timeoutId);
+            video.removeEventListener('canplay', onCanPlay);
+            video.removeEventListener('error', onError);
+            console.log('[Audio Analysis] ✅ Audio data already loaded (readyState:', video.readyState, ')');
+            resolve();
+          } else {
+            // 触发加载
+            video.load();
+          }
+        });
+      } else {
+        console.log('[Audio Analysis] ✅ Audio data already available (readyState:', video.readyState, ')');
+      }
+
+      // 🎯 现在音频数据已加载，可以进行准确的音频轨道检测了
+      hasAudioTrack = inferHasAudioTrack(video);
+      console.log('[Audio Analysis] Audio track detection after data loaded:', hasAudioTrack);
 
       const audioContext = new AudioContextCls();
       const source = audioContext.createMediaElementSource(video);
@@ -185,10 +239,47 @@ export async function analyzeVideoMetadata(
           video.playbackRate = playbackRate;
 
           await audioContext.resume().catch(() => {});
-          await video.play().catch(() => {});
           
-          // 等待视频定位到正确位置
-          await new Promise((resolve) => setTimeout(resolve, 200));
+          // 🎯 关键修复：等待视频seek完成并真正开始播放
+          // 不要使用固定超时，而是等待'seeked'和'playing'事件
+          await new Promise<void>((resolve) => {
+            let seeked = false;
+            let playing = false;
+            const timeoutId = setTimeout(() => {
+              console.warn('[Audio Analysis] ⚠️ Timeout waiting for video to start playing at position', segmentStartTime);
+              resolve();
+            }, 3000);
+            
+            const checkReady = () => {
+              if (seeked && playing) {
+                clearTimeout(timeoutId);
+                // 再等待一小段时间让音频缓冲区填充
+                setTimeout(resolve, 300);
+              }
+            };
+            
+            const onSeeked = () => {
+              seeked = true;
+              console.log('[Audio Analysis] ✅ Seeked to position', video.currentTime);
+              checkReady();
+            };
+            
+            const onPlaying = () => {
+              playing = true;
+              console.log('[Audio Analysis] ✅ Video playing at position', video.currentTime);
+              checkReady();
+            };
+            
+            video.addEventListener('seeked', onSeeked, { once: true });
+            video.addEventListener('playing', onPlaying, { once: true });
+            
+            // 开始播放
+            video.play().catch((err) => {
+              console.warn('[Audio Analysis] ⚠️ Play failed:', err);
+              clearTimeout(timeoutId);
+              resolve(); // 即使失败也继续
+            });
+          });
 
           const wallClockLimit = (segmentDuration / playbackRate) * 1000;
           const startTime = performance.now();

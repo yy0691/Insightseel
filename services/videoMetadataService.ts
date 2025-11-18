@@ -41,10 +41,12 @@ function inferHasAudioTrack(video: HTMLVideoElement): boolean {
 
   // 方法2: Chrome/Safari 的 webkitAudioDecodedByteCount
   if (typeof anyVideo.webkitAudioDecodedByteCount === 'number') {
-    const result = anyVideo.webkitAudioDecodedByteCount > 0;
+    const byteCount = anyVideo.webkitAudioDecodedByteCount;
+    const result = byteCount > 0;
     detectionMethods.push({ name: 'webkitAudioDecodedByteCount', result });
+    console.log('[Audio Detection] 🔍 webkitAudioDecodedByteCount:', byteCount, '(result:', result, ')');
     if (result) {
-      console.log('[Audio Detection] ✅ Detected audio track via webkitAudioDecodedByteCount:', anyVideo.webkitAudioDecodedByteCount);
+      console.log('[Audio Detection] ✅ Detected audio track via webkitAudioDecodedByteCount');
       return true;
     }
   }
@@ -178,24 +180,63 @@ export async function analyzeVideoMetadata(
         console.log('[Audio Analysis] ✅ Audio data already available (readyState:', video.readyState, ')');
       }
 
-      // 🎯 现在音频数据已加载，可以进行准确的音频轨道检测了
+      // 🎯 关键发现：webkitAudioDecodedByteCount 只有在视频播放并解码音频后才会有值
+      // 所以需要先播放一小段时间，让浏览器解码音频数据
+      console.log('[Audio Analysis] 🎬 Playing video briefly to trigger audio decoding...');
+      
+      video.currentTime = Math.min(5, metadata.duration * 0.1); // 跳到10%位置或5秒
+      await video.play().catch(() => {});
+      await new Promise(resolve => setTimeout(resolve, 500)); // 播放500ms让音频解码
+      video.pause();
+      
+      console.log('[Audio Analysis] 🔍 Video element state after brief playback:', {
+        readyState: video.readyState,
+        networkState: video.networkState,
+        duration: video.duration,
+        currentTime: video.currentTime,
+        paused: video.paused
+      });
+      
       hasAudioTrack = inferHasAudioTrack(video);
-      console.log('[Audio Analysis] Audio track detection after data loaded:', hasAudioTrack);
+      console.log('[Audio Analysis] Audio track detection after brief playback:', hasAudioTrack);
+      
+      // 🎯 即使API检测失败，对于长视频，我们仍然强制尝试音频分析
+      if (!hasAudioTrack && metadata.duration > 300) {
+        console.warn('[Audio Analysis] ⚠️ API detection failed but video is >5min. Will still attempt audio analysis.');
+      }
+      
+      // 重置到开头
+      video.currentTime = 0;
+
+      // 🎯 关键修复：取消muted，否则AudioContext可能无法获取音频数据
+      // 在某些浏览器中，muted=true会导致音频解码器不工作
+      video.muted = false;
+      video.volume = 1.0; // 确保音量不是0
+      console.log('[Audio Analysis] 🔊 Unmuted video for AudioContext analysis');
 
       const audioContext = new AudioContextCls();
+      console.log('[Audio Analysis] 🎵 AudioContext created, initial state:', audioContext.state);
+      
       const source = audioContext.createMediaElementSource(video);
       const analyser = audioContext.createAnalyser();
       const gain = audioContext.createGain();
 
       analyser.fftSize = 2048;
-      gain.gain.value = 0; // Avoid audible playback while still allowing analysis
+      analyser.smoothingTimeConstant = 0.3; // 减少平滑，更快响应
+      gain.gain.value = 0; // 通过gain控制静音，而不是video.muted
 
       source.connect(analyser);
       analyser.connect(gain);
       gain.connect(audioContext.destination);
+      
+      console.log('[Audio Analysis] 🔌 Audio pipeline connected: video -> source -> analyser -> gain -> destination');
 
       const dataArray = new Uint8Array(analyser.fftSize);
       const amplitudeSamples: number[] = [];
+      
+      // 🎯 关键修复：立即resume AudioContext，不要等到循环内部
+      await audioContext.resume();
+      console.log('[Audio Analysis] 🎵 AudioContext resumed, current state:', audioContext.state);
 
       // 🎯 根据视频长度动态调整采样时长和位置
       // 对于长视频，从多个位置采样以获得更准确的结果
@@ -237,8 +278,6 @@ export async function analyzeVideoMetadata(
           
           video.currentTime = segmentStartTime;
           video.playbackRate = playbackRate;
-
-          await audioContext.resume().catch(() => {});
           
           // 🎯 关键修复：等待视频seek完成并真正开始播放
           // 不要使用固定超时，而是等待'seeked'和'playing'事件
@@ -283,18 +322,23 @@ export async function analyzeVideoMetadata(
 
           const wallClockLimit = (segmentDuration / playbackRate) * 1000;
           const startTime = performance.now();
+          let sampleCount = 0;
 
           while (performance.now() - startTime < wallClockLimit && !video.ended && video.currentTime < duration) {
             analyser.getByteTimeDomainData(dataArray);
 
             let sum = 0;
             let max = 0;
+            let nonZeroCount = 0;
             for (let i = 0; i < dataArray.length; i++) {
               const normalized = (dataArray[i] - 128) / 128;
               const amplitude = Math.abs(normalized);
               sum += amplitude;
               if (amplitude > max) {
                 max = amplitude;
+              }
+              if (dataArray[i] !== 128) {
+                nonZeroCount++;
               }
             }
 
@@ -303,9 +347,26 @@ export async function analyzeVideoMetadata(
             if (max > peakLoudness) {
               peakLoudness = max;
             }
+            
+            // 🎯 诊断日志：每10个样本输出一次详细信息
+            if (sampleCount === 0 || sampleCount === 5) {
+              console.log('[Audio Analysis] 📊 Sample', sampleCount, ':', {
+                position: video.currentTime.toFixed(2),
+                paused: video.paused,
+                audioContextState: audioContext.state,
+                averageAmplitude: averageAmplitude.toFixed(4),
+                maxAmplitude: max.toFixed(4),
+                nonZeroBytes: nonZeroCount,
+                totalBytes: dataArray.length,
+                firstFewBytes: Array.from(dataArray.slice(0, 10))
+              });
+            }
+            sampleCount++;
 
             await new Promise((resolve) => setTimeout(resolve, 120));
           }
+          
+          console.log('[Audio Analysis] 📈 Segment finished: collected', sampleCount, 'samples from position', segmentStartTime.toFixed(2));
 
           video.pause();
           

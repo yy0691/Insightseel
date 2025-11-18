@@ -10,6 +10,7 @@ export interface Video {
   language?: string; // Video language
   importedAt: string;
   folderPath?: string;
+  order?: number; // Custom order for drag and drop sorting
 }
 
 export interface SubtitleSegment {

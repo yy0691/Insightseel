@@ -84,6 +84,9 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
   const [clickedSegmentIndex, setClickedSegmentIndex] = useState<number | null>(null);
   const [showTranslationLanguageModal, setShowTranslationLanguageModal] = useState(false);
   const [isTranslationFromUser, setIsTranslationFromUser] = useState(false);
+  const [showSubtitleLanguageModal, setShowSubtitleLanguageModal] = useState(false);
+  const [showRegenerateConfirmModal, setShowRegenerateConfirmModal] = useState(false);
+  const [selectedVideoLanguage, setSelectedVideoLanguage] = useState<string | null>(null);
   
   const [generationStatus, setGenerationStatus] = useState({ active: false, stage: '', progress: 0 });
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -410,11 +413,34 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
     }
   };
   
-  const handleGenerateSubtitles = async () => {
+  const handleGenerateSubtitles = async (clearCache: boolean = false, videoLanguage?: string) => {
     // Prevent duplicate calls
     if (isGeneratingSubtitles) {
       console.log('Subtitle generation already in progress, ignoring duplicate call');
       return;
+    }
+
+    // If no language specified and no previous selection, show language selection modal
+    if (!videoLanguage && !selectedVideoLanguage) {
+      setShowSubtitleLanguageModal(true);
+      return;
+    }
+
+    // Use provided language or previously selected language
+    const langToUse = videoLanguage || selectedVideoLanguage;
+    if (langToUse) {
+      setSelectedVideoLanguage(langToUse);
+    }
+    setShowSubtitleLanguageModal(false);
+
+    // Clear cache if requested (for regeneration)
+    if (clearCache && videoHash) {
+      try {
+        await clearVideoCache(videoHash);
+        console.log('[VideoDetail] Cleared video cache for regeneration');
+      } catch (err) {
+        console.warn('[VideoDetail] Failed to clear cache:', err);
+      }
     }
 
     // Validate file size (max 2GB)
@@ -426,7 +452,8 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
       return;
     }
 
-    console.log(`Starting subtitle generation for ${fileSizeMB.toFixed(1)}MB video in ${videoLanguage === 'zh' ? 'Chinese' : videoLanguage === 'en' ? 'English' : 'Auto-detect'}`);
+    const langDisplay = langToUse === 'zh' ? 'Chinese' : langToUse === 'en' ? 'English' : langToUse === 'auto' ? 'Auto-detect' : langToUse || 'Auto-detect';
+    console.log(`Starting subtitle generation for ${fileSizeMB.toFixed(1)}MB video in ${langDisplay}`);
 
     // Create abort controller for cancellation
     abortControllerRef.current = new AbortController();
@@ -503,10 +530,9 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
     setStreamingSubtitles('');
     setGenerationStatus({ active: true, stage: 'Checking cache...', progress: 5 });
 
-    // Use selected video language, not UI language
-    const videoSourceLanguage = videoLanguage === 'zh' ? 'Chinese' : videoLanguage === 'en' ? 'English' : 'Auto-detect';
+    // Use selected video language (sourceLanguage is already computed from selectedVideoLanguage)
     const targetLanguageName = language === 'zh' ? 'Chinese' : 'English';
-    const prompt = t('generateSubtitlesPrompt', videoSourceLanguage, targetLanguageName);
+    const prompt = t('generateSubtitlesPrompt', sourceLanguage, targetLanguageName);
 
     try {
       const result = await generateResilientSubtitles({
@@ -514,6 +540,7 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
         videoHash,
         prompt,
         sourceLanguage,
+        abortSignal: abortControllerRef.current?.signal,
         onStatus: ({ stage, progress }) => setGenerationStatus({ active: true, stage, progress }),
         onStreamText: (text) => setStreamingSubtitles(text),
         onPartialSubtitles: async (segments) => {
@@ -1095,7 +1122,7 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
             </div>
             <div className="px-8 py-6 space-y-3">
               <button
-                onClick={() => handleGenerateSubtitles('auto')}
+                onClick={() => handleGenerateSubtitles(false, 'auto')}
                 className="w-full rounded-2xl bg-slate-50 px-4 py-3 text-left text-sm border border-slate-200 hover:bg-slate-100 hover:border-slate-300 transition"
               >
                 <div className="font-medium text-slate-900">
@@ -1106,7 +1133,7 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
                 </div>
               </button>
               <button
-                onClick={() => handleGenerateSubtitles('en')}
+                onClick={() => handleGenerateSubtitles(false, 'en')}
                 className="w-full rounded-2xl bg-slate-50 px-4 py-3 text-left text-sm border border-slate-200 hover:bg-slate-100 hover:border-slate-300 transition"
               >
                 <div className="font-medium text-slate-900">English</div>
@@ -1115,7 +1142,7 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
                 </div>
               </button>
               <button
-                onClick={() => handleGenerateSubtitles('zh')}
+                onClick={() => handleGenerateSubtitles(false, 'zh')}
                 className="w-full rounded-2xl bg-slate-50 px-4 py-3 text-left text-sm border border-slate-200 hover:bg-slate-100 hover:border-slate-300 transition"
               >
                 <div className="font-medium text-slate-900">

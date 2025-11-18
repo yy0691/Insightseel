@@ -19,8 +19,26 @@ import {
   Menu, 
   PanelLeft,
   PanelLeftOpen,
-  Trash2
+  Trash2,
+  GripVertical
 } from 'lucide-react';
+import {
+  DndContext,
+  DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 interface SidebarProps {
   videos: Video[];
@@ -33,6 +51,7 @@ interface SidebarProps {
   onOpenSettings: () => void;
   onDeleteFolder: (folderPath: string) => void;
   onDeleteVideo?: (id: string) => void;
+  onReorderVideos?: (videos: Video[]) => void;
   isMobile?: boolean;
   onOpenAuth?: () => void;
   onOpenAccount?: () => void;
@@ -66,18 +85,39 @@ const VideoItem: React.FC<VideoItemProps> = ({
   isCollapsed,
   onDeleteVideo,
 }) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: video.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
   const isSelected = selectedVideoId === video.id;
   const commonClasses = `flex items-center w-full rounded-xl text-[13px] transition-colors ${isCollapsed ? 'justify-center p-2' : 'px-3 py-2 pr-8'}`;
   const selectedClasses = "bg-slate-900 text-slate-50 shadow-sm";
   const hoverClasses = "text-slate-700 hover:bg-slate-100/80";
 
   return (
-    <li className="relative group">
+    <li className="relative group" ref={setNodeRef} style={style}>
       <button
         onClick={() => onSelectVideo(video.id)}
         className={`${commonClasses} ${isSelected ? selectedClasses : hoverClasses}`}
       >
-          <VideoIcon className={`h-4 w-4 flex-shrink-0 ${isSelected ? 'text-slate-50' : 'text-slate-500'}`} />
+        {/* Drag handle - only visible when not collapsed */}
+        {!isCollapsed && (
+          <div {...attributes} {...listeners} className="mr-1 cursor-grab active:cursor-grabbing">
+            <GripVertical className="h-3.5 w-3.5 text-slate-400" />
+          </div>
+        )}
+        <VideoIcon className={`h-4 w-4 flex-shrink-0 ${isSelected ? 'text-slate-50' : 'text-slate-500'}`} />
         {!isCollapsed && (
           <span className={`ml-2.5 truncate ${isSelected ? 'text-slate-50' : 'text-slate-700'}`}>{video.name}</span>
         )}
@@ -232,6 +272,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onOpenSettings,
   onDeleteFolder,
   onDeleteVideo,
+  onReorderVideos,
   isMobile = false,
   onOpenAuth,
   onOpenAccount,
@@ -240,7 +281,17 @@ const Sidebar: React.FC<SidebarProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
+  const [activeId, setActiveId] = useState<string | null>(null);
   const { t } = useLanguage();
+
+  // Configure drag sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // 8px of movement required before drag starts
+      },
+    })
+  );
 
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -324,7 +375,35 @@ const Sidebar: React.FC<SidebarProps> = ({
     setExpandedFolders(prev => ({ ...prev, [folderPath]: !(prev[folderPath] ?? true) }));
   };
 
-  const processedVideos = useMemo(() => {
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id as string);
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveId(null);
+
+    if (!over || active.id === over.id) {
+      return;
+    }
+
+    if (onReorderVideos) {
+      const oldIndex = processedVideos.findIndex((video) => video.id === active.id);
+      const newIndex = processedVideos.findIndex((video) => video.id === over.id);
+
+      if (oldIndex !== -1 && newIndex !== -1) {
+        const reorderedVideos: Video[] = arrayMove(processedVideos, oldIndex, newIndex);
+        // Update order field for all videos
+        const videosWithOrder = reorderedVideos.map((video, index) => ({
+          ...video,
+          order: index,
+        }));
+        onReorderVideos(videosWithOrder);
+      }
+    }
+  };
+
+  const processedVideos = useMemo<Video[]>(() => {
     let result = [...videos];
     if (searchTerm.trim()) {
       const q = searchTerm.toLowerCase();
@@ -504,32 +583,44 @@ const Sidebar: React.FC<SidebarProps> = ({
             </div>
           </div>
         )}
-        <ul className="space-y-1.5">
-          {sortedFolderKeys.map(folderKey => {
-            const folderVideos = groupedVideos[folderKey];
-            if (folderKey === '__root__') {
-              return folderVideos.map(video => (
-                <VideoItem key={video.id} {...{ video, selectedVideoId, onSelectVideo, isCollapsed, onDeleteVideo }} />
-              ));
-            }
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={processedVideos.map((v) => v.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <ul className="space-y-1.5">
+              {sortedFolderKeys.map(folderKey => {
+                const folderVideos = groupedVideos[folderKey];
+                if (folderKey === '__root__') {
+                  return folderVideos.map(video => (
+                    <VideoItem key={video.id} {...{ video, selectedVideoId, onSelectVideo, isCollapsed, onDeleteVideo }} />
+                  ));
+                }
 
-            const isExpanded = expandedFolders[folderKey] ?? true;
-            return (
-              <FolderItem
-                key={folderKey}
-                folderKey={folderKey}
-                folderVideos={folderVideos}
-                isExpanded={isExpanded}
-                isCollapsed={isCollapsed}
-                isMobile={isMobile}
-                selectedVideoId={selectedVideoId}
-                onSelectVideo={onSelectVideo}
-                onToggleFolder={toggleFolder}
-                onDeleteVideo={onDeleteVideo}
-              />
-            );
-          })}
-        </ul>
+                const isExpanded = expandedFolders[folderKey] ?? true;
+                return (
+                  <FolderItem
+                    key={folderKey}
+                    folderKey={folderKey}
+                    folderVideos={folderVideos}
+                    isExpanded={isExpanded}
+                    isCollapsed={isCollapsed}
+                    isMobile={isMobile}
+                    selectedVideoId={selectedVideoId}
+                    onSelectVideo={onSelectVideo}
+                    onToggleFolder={toggleFolder}
+                    onDeleteVideo={onDeleteVideo}
+                  />
+                );
+              })}
+            </ul>
+          </SortableContext>
+        </DndContext>
       </nav>
 
       {/* Footer Controls */}

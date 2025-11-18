@@ -517,10 +517,18 @@ const AppContent: React.FC<{
   const loadData = useCallback(async () => {
     try {
       const loadedVideos = await videoDB.getAll();
-      loadedVideos.sort(
-        (a, b) =>
-          new Date(b.importedAt).getTime() - new Date(a.importedAt).getTime(),
-      );
+      // Sort by custom order if available, otherwise by import date
+      loadedVideos.sort((a, b) => {
+        // If both have order field, sort by order
+        if (a.order !== undefined && b.order !== undefined) {
+          return a.order - b.order;
+        }
+        // If only one has order, prioritize it
+        if (a.order !== undefined) return -1;
+        if (b.order !== undefined) return 1;
+        // Otherwise sort by import date (newest first)
+        return new Date(b.importedAt).getTime() - new Date(a.importedAt).getTime();
+      });
       setVideos(loadedVideos);
 
       if (loadedVideos.length > 0 && !selectedVideoId) {
@@ -802,6 +810,23 @@ const AppContent: React.FC<{
     }
   };
 
+  // Handle video reordering from drag and drop
+  const handleReorderVideos = async (reorderedVideos: Video[]) => {
+    try {
+      // Update videos state immediately for responsive UI
+      setVideos(reorderedVideos);
+      
+      // Save each video's new order to database
+      await Promise.all(
+        reorderedVideos.map((video) => videoDB.put(video))
+      );
+    } catch (err) {
+      handleError(err, "Failed to save video order.");
+      // Reload data on error to restore correct state
+      loadData();
+    }
+  };
+
   const selectedVideo = videos.find((v) => v.id === selectedVideoId);
 
   return (
@@ -863,6 +888,7 @@ const AppContent: React.FC<{
               onOpenSettings={() => setIsSettingsModalOpen(true)}
               onDeleteFolder={handleDeleteFolder}
               onDeleteVideo={handleDeleteVideo}
+              onReorderVideos={handleReorderVideos}
               isMobile={false}
               onOpenAuth={() => openAuthModal("signin")}
               onOpenAccount={() => setShowAccountPanel(true)}
@@ -903,6 +929,7 @@ const AppContent: React.FC<{
                   }}
                   onDeleteFolder={handleDeleteFolder}
                   onDeleteVideo={handleDeleteVideo}
+                  onReorderVideos={handleReorderVideos}
                   isMobile={true}
                   onOpenAuth={() => {
                     openAuthModal("signin");

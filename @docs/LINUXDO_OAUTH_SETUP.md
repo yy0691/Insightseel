@@ -12,9 +12,21 @@
 2. 创建新的 OAuth 应用
 3. 配置以下信息：
    - **应用名称**：你的应用名称
-   - **回调 URL（Redirect URI）**：`https://your-domain.com/auth/linuxdo/callback`
-     - 开发环境可以使用：`http://localhost:5173/auth/linuxdo/callback`
+   - **回调 URL（Redirect URI）**：必须与你的应用实际 URL 完全匹配
+     - 示例：`https://insight.luoyuanai.cn/` 或 `https://insight.luoyuanai.cn`
+     - ⚠️ **重要**：必须包括尾部斜杠（如果有的话）
+     - ⚠️ **重要**：必须与代码中使用的 redirect_uri 完全一致
+     - 开发环境可以使用：`http://localhost:5173/` 或 `http://localhost:5173`
    - **权限范围（Scope）**：`read`（根据实际需求调整）
+   
+   **⚠️ redirect_uri 匹配规则**：
+   - Linux.do OAuth 对 redirect_uri 的匹配非常严格
+   - 必须完全匹配，包括：
+     - 协议（http/https）
+     - 域名（包括子域名）
+     - 路径（包括尾部斜杠）
+   - 例如：如果应用中配置的是 `https://insight.luoyuanai.cn/`（有斜杠），代码中也必须使用 `https://insight.luoyuanai.cn/`
+   - 如果配置的是 `https://insight.luoyuanai.cn`（无斜杠），代码中也必须使用 `https://insight.luoyuanai.cn`
 
 ### 2. 获取 Client ID 和 Client Secret
 

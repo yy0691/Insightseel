@@ -158,8 +158,24 @@ export async function buildLinuxDoAuthUrl(redirectUri: string): Promise<string> 
   }
 
   // Ensure redirect_uri is properly encoded and matches exactly what's registered
-  // Remove trailing slash if present, as OAuth providers are strict about URI matching
-  const normalizedRedirectUri = redirectUri.replace(/\/$/, '');
+  // ⚠️ 重要：redirect_uri 必须与 Linux.do 应用中配置的回调 URL 完全匹配
+  // 包括协议、域名、路径、尾部斜杠等所有细节
+  // 
+  // 问题：之前代码会自动移除尾部斜杠，但这可能导致与 Linux.do 应用中配置的不匹配
+  // 解决方案：保持原始 redirect_uri，不自动移除尾部斜杠
+  // 用户需要在 Linux.do 应用中配置的回调 URL 与代码中使用的完全一致
+  const normalizedRedirectUri = redirectUri.trim();
+  
+  // 🔍 诊断：记录原始 redirect_uri，帮助用户确认配置
+  console.log('🔍 redirect_uri 诊断信息:', {
+    original: redirectUri,
+    normalized: normalizedRedirectUri,
+    hasTrailingSlash: normalizedRedirectUri.endsWith('/'),
+    origin: typeof window !== 'undefined' ? window.location.origin : 'N/A',
+    pathname: typeof window !== 'undefined' ? window.location.pathname : 'N/A',
+    warning: '⚠️ 此 URL 必须与 Linux.do 应用中配置的回调 URL 完全一致（包括尾部斜杠）',
+    tip: '如果遇到 invalid_request 错误，请检查 Linux.do 应用中的回调 URL 配置是否与此 URL 完全匹配'
+  });
 
   // 清除之前可能存在的状态（防止重复登录导致的问题）
   sessionStorage.removeItem('linuxdo_code_verifier');

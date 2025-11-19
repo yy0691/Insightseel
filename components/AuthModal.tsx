@@ -88,9 +88,23 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess, initi
     try {
       // 构建回调 URL - 使用当前页面的完整路径，确保与注册的回调 URL 完全匹配
       // Linux.do OAuth 要求 redirect_uri 必须完全匹配注册时的 URI
-      const redirectUri = `${window.location.origin}${window.location.pathname}`;
+      // ⚠️ 重要：如果 Linux.do 应用中配置的回调 URL 是带尾部斜杠的（如 https://insight.luoyuanai.cn/），
+      // 这里也需要包含尾部斜杠；如果配置的是不带斜杠的，这里也不带斜杠
+      // 
+      // 注意：当 pathname 是 '/' 时，会得到带斜杠的 URL（如 https://insight.luoyuanai.cn/）
+      // 如果 Linux.do 应用中配置的是无斜杠的，需要移除尾部斜杠
+      let redirectUri = `${window.location.origin}${window.location.pathname}`;
+      
+      // 🔧 如果 pathname 是 '/'，移除尾部斜杠（因为很多 OAuth 提供者期望根路径不带斜杠）
+      // 如果 Linux.do 应用中配置的是带斜杠的，可以注释掉下面这行
+      if (redirectUri.endsWith('/') && redirectUri.split('/').length === 4) {
+        // 只有根路径时才移除尾部斜杠（如 https://insight.luoyuanai.cn/ -> https://insight.luoyuanai.cn）
+        redirectUri = redirectUri.slice(0, -1);
+      }
       
       console.log('Building Linux.do OAuth URL with redirect_uri:', redirectUri);
+      console.log('⚠️ 请确保此 redirect_uri 与 Linux.do 应用中配置的回调 URL 完全一致（包括尾部斜杠）');
+      console.log('💡 如果仍然出现 invalid_request 错误，请检查 Linux.do 应用中的回调 URL 配置，并相应调整代码中的 redirect_uri 构建逻辑');
       
       // 构建授权 URL
       const authUrl = await buildLinuxDoAuthUrl(redirectUri);

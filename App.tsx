@@ -383,10 +383,12 @@ const AppContent: React.FC<{
           // Exchange code for token
           // Use the same redirect_uri that was used in the authorization request
           // Get it from sessionStorage if available, otherwise use current path
+          // ⚠️ 重要：必须使用与授权请求时完全相同的 redirect_uri（包括尾部斜杠）
           const storedRedirectUri = sessionStorage.getItem('linuxdo_redirect_uri');
           const redirectUri = storedRedirectUri || `${window.location.origin}${window.location.pathname}`;
           
           console.log('Exchanging code for token with redirect_uri:', redirectUri);
+          console.log('⚠️ redirect_uri 必须与授权请求时完全一致，否则会导致 invalid_request 错误');
           
           // Clean up stored redirect_uri after use
           if (storedRedirectUri) {

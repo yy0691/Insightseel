@@ -85,22 +85,23 @@ export async function extractAndCompressAudio(
     );
 
     // 🎯 智能采样率选择：根据目标比特率动态调整
-    // 对于低比特率，使用更低的采样率以减小文件大小
+    // 关键：降低采样率和位深度以真正减小WAV文件大小
+    // WAV文件大小 = 采样率 × 位深度/8 × 声道数 × 时长
     let outputSampleRate = 16000; // 默认16kHz
     if (targetBitrate <= 12000) {
-      // ≤12kbps: 使用12kHz采样率（激进压缩）
-      outputSampleRate = 12000;
+      // ≤12kbps: 目标 ~1.5MB/min，使用8kHz 8-bit mono (64 kbps = 0.5MB/min)
+      outputSampleRate = 8000;
     } else if (targetBitrate <= 16000) {
-      // ≤16kbps: 使用16kHz采样率（平衡）
-      outputSampleRate = 16000;
+      // ≤16kbps: 目标 ~2MB/min，使用8kHz 16-bit mono (128 kbps = 0.96MB/min)
+      outputSampleRate = 8000;
     } else if (targetBitrate <= 20000) {
-      // ≤20kbps: 使用16kHz采样率
-      outputSampleRate = 16000;
+      // ≤20kbps: 目标 ~2.5MB/min，使用11kHz 16-bit mono (176 kbps = 1.32MB/min)
+      outputSampleRate = 11025;
     } else if (targetBitrate <= 24000) {
-      // ≤24kbps: 使用16kHz采样率
-      outputSampleRate = 16000;
+      // ≤24kbps: 目标 ~3MB/min，使用12kHz 16-bit mono (192 kbps = 1.44MB/min)
+      outputSampleRate = 12000;
     } else {
-      // >24kbps: 使用16kHz采样率（高质量）
+      // >24kbps: 使用16kHz 16-bit mono (256 kbps = 1.92MB/min)
       outputSampleRate = 16000;
     }
     
@@ -136,9 +137,9 @@ export async function extractAndCompressAudio(
     onProgress?.(70, 'Encoding audio...');
 
     // Convert to WAV format (simple format that Deepgram accepts)
-    // 🎯 对于低比特率（≤12kbps），使用8-bit编码以减小文件大小
+    // 🎯 对于低比特率（≤16kbps），使用8-bit编码以减小文件大小
     // 对于更高比特率，使用16-bit以确保识别质量
-    const use8Bit = targetBitrate <= 12000; // 12kbps及以下使用8-bit
+    const use8Bit = targetBitrate <= 16000; // 16kbps及以下使用8-bit
     const wavBlob = await audioBufferToWav(renderedBuffer, use8Bit);
     
     if (use8Bit) {
@@ -275,20 +276,24 @@ export function estimateCompressedSize(
   targetBitrate: number = 32000
 ): number {
   // Rough estimation based on target bitrate and duration
-  // 对于8kbps目标：使用8kHz 8-bit mono ≈ 64 kbps = 8 KB/s = 0.48 MB/min
-  // 对于12kbps目标：使用11kHz 16-bit mono ≈ 176 kbps = 22 KB/s = 1.32 MB/min
-  // 对于16kbps目标：使用12kHz 16-bit mono ≈ 192 kbps = 24 KB/s = 1.44 MB/min
+  // WAV文件大小 = 采样率 × 位深度/8 × 声道数 × 时长
+  // 对于12kbps目标：使用8kHz 8-bit mono ≈ 64 kbps = 8 KB/s = 0.48 MB/min
+  // 对于16kbps目标：使用8kHz 16-bit mono ≈ 128 kbps = 16 KB/s = 0.96 MB/min
+  // 对于20kbps目标：使用11kHz 16-bit mono ≈ 176 kbps = 22 KB/s = 1.32 MB/min
+  // 对于24kbps目标：使用12kHz 16-bit mono ≈ 192 kbps = 24 KB/s = 1.44 MB/min
   // 对于32kbps目标：使用16kHz 16-bit mono ≈ 256 kbps = 32 KB/s = 1.92 MB/min
   
   let mbPerMinute: number;
-  if (targetBitrate <= 8000) {
-    mbPerMinute = 0.48; // 8kHz 8-bit mono
-  } else if (targetBitrate <= 12000) {
-    mbPerMinute = 1.32; // 11kHz 16-bit mono
+  if (targetBitrate <= 12000) {
+    mbPerMinute = 0.48; // 8kHz 8-bit mono (64 kbps)
   } else if (targetBitrate <= 16000) {
-    mbPerMinute = 1.44; // 12kHz 16-bit mono
+    mbPerMinute = 0.96; // 8kHz 16-bit mono (128 kbps)
+  } else if (targetBitrate <= 20000) {
+    mbPerMinute = 1.32; // 11kHz 16-bit mono (176 kbps)
+  } else if (targetBitrate <= 24000) {
+    mbPerMinute = 1.44; // 12kHz 16-bit mono (192 kbps)
   } else {
-    mbPerMinute = 1.92; // 16kHz 16-bit mono
+    mbPerMinute = 1.92; // 16kHz 16-bit mono (256 kbps)
   }
   
   const estimatedSizeMB = (videoDurationSeconds / 60) * mbPerMinute;

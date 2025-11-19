@@ -45,5 +45,7 @@ For secure deployment with API key protection, see the detailed guide in [VERCEL
 - `VITE_DEEPGRAM_API_KEY` - System default Deepgram key for subtitle generation
 - `VITE_SUPABASE_URL` - Supabase project URL for cloud sync
 - `VITE_SUPABASE_ANON_KEY` - Supabase anonymous key for cloud sync
+- `VITE_FFMPEG_BASE_URL` - FFmpeg CDN URL for browser-based video splitting (optional)
 
 See [DEEPGRAM_SETUP.md](./docs/DEEPGRAM_SETUP.md) for Deepgram configuration details.
+See [@docs/FFMPEG_CDN_SETUP.md](./@docs/FFMPEG_CDN_SETUP.md) for FFmpeg CDN configuration details.

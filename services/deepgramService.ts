@@ -178,6 +178,15 @@ function logDeepgramResponse(result: DeepgramResponse, mode: string): void {
       firstWords: words.slice(0, 5).map(w => w.word).join(' '),
       lastWords: words.slice(-5).map(w => w.word).join(' '),
     });
+    
+    // 🔍 调试：检查 transcript 的编码
+    if (transcript.length > 0) {
+      console.log('[Deepgram] 🔍 Transcript 编码检查:');
+      console.log('  前20字符:', transcript.substring(0, 20));
+      console.log('  字符编码:', Array.from(transcript.substring(0, 20)).map(c => c.charCodeAt(0)));
+      console.log('  是否包含中文:', /[\u4e00-\u9fa5]/.test(transcript));
+      console.log('  是否包含英文:', /[a-zA-Z]/.test(transcript));
+    }
   }
 }
 
@@ -968,6 +977,18 @@ export function deepgramToSegments(response: DeepgramResponse): DeepgramSegment[
     firstWord: words[0]?.word,
     lastWord: words[words.length - 1]?.word,
   });
+  
+  // 🔍 调试：检查前5个单词的详细信息
+  console.log('[Deepgram] 🔍 前5个单词详细信息:');
+  words.slice(0, 5).forEach((word, i) => {
+    console.log(`  单词 ${i + 1}:`, {
+      原始值: word.word,
+      类型: typeof word.word,
+      长度: word.word?.length,
+      字符编码: word.word ? Array.from(word.word).map(c => c.charCodeAt(0)) : [],
+      时间: `${word.start.toFixed(2)}s - ${word.end.toFixed(2)}s`
+    });
+  });
 
   const segments: DeepgramSegment[] = [];
   const MAX_SEGMENT_DURATION = 5.0; // 5 seconds per segment
@@ -1063,6 +1084,19 @@ export function deepgramToSegments(response: DeepgramResponse): DeepgramSegment[
     totalDuration: segments.length > 0 ? segments[segments.length - 1].end : 0,
     averageDuration: segments.length > 0 ? segments.reduce((sum, s) => sum + (s.end - s.start), 0) / segments.length : 0,
   });
+  
+  // 🔍 调试：检查前3个生成的片段
+  if (segments.length > 0) {
+    console.log('[Deepgram] 🔍 前3个生成的片段:');
+    segments.slice(0, 3).forEach((seg, i) => {
+      console.log(`  片段 ${i + 1}:`, {
+        文本: seg.text,
+        文本长度: seg.text.length,
+        字符编码: Array.from(seg.text.substring(0, 20)).map(c => c.charCodeAt(0)),
+        时间: `${seg.start.toFixed(2)}s - ${seg.end.toFixed(2)}s`
+      });
+    });
+  }
 
   return segments;
 }

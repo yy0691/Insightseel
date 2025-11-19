@@ -214,22 +214,36 @@ export async function buildLinuxDoAuthUrl(redirectUri: string): Promise<string> 
   });
   
   // 🔍 诊断信息：帮助排查 invalid_request 错误
-  console.log('🔍 OAuth 请求诊断信息:', {
-    'redirect_uri (必须与 Linux.do 应用中配置的完全匹配)': normalizedRedirectUri,
-    '当前页面 URL': typeof window !== 'undefined' ? window.location.href : 'N/A',
-    '当前 origin': typeof window !== 'undefined' ? window.location.origin : 'N/A',
-    '当前 pathname': typeof window !== 'undefined' ? window.location.pathname : 'N/A',
-    '参数列表': {
-      client_id: '已设置',
-      redirect_uri: normalizedRedirectUri,
-      response_type: 'code',
-      scope: 'read',
-      state: '已设置',
-      code_challenge: '已设置',
-      code_challenge_method: 'S256',
-    },
-    '提示': '如果遇到 invalid_request 错误，请确保：1) redirect_uri 与 Linux.do 应用中配置的回调 URL 完全匹配（包括协议、域名、路径、尾部斜杠）；2) Client ID 配置正确；3) 所有参数都已正确设置'
+  console.group('🔍 OAuth 请求诊断信息（如果遇到 invalid_request 错误，请查看此信息）');
+  console.log('⚠️ 发送给 Linux.do 的 redirect_uri:', normalizedRedirectUri);
+  console.log('当前页面信息:', {
+    '完整 URL': typeof window !== 'undefined' ? window.location.href : 'N/A',
+    'origin': typeof window !== 'undefined' ? window.location.origin : 'N/A',
+    'pathname': typeof window !== 'undefined' ? window.location.pathname : 'N/A',
+    '是否有尾部斜杠': normalizedRedirectUri.endsWith('/'),
   });
+  console.log('完整授权 URL（复制此 URL 到浏览器地址栏可以查看完整参数）:', authUrl);
+  console.log('参数列表:', {
+    client_id: '已设置',
+    redirect_uri: normalizedRedirectUri,
+    response_type: 'code',
+    scope: 'read',
+    state: '已设置',
+    code_challenge: '已设置',
+    code_challenge_method: 'S256',
+  });
+  console.warn('⚠️ 如果遇到 invalid_request 错误，请执行以下步骤：');
+  console.log('1. 复制上面的 redirect_uri 值:', normalizedRedirectUri);
+  console.log('2. 登录 Linux.do 开发者控制台');
+  console.log('3. 找到你的 OAuth 应用设置');
+  console.log('4. 检查"回调 URL"或"Redirect URI"配置');
+  console.log('5. 确保回调 URL 与上面的 redirect_uri 完全一致（包括尾部斜杠）');
+  console.log('6. 如果不一致，修改 Linux.do 应用中的回调 URL 配置');
+  console.log('   例如：如果上面的 redirect_uri 是 "https://insight.luoyuanai.cn"（无斜杠）');
+  console.log('   那么 Linux.do 应用中的回调 URL 也必须是 "https://insight.luoyuanai.cn"（无斜杠）');
+  console.log('   如果上面的 redirect_uri 是 "https://insight.luoyuanai.cn/"（有斜杠）');
+  console.log('   那么 Linux.do 应用中的回调 URL 也必须是 "https://insight.luoyuanai.cn/"（有斜杠）');
+  console.groupEnd();
 
   return authUrl;
 }

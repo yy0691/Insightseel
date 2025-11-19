@@ -97,10 +97,10 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess, initi
       
       // 🔧 如果 pathname 是 '/'，移除尾部斜杠（因为很多 OAuth 提供者期望根路径不带斜杠）
       // 如果 Linux.do 应用中配置的是带斜杠的，可以注释掉下面这行
-      if (redirectUri.endsWith('/') && redirectUri.split('/').length === 4) {
+      // if (redirectUri.endsWith('/') && redirectUri.split('/').length === 4) {
         // 只有根路径时才移除尾部斜杠（如 https://insight.luoyuanai.cn/ -> https://insight.luoyuanai.cn）
-        redirectUri = redirectUri.slice(0, -1);
-      }
+        // redirectUri = redirectUri.slice(0, -1);
+      // }
       
       console.log('Building Linux.do OAuth URL with redirect_uri:', redirectUri);
       console.log('⚠️ 请确保此 redirect_uri 与 Linux.do 应用中配置的回调 URL 完全一致（包括尾部斜杠）');

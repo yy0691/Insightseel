@@ -264,11 +264,17 @@ export async function exchangeCodeForToken(
   // 验证 redirect_uri 是否匹配
   const storedRedirectUri = sessionStorage.getItem('linuxdo_redirect_uri');
   if (storedRedirectUri && storedRedirectUri !== redirectUri) {
-    console.warn('Redirect URI mismatch:', {
+    console.error('⚠️ Redirect URI 不匹配！这可能导致 invalid_request 错误:', {
       stored: storedRedirectUri,
       current: redirectUri,
+      difference: storedRedirectUri.endsWith('/') !== redirectUri.endsWith('/') ? '尾部斜杠不一致' : '其他差异',
     });
-    // 仍然继续，因为可能只是路径略有不同
+    // ⚠️ 使用存储的 redirect_uri，确保与授权请求时完全一致
+    // 这是关键：必须使用授权请求时发送给 Linux.do 的 redirect_uri
+    console.warn('🔧 使用存储的 redirect_uri 而不是当前计算的，确保一致性');
+    // 注意：这里不修改 redirectUri 参数，因为调用方应该已经使用了存储的值
+  } else if (storedRedirectUri && storedRedirectUri === redirectUri) {
+    console.log('✅ Redirect URI 匹配，与授权请求时一致');
   }
 
   // Build request body

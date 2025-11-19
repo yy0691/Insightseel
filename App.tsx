@@ -382,20 +382,45 @@ const AppContent: React.FC<{
         try {
           // Exchange code for token
           // Use the same redirect_uri that was used in the authorization request
-          // Get it from sessionStorage if available, otherwise use current path
           // ⚠️ 重要：必须使用与授权请求时完全相同的 redirect_uri（包括尾部斜杠）
           const storedRedirectUri = sessionStorage.getItem('linuxdo_redirect_uri');
-          const redirectUri = storedRedirectUri || `${window.location.origin}${window.location.pathname}`;
           
-          console.log('Exchanging code for token with redirect_uri:', redirectUri);
-          console.log('⚠️ redirect_uri 必须与授权请求时完全一致，否则会导致 invalid_request 错误');
-          
-          // Clean up stored redirect_uri after use
-          if (storedRedirectUri) {
-            sessionStorage.removeItem('linuxdo_redirect_uri');
+          if (!storedRedirectUri) {
+            console.error('⚠️ 未找到存储的 redirect_uri，这可能导致 invalid_request 错误');
+            console.error('诊断信息:', {
+              currentUrl: window.location.href,
+              origin: window.location.origin,
+              pathname: window.location.pathname,
+              sessionStorageKeys: Object.keys(sessionStorage).filter(k => k.startsWith('linuxdo_')),
+            });
+            toast.error({ 
+              title: 'Linux.do 登录失败', 
+              description: '未找到授权请求时的 redirect_uri。请清除浏览器 sessionStorage 后重新登录。' 
+            });
+            return;
           }
           
+          // 🔒 必须使用存储的 redirect_uri，确保与授权请求时完全一致
+          const redirectUri = storedRedirectUri;
+          
+          console.log('Exchanging code for token with redirect_uri:', redirectUri);
+          console.log('✅ 使用存储的 redirect_uri，确保与授权请求时完全一致');
+          console.log('🔍 redirect_uri 一致性检查:', {
+            stored: storedRedirectUri,
+            currentUrl: window.location.href,
+            origin: window.location.origin,
+            pathname: window.location.pathname,
+            matches: storedRedirectUri === `${window.location.origin}${window.location.pathname}` || 
+                     storedRedirectUri === `${window.location.origin}${window.location.pathname.replace(/\/$/, '')}`,
+          });
+          
+          // Clean up stored redirect_uri after use (but only after successful token exchange)
+          // 注意：在 token 交换成功后再清除，如果失败可以重试
+          
           const tokenData = await exchangeCodeForToken(code, redirectUri);
+          
+          // ✅ Token 交换成功，现在可以清除存储的 redirect_uri
+          sessionStorage.removeItem('linuxdo_redirect_uri');
 
           // Get user info
           const userInfo = await getLinuxDoUserInfo(tokenData.access_token);

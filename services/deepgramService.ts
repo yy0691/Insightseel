@@ -1003,8 +1003,17 @@ export function deepgramToSegments(response: DeepgramResponse): DeepgramSegment[
     const wordText = word.word.trim();
 
     // 过滤单个字符的单词（可能是识别错误）
-    if (wordText.length === 1 && !/[a-zA-Z0-9]/.test(wordText)) {
-      return false;
+    // ⚠️ 注意：不要过滤中文单字，中文大多数单词都是单个字符
+    // 只过滤那些既不是中文、又不是英文/数字的单个字符
+    if (wordText.length === 1) {
+      // 允许中文字符（Unicode 范围：\u4e00-\u9fa5）
+      const isChinese = /[\u4e00-\u9fa5]/.test(wordText);
+      // 允许英文字母和数字
+      const isAlphanumeric = /[a-zA-Z0-9]/.test(wordText);
+      // 只有既不是中文、又不是英文/数字的单个字符才过滤
+      if (!isChinese && !isAlphanumeric) {
+        return false;
+      }
     }
 
     // 过滤连续重复的单词（可能是识别错误）

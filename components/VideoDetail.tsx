@@ -97,25 +97,31 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
   const topicsAnalysis = analyses.find(a => a.type === 'topics');
   const keyInfoAnalysis = analyses.find(a => a.type === 'key-info');
   const [activeTopic, setActiveTopic] = useState<string | null>(null);
+  
+  // 🎯 语言映射函数：将语言代码映射到全称
+  const mapLanguageCodeToName = useCallback((langCode: string | null): string => {
+    if (!langCode) {
+      // 向后兼容：如果没有选择，从UI语言推导
+      return language === 'zh' ? 'Chinese' : 'English';
+    }
+    const languageMap: Record<string, string> = {
+      'zh': 'Chinese',
+      'en': 'English',
+      'ja': 'Japanese',
+      'ko': 'Korean',
+      'es': 'Spanish',
+      'fr': 'French',
+      'de': 'German',
+      'ru': 'Russian',
+      'auto': 'Auto-detect',
+    };
+    return languageMap[langCode] || 'Chinese';
+  }, [language]);
+  
   // 🎯 视频语言：优先使用用户选择的语言，否则从UI语言推导（向后兼容）
   const sourceLanguage = useMemo(() => {
-    if (selectedVideoLanguage) {
-      // 用户选择的语言映射到LANGUAGE_CODE_MAP的key
-      const languageMap: Record<string, string> = {
-        'zh': 'Chinese',
-        'en': 'English',
-        'ja': 'Japanese',
-        'ko': 'Korean',
-        'es': 'Spanish',
-        'fr': 'French',
-        'de': 'German',
-        'ru': 'Russian',
-      };
-      return languageMap[selectedVideoLanguage] || 'Chinese';
-    }
-    // 向后兼容：如果没有选择，从UI语言推导
-    return language === 'zh' ? 'Chinese' : 'English';
-  }, [selectedVideoLanguage, language]);
+    return mapLanguageCodeToName(selectedVideoLanguage);
+  }, [selectedVideoLanguage, mapLanguageCodeToName]);
   
   // Generate video hash on mount for caching
   useEffect(() => {
@@ -530,16 +536,20 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
     setStreamingSubtitles('');
     setGenerationStatus({ active: true, stage: 'Checking cache...', progress: 5 });
 
-    // Use selected video language (sourceLanguage is already computed from selectedVideoLanguage)
+    // 🎯 重要：直接使用当前选择的语言，而不是依赖 sourceLanguage state
+    // 因为 setState 是异步的，sourceLanguage 可能还没有更新
+    const currentSourceLanguage = mapLanguageCodeToName(langToUse);
     const targetLanguageName = language === 'zh' ? 'Chinese' : 'English';
-    const prompt = t('generateSubtitlesPrompt', sourceLanguage, targetLanguageName);
+    const prompt = t('generateSubtitlesPrompt', currentSourceLanguage, targetLanguageName);
+
+    console.log(`[VideoDetail] 🌍 Using source language: ${currentSourceLanguage} (from code: ${langToUse})`);
 
     try {
       const result = await generateResilientSubtitles({
         video,
         videoHash,
         prompt,
-        sourceLanguage,
+        sourceLanguage: currentSourceLanguage,
         abortSignal: abortControllerRef.current?.signal,
         onStatus: ({ stage, progress }) => setGenerationStatus({ active: true, stage, progress }),
         onStreamText: (text) => setStreamingSubtitles(text),

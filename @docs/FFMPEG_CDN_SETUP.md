@@ -32,13 +32,13 @@ touch .env.local
 **推荐配置（方案 1）：使用 unpkg.com**
 
 ```env
-VITE_FFMPEG_BASE_URL=https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd
+VITE_FFMPEG_BASE_URL=https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd
 ```
 
 **备选方案 2：使用 jsDelivr**
 
 ```env
-VITE_FFMPEG_BASE_URL=https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd
+VITE_FFMPEG_BASE_URL=https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd
 ```
 
 **备选方案 3：使用多个 CDN（推荐）**
@@ -46,7 +46,7 @@ VITE_FFMPEG_BASE_URL=https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd
 配置多个 CDN 源，系统会依次尝试，提高成功率：
 
 ```env
-VITE_FFMPEG_BASE_URL=https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd,https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd
+VITE_FFMPEG_BASE_URL=https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd,https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd
 ```
 
 **高级方案 4：使用多线程版本（更快）**
@@ -73,7 +73,7 @@ GEMINI_API_KEY=your_gemini_api_key_here
 VITE_DEEPGRAM_API_KEY=your_deepgram_api_key_here
 
 # FFmpeg CDN 配置（可选 - 用于浏览器视频分割）
-VITE_FFMPEG_BASE_URL=https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd,https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd
+VITE_FFMPEG_BASE_URL=https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd,https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd
 
 # FFmpeg 超时设置（可选）
 VITE_FFMPEG_LOAD_TIMEOUT_MS=120000
@@ -85,9 +85,9 @@ VITE_FFMPEG_DOWNLOAD_TIMEOUT_MS=45000
 配置完成后，在浏览器控制台应该看到：
 
 ```
-[FFmpeg] Starting load with sources: ["https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd"]
-[FFmpeg] Attempting load from https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd
-[FFmpeg] Load completed successfully from https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd
+[FFmpeg] Starting load with sources: ["https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd"]
+[FFmpeg] Attempting load from https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd
+[FFmpeg] Load completed successfully from https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd
 [FFmpeg] Successfully loaded and ready
 ```
 
@@ -123,17 +123,17 @@ VITE_FFMPEG_DOWNLOAD_TIMEOUT_MS=45000
 
 1. **多 CDN 配置**（最稳定）
    ```env
-   VITE_FFMPEG_BASE_URL=https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd,https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd
+   VITE_FFMPEG_BASE_URL=https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd,https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd
    ```
 
 2. **unpkg.com**（国际访问快）
    ```env
-   VITE_FFMPEG_BASE_URL=https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd
+   VITE_FFMPEG_BASE_URL=https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd
    ```
 
 3. **jsDelivr**（中国访问友好）
    ```env
-   VITE_FFMPEG_BASE_URL=https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd
+   VITE_FFMPEG_BASE_URL=https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd
    ```
 
 ### Q4: FFmpeg 有什么用？
@@ -151,7 +151,7 @@ VITE_FFMPEG_DOWNLOAD_TIMEOUT_MS=45000
 
 **Vercel 部署**：在 Vercel 项目设置中添加环境变量：
 ```
-VITE_FFMPEG_BASE_URL=https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd
+VITE_FFMPEG_BASE_URL=https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd
 ```
 
 **自托管**：
@@ -207,20 +207,21 @@ VITE_FFMPEG_BASE_URL=https://unpkg.com/@ffmpeg/core-mt@0.12.6/dist/esm
 
 ### CDN 文件列表
 
-FFmpeg 需要加载三个文件：
+FFmpeg 单线程版本需要加载两个文件：
 
 ```
-{base_url}/ffmpeg-core.js
-{base_url}/ffmpeg-core.wasm
-{base_url}/ffmpeg-core.worker.js
+{base_url}/ffmpeg-core.js       (约 112 KB)
+{base_url}/ffmpeg-core.wasm     (约 32.2 MB)
 ```
+
+**注意**：@ffmpeg/core 0.12.x 单线程版本不需要 `ffmpeg-core.worker.js` 文件。
 
 ### 版本对应关系
 
-| @ffmpeg/ffmpeg | @ffmpeg/core | CDN Path |
-|----------------|--------------|----------|
-| 0.12.10        | 0.12.6       | dist/umd |
-| 0.12.10        | 0.12.6 (MT)  | dist/esm |
+| @ffmpeg/ffmpeg | @ffmpeg/core | CDN Path | 文件数量 |
+|----------------|--------------|----------|----------|
+| 0.12.10        | 0.12.10      | dist/umd | 2个文件  |
+| 0.12.10        | 0.12.10 (MT) | dist/esm | 2个文件  |
 
 ### 代码实现位置
 

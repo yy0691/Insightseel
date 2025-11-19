@@ -159,16 +159,16 @@ async function loadFFmpeg(onProgress?: (progress: number) => void): Promise<FFmp
 
         console.log(`[FFmpeg] Attempting load from ${baseUrl}`);
 
-        const [coreURL, wasmURL, workerURL] = await Promise.all([
+        // @ffmpeg/core 0.12.x only has 2 files: ffmpeg-core.js and ffmpeg-core.wasm
+        // workerURL is not needed for single-threaded version
+        const [coreURL, wasmURL] = await Promise.all([
           createBlobUrlFromSource(resolveAssetUrl(baseUrl, 'ffmpeg-core.js'), 'text/javascript', fetchTimeout),
           createBlobUrlFromSource(resolveAssetUrl(baseUrl, 'ffmpeg-core.wasm'), 'application/wasm', fetchTimeout),
-          createBlobUrlFromSource(resolveAssetUrl(baseUrl, 'ffmpeg-core.worker.js'), 'text/javascript', fetchTimeout),
         ]);
 
         await instance.load({
           coreURL,
           wasmURL,
-          workerURL,
         });
 
         console.log(`[FFmpeg] Load completed successfully from ${baseUrl}`);

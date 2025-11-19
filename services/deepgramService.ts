@@ -5,6 +5,7 @@
 
 import { getEffectiveSettings } from './dbService';
 import { fetchWithTimeout, retryWithBackoff } from '../utils/helpers';
+import { DEFAULT_KEYWORDS, formatKeywordsForDeepgram } from '../config/deepgramKeywords';
 
 // System default Deepgram API key (from environment variable)
 // Users can override this in settings
@@ -191,6 +192,21 @@ function logDeepgramResponse(result: DeepgramResponse, mode: string): void {
 }
 
 /**
+ * Add keywords to URLSearchParams for Deepgram API
+ */
+function addKeywordsToParams(params: URLSearchParams, enableKeywords: boolean) {
+  if (!enableKeywords) return;
+  
+  const keywords = DEFAULT_KEYWORDS;
+  console.log(`[Deepgram] 🎯 Adding ${keywords.length} keywords to boost professional terms recognition`);
+  
+  // Deepgram keywords format: keywords=word1:boost1&keywords=word2:boost2
+  keywords.forEach(({ word, boost }) => {
+    params.append('keywords', `${word}:${boost}`);
+  });
+}
+
+/**
  * Normalize language code for Deepgram API
  * Deepgram uses specific language codes: 'zh' for Chinese, 'en' for English, etc.
  */
@@ -224,12 +240,19 @@ function normalizeLanguageCode(language?: string): string | undefined {
 /**
  * Generate subtitles using Deepgram API
  * Uses Nova-2 model for best accuracy/cost balance
+ * 
+ * @param file - Audio/video file to transcribe
+ * @param language - Language code (e.g., 'zh', 'en')
+ * @param onProgress - Progress callback
+ * @param abortSignal - Abort signal
+ * @param enableKeywords - Enable keyword boosting for professional terms (default: true)
  */
 export async function generateSubtitlesWithDeepgram(
   file: File | Blob,
   language?: string,
   onProgress?: (progress: number) => void,
-  abortSignal?: AbortSignal
+  abortSignal?: AbortSignal,
+  enableKeywords: boolean = true
 ): Promise<DeepgramResponse> {
   const settings = await getEffectiveSettings();
   const apiKey = getDeepgramApiKey(settings.deepgramApiKey);
@@ -399,6 +422,9 @@ export async function generateSubtitlesWithDeepgram(
             console.log('[Deepgram] 🌐 Language auto-detection enabled');
           }
 
+          // Add keywords for professional terms recognition
+          addKeywordsToParams(params, enableKeywords);
+
           const contentType = file.type || 'video/mp4';
           const directUrl = `https://api.deepgram.com/v1/listen?${params.toString()}`;
 
@@ -472,6 +498,9 @@ export async function generateSubtitlesWithDeepgram(
           } else {
             console.log('[Deepgram] 🌐 Language auto-detection enabled');
           }
+
+          // Add keywords for professional terms recognition
+          addKeywordsToParams(params, enableKeywords);
 
           const directUrl = `https://api.deepgram.com/v1/listen?${params.toString()}`;
 
@@ -570,6 +599,9 @@ export async function generateSubtitlesWithDeepgram(
             } else {
               console.log('[Deepgram] 🌐 Language auto-detection enabled');
             }
+
+            // Add keywords for professional terms recognition
+            addKeywordsToParams(urlParams, enableKeywords);
 
             urlParams.append('url_mode', 'true');
             const proxyUrl = `/api/deepgram-proxy?${urlParams.toString()}`;
@@ -715,6 +747,9 @@ export async function generateSubtitlesWithDeepgram(
           } else {
             console.log('[Deepgram] 🌐 Language auto-detection enabled');
           }
+
+          // Add keywords for professional terms recognition
+          addKeywordsToParams(params, enableKeywords);
 
           const contentType = 'audio/wav';
           const directUrl = `https://api.deepgram.com/v1/listen?${params.toString()}`;
@@ -883,6 +918,9 @@ export async function generateSubtitlesWithDeepgram(
   } else {
     console.log('[Deepgram] 🌐 Language auto-detection enabled');
   }
+
+  // Add keywords for professional terms recognition
+  addKeywordsToParams(params, enableKeywords);
 
   // Determine content type
   const contentType = file.type || 'audio/wav';
@@ -1053,6 +1091,25 @@ export function deepgramToSegments(response: DeepgramResponse): DeepgramSegment[
     text: validWords[0].word,
   };
 
+  // 🎯 智能判断是否需要空格的辅助函数
+  const needsSpace = (prevText: string, nextWord: string): boolean => {
+    if (!prevText || !nextWord) return false;
+    
+    const lastChar = prevText.trim().slice(-1);
+    const firstChar = nextWord.trim()[0];
+    
+    // 中文字符 Unicode 范围
+    const isChinese = (char: string) => /[\u4e00-\u9fa5]/.test(char);
+    
+    // 两个都是中文字符 → 不需要空格
+    if (isChinese(lastChar) && isChinese(firstChar)) {
+      return false;
+    }
+    
+    // 至少有一个是英文/数字 → 需要空格
+    return true;
+  };
+
   for (let i = 1; i < validWords.length; i++) {
     const word = validWords[i];
     const segmentDuration = word.end - currentSegment.start;
@@ -1074,8 +1131,9 @@ export function deepgramToSegments(response: DeepgramResponse): DeepgramSegment[
         text: word.word,
       };
     } else {
-      // Add word to current segment
-      currentSegment.text += ' ' + word.word;
+      // 🎯 智能添加空格：中文之间不加空格，英文/数字之间加空格
+      const separator = needsSpace(currentSegment.text, word.word) ? ' ' : '';
+      currentSegment.text += separator + word.word;
       currentSegment.end = word.end;
     }
   }

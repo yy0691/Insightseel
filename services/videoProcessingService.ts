@@ -606,6 +606,59 @@ interface InsightGenerationResult {
   usedTranscript: boolean;
 }
 
+/**
+ * 智能采样字幕 - 避免长视频字幕超出 token 限制
+ * 策略：根据视频时长智能采样，保证覆盖整个视频的关键内容
+ */
+function sampleSubtitlesIntelligently(segments: SubtitleSegment[]): SubtitleSegment[] {
+  if (segments.length === 0) return segments;
+  
+  const videoDuration = segments[segments.length - 1].endTime;
+  const estimatedCharsPerSegment = 50; // 平均每条字幕约50个字符
+  const totalEstimatedChars = segments.length * estimatedCharsPerSegment;
+  
+  // 目标：保持在约 8000 tokens 以内（约 32000 字符）
+  const MAX_CHARS = 32000;
+  
+  // 如果字幕总长度较短，直接返回全部
+  if (totalEstimatedChars <= MAX_CHARS) {
+    console.log(`[Analysis] Using all ${segments.length} subtitles (estimated ${totalEstimatedChars} chars)`);
+    return segments;
+  }
+  
+  // 需要采样：计算采样比例
+  const samplingRatio = MAX_CHARS / totalEstimatedChars;
+  const targetSegmentCount = Math.floor(segments.length * samplingRatio);
+  
+  console.log(`[Analysis] Sampling subtitles: ${segments.length} → ${targetSegmentCount} segments (${(samplingRatio * 100).toFixed(1)}%)`);
+  
+  // 🎯 三段式采样策略：开头 30% + 中间 40% + 结尾 30%
+  // 这样可以确保分析覆盖整个视频，而不是只分析前几分钟
+  const startCount = Math.floor(targetSegmentCount * 0.30);
+  const middleCount = Math.floor(targetSegmentCount * 0.40);
+  const endCount = targetSegmentCount - startCount - middleCount;
+  
+  const startSegments = segments.slice(0, startCount);
+  const middleStart = Math.floor((segments.length - middleCount) / 2);
+  const middleSegments = segments.slice(middleStart, middleStart + middleCount);
+  const endSegments = segments.slice(-endCount);
+  
+  const sampledSegments = [...startSegments, ...middleSegments, ...endSegments];
+  
+  console.log(`[Analysis] Sampling strategy:`, {
+    totalSegments: segments.length,
+    sampledSegments: sampledSegments.length,
+    startSegments: startCount,
+    middleSegments: middleCount,
+    endSegments: endCount,
+    coverageStart: `0:00 - ${formatTimestamp(startSegments[startSegments.length - 1]?.endTime || 0)}`,
+    coverageMiddle: `${formatTimestamp(middleSegments[0]?.startTime || 0)} - ${formatTimestamp(middleSegments[middleSegments.length - 1]?.endTime || 0)}`,
+    coverageEnd: `${formatTimestamp(endSegments[0]?.startTime || 0)} - ${formatTimestamp(videoDuration)}`,
+  });
+  
+  return sampledSegments;
+}
+
 async function prepareAnalysisPayload(
   options: InsightGenerationOptions,
 ): Promise<{ subtitlesText?: string; frames?: string[]; audioData?: { data: string; mimeType: string; isUrl?: boolean }; usedTranscript: boolean; }> {
@@ -613,9 +666,15 @@ async function prepareAnalysisPayload(
 
   if (subtitles && subtitles.segments.length > 0) {
     onStatus?.({ stage: 'Using transcript for analysis...', progress: 15 });
-    const subtitlesText = subtitles.segments
+    
+    // 🎯 智能采样字幕，避免长视频字幕超出 token 限制
+    const sampledSegments = sampleSubtitlesIntelligently(subtitles.segments);
+    
+    const subtitlesText = sampledSegments
       .map((segment) => `[${formatTimestamp(segment.startTime)}] ${segment.text}`)
       .join('\n');
+    
+    console.log(`[Analysis] Prepared transcript: ${sampledSegments.length} segments, ${subtitlesText.length} chars`);
 
     return { subtitlesText, usedTranscript: true };
   }

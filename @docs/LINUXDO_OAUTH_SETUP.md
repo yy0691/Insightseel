@@ -50,7 +50,7 @@
    ON CONFLICT (provider, key) DO UPDATE SET value = EXCLUDED.value, updated_at = now();
    ```
    - 将 `your_client_id_here` 和 `your_client_secret_here` 替换为实际值
-   - 如果没有 client_secret，可以只插入 client_id
+   - ⚠️ **重要**：Linux.do OAuth 通常要求 `client_secret`，即使使用 PKCE。请确保同时配置 `client_id` 和 `client_secret`
 
 #### 方法 2：使用 app_config 表（如果已存在）
 
@@ -73,7 +73,10 @@ ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
 
 ```bash
 VITE_LINUXDO_CLIENT_ID=your_client_id_here
+VITE_LINUXDO_CLIENT_SECRET=your_client_secret_here
 ```
+
+⚠️ **重要**：Linux.do OAuth 通常要求 `client_secret`，即使使用 PKCE。请确保同时配置 `client_id` 和 `client_secret`。
 
 #### 生产环境（Vercel）
 
@@ -83,6 +86,9 @@ VITE_LINUXDO_CLIENT_ID=your_client_id_here
 4. 添加以下变量：
    - **Name**: `VITE_LINUXDO_CLIENT_ID`
    - **Value**: 你的 Client ID
+   - **Environment**: `Production`, `Preview`, `Development`
+   - **Name**: `VITE_LINUXDO_CLIENT_SECRET`
+   - **Value**: 你的 Client Secret
    - **Environment**: `Production`, `Preview`, `Development`
 5. 点击 **Save**
 6. 重新部署应用

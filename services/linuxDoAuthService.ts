@@ -38,8 +38,12 @@ async function getLinuxDoConfig(): Promise<{ clientId: string; clientSecret?: st
 
   // Try to get from environment variable first (for backward compatibility)
   const envClientId = import.meta.env.VITE_LINUXDO_CLIENT_ID;
+  const envClientSecret = import.meta.env.VITE_LINUXDO_CLIENT_SECRET;
   if (envClientId) {
-    cachedConfig = { clientId: envClientId };
+    cachedConfig = { 
+      clientId: envClientId,
+      clientSecret: envClientSecret || undefined
+    };
     return cachedConfig;
   }
 
@@ -304,16 +308,27 @@ export async function exchangeCodeForToken(
     code_verifier: codeVerifier,
   };
 
-  // Add client_secret if available (some OAuth implementations require it)
+  // ⚠️ 重要：Linux.do OAuth 通常要求 client_secret，即使使用了 PKCE
+  // 如果 client_secret 缺失，可能会导致 token 交换失败
   if (clientSecret) {
     bodyParams.client_secret = clientSecret;
+    console.log('✅ client_secret 已配置，将包含在 token 交换请求中');
+  } else {
+    console.warn('⚠️ client_secret 未配置！Linux.do OAuth 通常要求 client_secret，即使使用 PKCE。');
+    console.warn('⚠️ 如果 token 交换失败，请检查：');
+    console.warn('   1. Supabase 数据库 oauth_config 表中是否有 provider="linuxdo", key="client_secret" 的记录');
+    console.warn('   2. 或者 app_config 表中是否有 key="linuxdo_client_secret" 的记录');
+    console.warn('   3. 或者环境变量 VITE_LINUXDO_CLIENT_SECRET 是否已设置');
+    console.warn('   4. 如果 Linux.do 应用确实不需要 client_secret，可以忽略此警告');
   }
 
   console.log('Exchanging code for token:', {
     hasCode: !!code,
     hasCodeVerifier: !!codeVerifier,
+    hasClientSecret: !!clientSecret,
     redirectUri,
     tokenUrl: LINUXDO_TOKEN_URL,
+    requestBodyKeys: Object.keys(bodyParams),
   });
 
   let response: Response;
@@ -341,14 +356,22 @@ export async function exchangeCodeForToken(
       errorText,
       redirectUri,
       hasCodeVerifier: !!codeVerifier,
+      hasClientSecret: !!clientSecret,
     });
 
     // 根据不同的错误状态码提供更具体的错误信息
     let errorMessage = `Token exchange failed: ${response.status}`;
     if (response.status === 400) {
       errorMessage = '授权码无效或已过期。请重新登录。';
+      // 检查是否是 client_secret 缺失导致的
+      if (!clientSecret) {
+        errorMessage += ' 另外，检测到 client_secret 未配置，Linux.do OAuth 通常要求此参数。请检查配置。';
+      }
     } else if (response.status === 401) {
       errorMessage = 'Client ID 或 Client Secret 配置错误。请检查配置。';
+      if (!clientSecret) {
+        errorMessage += ' 检测到 client_secret 未配置，这可能是导致 401 错误的原因。';
+      }
     } else if (response.status === 403) {
       errorMessage = '访问被拒绝。请检查回调 URL 是否在 Linux.do 应用中正确配置。';
     } else if (response.status >= 500) {

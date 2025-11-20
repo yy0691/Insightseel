@@ -401,7 +401,7 @@ const AppContent: React.FC<{
           }
           
           // 🔒 必须使用存储的 redirect_uri，确保与授权请求时完全一致
-          const redirectUri = storedRedirectUri;
+          const redirectUri = sessionStorage.getItem('linuxdo_redirect_uri') || 'https://insight.luoyuanai.cn';
           
           console.log('Exchanging code for token with redirect_uri:', redirectUri);
           console.log('✅ 使用存储的 redirect_uri，确保与授权请求时完全一致');

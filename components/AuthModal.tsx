@@ -231,7 +231,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess, initi
                   title={t('linuxDoLogin')}
                 >
                   {/* Linux.do logo - using a terminal/command line icon as placeholder */}
-                  <svg width="4" height="4" viewBox="0 0 4 4" xmlns="http://www.w3.org/2000/svg">
+                  <svg width="4" height="4" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                       <clipPath id="a"><circle cx="60" cy="60" r="47"/></clipPath>
                       <circle fill="#f0f0f0" cx="60" cy="60" r="50"/>
                       <rect fill="#1c1c1e" clip-path="url(#a)" x="10" y="10" width="100" height="30"/>

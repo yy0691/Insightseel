@@ -31,7 +31,6 @@ import { User } from "@supabase/supabase-js";
 import { authService } from "./services/authService";
 import autoSyncService, { getSyncStatus } from "./services/autoSyncService";
 import { saveSubtitles } from "./services/subtitleService";
-import { exchangeCodeForToken, getLinuxDoUserInfo, verifyState } from "./services/linuxDoAuthService";
 
 const SUPPORTED_SUBTITLE_EXTENSIONS = [".srt", ".vtt"];
 
@@ -268,7 +267,7 @@ const AppContent: React.FC<{
     migrateLinuxDoData();
   }, [currentUser]);
 
-  // Handle Linux.do OAuth callback
+  // Handle Linux.do OAuth callback (使用新的回调服务)
   useEffect(() => {
     const handleLinuxDoCallback = async () => {
       const urlParams = new URLSearchParams(window.location.search);
@@ -276,315 +275,30 @@ const AppContent: React.FC<{
       const state = urlParams.get('state');
       const error = urlParams.get('error');
 
-      // Check if this is a Linux.do OAuth callback (has code or error parameter)
-      if (code || error) {
-        // Clean up URL by removing query parameters
-        const cleanUrl = window.location.origin + window.location.pathname;
-        window.history.replaceState({}, document.title, cleanUrl);
+      // 检查是否是 Linux.do OAuth 回调
+      if (!code && !error) return;
 
-        if (error) {
-          console.error('Linux.do OAuth error:', error);
-          
-          // 提供更详细的错误信息和解决方案
-          let errorDescription = String(error);
-          let recommendations: string[] = [];
-          
-          if (error === 'invalid_request') {
-            errorDescription = '请求参数无效';
-            recommendations = [
-              '1. 检查 redirect_uri 是否与 Linux.do 应用中配置的回调 URL 完全匹配',
-              '2. 确保 Client ID 配置正确',
-              '3. 检查浏览器控制台查看完整的授权 URL',
-              '4. 确认所有必需参数都已包含（client_id, redirect_uri, response_type, scope, state, code_challenge, code_challenge_method）'
-            ];
-            
-            // 输出诊断信息到控制台
-            const storedRedirectUri = sessionStorage.getItem('linuxdo_redirect_uri');
-            console.error('OAuth invalid_request 诊断信息:', {
-              error,
-              currentUrl: window.location.href,
-              origin: window.location.origin,
-              pathname: window.location.pathname,
-              storedRedirectUri,
-              hasClientId: !!import.meta.env.VITE_LINUXDO_CLIENT_ID,
-              sessionStorageKeys: Object.keys(sessionStorage).filter(k => k.startsWith('linuxdo_')),
-            });
-            
-            // 尝试诊断配置
-            try {
-              const { diagnoseLinuxDoConfig } = await import('./services/linuxDoAuthService');
-              const diagnosis = await diagnoseLinuxDoConfig();
-              console.error('配置诊断结果:', diagnosis);
-              if (diagnosis.recommendations.length > 0) {
-                recommendations.push(...diagnosis.recommendations);
-              }
-            } catch (diagError) {
-              console.warn('无法执行配置诊断:', diagError);
-            }
-          } else if (error === 'unauthorized_client') {
-            errorDescription = '客户端未授权';
-            recommendations = [
-              '1. 检查 Client ID 是否正确',
-              '2. 确认在 Linux.do 中注册的 OAuth 应用状态为"已启用"',
-              '3. 检查回调 URL 是否在允许列表中'
-            ];
-          } else if (error === 'access_denied') {
-            errorDescription = '用户拒绝了授权请求';
-            recommendations = [
-              '1. 用户取消了授权',
-              '2. 请重新点击登录按钮并完成授权'
-            ];
-          } else if (error === 'unsupported_response_type') {
-            errorDescription = '不支持的响应类型';
-            recommendations = [
-              '1. 检查 response_type 参数是否为 "code"',
-              '2. 确认 Linux.do OAuth 实现支持授权码流程'
-            ];
-          } else if (error === 'invalid_scope') {
-            errorDescription = '无效的权限范围';
-            recommendations = [
-              '1. 检查 scope 参数是否为 "read"',
-              '2. 确认 Linux.do OAuth 应用支持该权限范围'
-            ];
-          }
-          
-          const fullMessage = recommendations.length > 0 
-            ? `${errorDescription}\n\n可能的原因：\n${recommendations.join('\n')}`
-            : errorDescription;
-          
-          toast.error({ 
-            title: 'Linux.do 登录失败', 
-            description: fullMessage,
-            duration: 8000 // 显示更长时间以便用户阅读
-          });
-          return;
-        }
+      // 清理 URL
+      const cleanUrl = window.location.origin + window.location.pathname;
+      window.history.replaceState({}, document.title, cleanUrl);
 
-        if (!code || !state) {
-          console.error('Missing code or state in OAuth callback');
-          toast.error({ title: 'Linux.do 登录回调参数不完整' });
-          return;
-        }
+      // 使用新的回调服务处理
+      const { handleLinuxDoCallback: handleCallback } = await import('./services/linuxDoCallbackService');
+      const result = await handleCallback(
+        { code: code || '', state: state || '', error: error || undefined },
+        currentUser
+      );
 
-        // Verify state
-        if (!verifyState(state)) {
-          console.error('Invalid state parameter', {
-            receivedState: state,
-            sessionStorageKeys: Object.keys(sessionStorage).filter(k => k.startsWith('linuxdo_')),
-          });
-          toast.error({ 
-            title: 'Linux.do 登录验证失败', 
-            description: '状态参数不匹配。这可能是因为：1) 在新标签页打开了授权页面；2) SessionStorage 被清除；3) 跨域问题。请重新点击登录按钮，确保在同一窗口中完成授权。' 
-          });
-          return;
-        }
-
-        try {
-          // Exchange code for token
-          // Use the same redirect_uri that was used in the authorization request
-          // ⚠️ 重要：必须使用与授权请求时完全相同的 redirect_uri（包括尾部斜杠）
-          const storedRedirectUri = sessionStorage.getItem('linuxdo_redirect_uri');
-          
-          if (!storedRedirectUri) {
-            console.error('⚠️ 未找到存储的 redirect_uri，这可能导致 invalid_request 错误');
-            console.error('诊断信息:', {
-              currentUrl: window.location.href,
-              origin: window.location.origin,
-              pathname: window.location.pathname,
-              sessionStorageKeys: Object.keys(sessionStorage).filter(k => k.startsWith('linuxdo_')),
-            });
-            toast.error({ 
-              title: 'Linux.do 登录失败', 
-              description: '未找到授权请求时的 redirect_uri。请清除浏览器 sessionStorage 后重新登录。' 
-            });
-            return;
-          }
-          
-          // 🔒 必须使用存储的 redirect_uri，确保与授权请求时完全一致
-          // 如果没有存储的值，使用固定值（不带尾部斜杠）
-          let redirectUri = storedRedirectUri;
-          
-          // 如果存储的值不存在，构建一个（确保不带尾部斜杠）
-          if (!redirectUri) {
-            const fallbackUri = window.location.origin;
-            redirectUri = fallbackUri.endsWith('/') ? fallbackUri.slice(0, -1) : fallbackUri;
-            console.warn('⚠️ 未找到存储的 redirect_uri，使用 fallback:', redirectUri);
-          }
-          
-          // 🔧 确保 redirect_uri 不带尾部斜杠（统一处理）
-          if (redirectUri.endsWith('/') && redirectUri.split('/').length === 4) {
-            redirectUri = redirectUri.slice(0, -1);
-          }
-          
-          console.log('Exchanging code for token with redirect_uri:', redirectUri);
-          console.log('✅ 使用统一的 redirect_uri（不带尾部斜杠），确保与授权请求时完全一致');
-          console.log('🔍 redirect_uri 一致性检查:', {
-            stored: storedRedirectUri,
-            used: redirectUri,
-            currentUrl: window.location.href,
-            origin: window.location.origin,
-            pathname: window.location.pathname,
-          });
-          
-          // Clean up stored redirect_uri after use (but only after successful token exchange)
-          // 注意：在 token 交换成功后再清除，如果失败可以重试
-          
-          const tokenData = await exchangeCodeForToken(code, redirectUri);
-          
-          // ✅ Token 交换成功，现在可以清除存储的 redirect_uri
-          sessionStorage.removeItem('linuxdo_redirect_uri');
-
-          // Get user info
-          const userInfo = await getLinuxDoUserInfo(tokenData.access_token);
-
-          console.log('Linux.do OAuth success:', { tokenData, userInfo });
-          console.log('Linux.do user info fields:', Object.keys(userInfo));
-          console.log('Linux.do avatar fields check:', {
-            avatar_url: userInfo.avatar_url,
-            avatar: userInfo.avatar,
-            logo: userInfo.logo,
-            picture: userInfo.picture,
-            avatarUrl: userInfo.avatarUrl,
-            profile_image_url: userInfo.profile_image_url,
-            profile_picture: userInfo.profile_picture,
-            image: userInfo.image,
-          });
-
-          // Extract Linux.do user ID
-          const linuxdoUserId = userInfo.id?.toString() || userInfo.user_id?.toString();
-          if (!linuxdoUserId) {
-            throw new Error('Linux.do user ID not found in user info');
-          }
-
-          // Extract avatar URL from user info (try multiple possible field names)
-          const avatarUrl = userInfo.avatar_url || 
-                           userInfo.avatar || 
-                           userInfo.logo || 
-                           userInfo.picture || 
-                           userInfo.avatarUrl ||
-                           userInfo.profile_image_url ||
-                           userInfo.profile_picture ||
-                           userInfo.image ||
-                           userInfo.photo ||
-                           userInfo.thumbnail ||
-                           undefined;
-
-          // Try to find or create profile by Linux.do user ID (supports independent Linux.do registration)
-          let profile: import('./services/authService').Profile | null = null;
-          
-          if (currentUser) {
-            // User is already logged in to Supabase, update their profile
-            try {
-              const profileUpdates: Partial<import('./services/authService').Profile> = {
-                linuxdo_user_id: linuxdoUserId,
-                linuxdo_username: userInfo.username || userInfo.name || undefined,
-                linuxdo_avatar_url: avatarUrl,
-                linuxdo_access_token: tokenData.access_token,
-                linuxdo_token_expires_at: tokenData.expires_in 
-                  ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
-                  : undefined,
-                linuxdo_user_data: userInfo,
-              };
-
-              // Remove undefined values
-              Object.keys(profileUpdates).forEach(key => {
-                if (profileUpdates[key as keyof typeof profileUpdates] === undefined) {
-                  delete profileUpdates[key as keyof typeof profileUpdates];
-                }
-              });
-
-              await authService.updateProfile(currentUser.id, profileUpdates);
-              profile = await authService.getProfile(currentUser.id);
-              console.log('Linux.do information saved to profile (existing Supabase user)');
-            } catch (profileError) {
-              console.error('Error saving Linux.do info to profile:', profileError);
-              // Continue anyway, don't fail the OAuth flow
-            }
-          } else {
-            // User is not logged in to Supabase - try to find existing profile by Linux.do ID
-            // This supports independent Linux.do registration
-            try {
-              profile = await authService.findOrCreateProfileByLinuxDoId(linuxdoUserId, {
-                ...userInfo,
-                access_token: tokenData.access_token,
-                token_expires_at: tokenData.expires_in 
-                  ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
-                  : undefined,
-              });
-
-              if (profile) {
-                // Found existing profile, update with latest token info
-                const profileUpdates: Partial<import('./services/authService').Profile> = {
-                  linuxdo_access_token: tokenData.access_token,
-                  linuxdo_token_expires_at: tokenData.expires_in 
-                    ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
-                    : undefined,
-                };
-
-                await authService.updateProfile(profile.id, profileUpdates);
-                console.log('Linux.do information updated in existing profile');
-              } else {
-                // No profile found - store in local storage for later
-                // User can create a Supabase account later and link it
-                const linuxDoData = {
-                  user_id: linuxdoUserId,
-                  username: userInfo.username || userInfo.name,
-                  avatar_url: avatarUrl,
-                  access_token: tokenData.access_token,
-                  token_expires_at: tokenData.expires_in 
-                    ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
-                    : undefined,
-                  user_data: userInfo,
-                };
-                localStorage.setItem('linuxdo_oauth_data', JSON.stringify(linuxDoData));
-                console.log('Linux.do information saved to local storage (no Supabase account, will create profile when user signs up)');
-              }
-            } catch (error) {
-              console.error('Error handling Linux.do profile:', error);
-              // Fallback to local storage
-              const linuxDoData = {
-                user_id: linuxdoUserId,
-                username: userInfo.username || userInfo.name,
-                avatar_url: avatarUrl,
-                access_token: tokenData.access_token,
-                token_expires_at: tokenData.expires_in 
-                  ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
-                  : undefined,
-                user_data: userInfo,
-              };
-              localStorage.setItem('linuxdo_oauth_data', JSON.stringify(linuxDoData));
-            }
-          }
-
-          // 显示成功消息
-          toast.success({ title: 'Linux.do 登录成功！' });
-          setTimeout(() => {
-            // 刷新页面以更新 UI
-            window.location.reload();
-          }, 2000);
-        } catch (err) {
-          console.error('Linux.do OAuth callback error:', err);
-          
-          // 提供更详细的错误信息
-          let errorMessage = '未知错误';
-          if (err instanceof Error) {
-            errorMessage = err.message;
-          }
-          
-          // 如果是常见的错误，提供解决方案
-          if (errorMessage.includes('Code verifier') || errorMessage.includes('授权验证码')) {
-            errorMessage += ' 提示：请重新点击登录按钮，不要在新标签页中打开授权页面。';
-          } else if (errorMessage.includes('redirect_uri') || errorMessage.includes('回调')) {
-            errorMessage += ' 提示：请确保在 Linux.do 应用中配置的回调 URL 与当前页面 URL 完全匹配。';
-          } else if (errorMessage.includes('Client ID')) {
-            errorMessage += ' 提示：请检查 Linux.do Client ID 是否正确配置。';
-          }
-          
-          toast.error({ 
-            title: 'Linux.do 登录处理失败', 
-            description: errorMessage 
-          });
-        }
+      // 处理结果
+      if (result.success) {
+        toast.success({ title: 'Linux.do 登录成功！' });
+        setTimeout(() => window.location.reload(), 2000);
+      } else {
+        toast.error({
+          title: 'Linux.do 登录失败',
+          description: result.error || '未知错误',
+          duration: 8000,
+        });
       }
     };
 

@@ -17,11 +17,12 @@ CREATE INDEX IF NOT EXISTS idx_oauth_config_provider ON oauth_config(provider);
 -- Enable RLS (Row Level Security)
 ALTER TABLE oauth_config ENABLE ROW LEVEL SECURITY;
 
--- Policy: Only authenticated users can read (you may want to restrict this further)
--- For public OAuth configs, you might want to allow anonymous reads
-CREATE POLICY "Allow authenticated users to read oauth config"
+-- Policy: Allow anonymous users to read OAuth config (required for login flow)
+-- OAuth configs (client_id, redirect_uri) are public and needed before authentication
+-- Only allow reading, not writing
+CREATE POLICY "Allow anonymous users to read oauth config"
   ON oauth_config FOR SELECT
-  TO authenticated
+  TO anon, authenticated
   USING (true);
 
 -- Policy: Only service role or specific admin users can insert/update

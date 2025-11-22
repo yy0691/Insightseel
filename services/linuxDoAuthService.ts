@@ -76,40 +76,51 @@ async function getLinuxDoConfig(): Promise<OAuthConfig | null> {
 
   try {
     // 方法1: oauth_config 表（推荐）
-    const { data: oauthConfig } = await supabase
-      .from('oauth_config')
-      .select('key, value')
-      .eq('provider', 'linuxdo');
+    // 支持多种 provider 名称：linuxdo、slack、slack_oidc（因为 Linux.do 可能配置为 "Slack (OIDC)"）
+    const providerNames = ['linuxdo', 'slack', 'slack_oidc'];
+    let oauthConfig: Array<{ key: string; value: string }> | null = null;
+    let oauthError: any = null;
+    let foundProvider = '';
 
-    if (oauthConfig && oauthConfig.length > 0) {
+    // 依次尝试不同的 provider 名称
+    for (const providerName of providerNames) {
+      const { data, error } = await supabase
+        .from('oauth_config')
+        .select('key, value')
+        .eq('provider', providerName);
+
+      if (!error && data && data.length > 0) {
+        oauthConfig = data;
+        foundProvider = providerName;
+        console.log(`[Linux.do] 从 oauth_config 表找到 provider="${providerName}" 的配置`);
+        break;
+      } else if (error) {
+        oauthError = error;
+      }
+    }
+
+    if (oauthError && !oauthConfig) {
+      console.error('[Linux.do] 读取 oauth_config 表失败:', oauthError);
+      console.error('[Linux.do] 错误详情:', {
+        message: oauthError.message,
+        details: oauthError.details,
+        hint: oauthError.hint,
+        code: oauthError.code,
+      });
+    } else if (oauthConfig && oauthConfig.length > 0) {
+      console.log(`[Linux.do] 从 oauth_config 表读取到 ${oauthConfig.length} 条配置 (provider="${foundProvider}")`);
+      console.log('[Linux.do] 配置项:', oauthConfig);
       const config: Partial<OAuthConfig> = {};
       oauthConfig.forEach((item: { key: string; value: string }) => {
         if (item.key === 'client_id') config.clientId = item.value;
         if (item.key === 'client_secret') config.clientSecret = item.value;
         if (item.key === 'redirect_uri') config.redirectUri = item.value;
       });
-      if (config.clientId) {
-        cachedConfig = { 
-          clientId: config.clientId, 
-          clientSecret: config.clientSecret,
-          redirectUri: config.redirectUri
-        };
-        return cachedConfig;
-      }
-    }
-
-    // 方法2: app_config 表（备选）
-    const { data: appConfig } = await supabase
-      .from('app_config')
-      .select('key, value')
-      .in('key', ['linuxdo_client_id', 'linuxdo_client_secret', 'linuxdo_redirect_uri']);
-
-    if (appConfig && appConfig.length > 0) {
-      const config: Partial<OAuthConfig> = {};
-      appConfig.forEach((item: { key: string; value: string }) => {
-        if (item.key === 'linuxdo_client_id') config.clientId = item.value;
-        if (item.key === 'linuxdo_client_secret') config.clientSecret = item.value;
-        if (item.key === 'linuxdo_redirect_uri') config.redirectUri = item.value;
+      console.log('[Linux.do] 解析后的配置:', {
+        hasClientId: !!config.clientId,
+        hasClientSecret: !!config.clientSecret,
+        hasRedirectUri: !!config.redirectUri,
+        redirectUri: config.redirectUri,
       });
       if (config.clientId) {
         cachedConfig = { 
@@ -118,10 +129,60 @@ async function getLinuxDoConfig(): Promise<OAuthConfig | null> {
           redirectUri: config.redirectUri
         };
         return cachedConfig;
+      } else {
+        console.warn(`[Linux.do] oauth_config 表中 provider="${foundProvider}" 没有找到 client_id 配置`);
+      }
+    } else {
+      console.warn('[Linux.do] oauth_config 表中没有找到 provider="linuxdo"、"slack" 或 "slack_oidc" 的配置');
+      console.warn('[Linux.do] 请检查配置，provider 字段应该是 "linuxdo"、"slack" 或 "slack_oidc" 之一');
+    }
+
+    // 方法2: app_config 表（备选）
+    const { data: appConfig, error: appError } = await supabase
+      .from('app_config')
+      .select('key, value')
+      .in('key', ['linuxdo_client_id', 'linuxdo_client_secret', 'linuxdo_redirect_uri']);
+
+    if (appError) {
+      console.error('[Linux.do] 读取 app_config 表失败:', appError);
+      console.error('[Linux.do] 错误详情:', {
+        message: appError.message,
+        details: appError.details,
+        hint: appError.hint,
+        code: appError.code,
+      });
+    } else {
+      console.log('[Linux.do] 从 app_config 表读取到', appConfig?.length || 0, '条配置');
+      if (appConfig && appConfig.length > 0) {
+        console.log('[Linux.do] 配置项:', appConfig);
+        const config: Partial<OAuthConfig> = {};
+        appConfig.forEach((item: { key: string; value: string }) => {
+          if (item.key === 'linuxdo_client_id') config.clientId = item.value;
+          if (item.key === 'linuxdo_client_secret') config.clientSecret = item.value;
+          if (item.key === 'linuxdo_redirect_uri') config.redirectUri = item.value;
+        });
+        console.log('[Linux.do] 解析后的配置:', {
+          hasClientId: !!config.clientId,
+          hasClientSecret: !!config.clientSecret,
+          hasRedirectUri: !!config.redirectUri,
+          redirectUri: config.redirectUri,
+        });
+        if (config.clientId) {
+          cachedConfig = { 
+            clientId: config.clientId, 
+            clientSecret: config.clientSecret,
+            redirectUri: config.redirectUri
+          };
+          return cachedConfig;
+        } else {
+          console.warn('[Linux.do] app_config 表中没有找到 linuxdo_client_id 配置');
+        }
+      } else {
+        console.warn('[Linux.do] app_config 表中没有找到 Linux.do 相关配置');
       }
     }
   } catch (error) {
-    console.error('[Linux.do] 读取配置失败:', error);
+    console.error('[Linux.do] 读取配置时发生异常:', error);
   }
 
   return null;
@@ -185,15 +246,36 @@ function normalizeRedirectUri(uri: string): string {
  */
 export async function buildLinuxDoAuthUrl(redirectUri?: string): Promise<string> {
   const config = await getLinuxDoConfig();
-  if (!config?.clientId) {
-    throw new Error('Linux.do Client ID 未配置。请在 Supabase 数据库的 oauth_config 或 app_config 表中添加配置，或设置环境变量 VITE_LINUXDO_CLIENT_ID。');
+  
+  if (!config) {
+    throw new Error(
+      'Linux.do 配置未找到。请检查：\n' +
+      '1. 是否在 Supabase 数据库的 oauth_config 表中配置了 Linux.do 相关配置？\n' +
+      '2. RLS 策略是否允许匿名用户读取？请执行 fix_oauth_config_rls_for_anonymous.sql 迁移文件\n' +
+      '3. 配置格式是否正确？\n' +
+      '   示例：INSERT INTO oauth_config (provider, key, value) VALUES\n' +
+      '     (\'linuxdo\', \'client_id\', \'your_client_id\'),\n' +
+      '     (\'linuxdo\', \'client_secret\', \'your_client_secret\'),\n' +
+      '     (\'linuxdo\', \'redirect_uri\', \'你的回调地址\');\n' +
+      '4. 查看浏览器控制台的详细日志，了解具体错误原因'
+    );
+  }
+  
+  if (!config.clientId) {
+    throw new Error(
+      'Linux.do Client ID 未配置。请在 Supabase 数据库的 oauth_config 表中添加配置：\n' +
+      'INSERT INTO oauth_config (provider, key, value) VALUES (\'linuxdo\', \'client_id\', \'your_client_id\');\n' +
+      '查看浏览器控制台了解详细错误信息'
+    );
   }
 
   // 重定向地址必须从数据库配置中读取，不允许前端动态构建
   if (!config.redirectUri) {
     throw new Error(
-      'Linux.do 重定向地址未配置。请在 Supabase 数据库的 oauth_config 或 app_config 表中添加 redirect_uri 配置。\n' +
-      '例如：INSERT INTO oauth_config (provider, key, value) VALUES (\'linuxdo\', \'redirect_uri\', \'你的回调地址\');'
+      'Linux.do 重定向地址未配置。请在 Supabase 数据库的 oauth_config 表中添加 redirect_uri 配置：\n' +
+      'INSERT INTO oauth_config (provider, key, value) VALUES (\'linuxdo\', \'redirect_uri\', \'你的回调地址\');\n' +
+      '⚠️ 回调地址必须与 Linux.do 应用中配置的回调 URL 完全一致\n' +
+      '查看浏览器控制台了解详细错误信息'
     );
   }
 
@@ -362,13 +444,29 @@ export function clearOAuthState(): void {
 
 // ==================== 诊断工具 ====================
 /**
- * 诊断 Linux.do OAuth 配置
+ * 诊断 Linux.do OAuth 配置（详细版本）
  */
 export async function diagnoseLinuxDoConfig(): Promise<{
   hasClientId: boolean;
   clientIdSource: 'env' | 'database' | 'none';
   hasClientSecret: boolean;
+  hasRedirectUri: boolean;
+  redirectUriValue?: string;
   supabaseConfigured: boolean;
+  databaseReadDetails: {
+    oauthConfigTable: {
+      exists: boolean;
+      recordCount: number;
+      error?: string;
+      records?: Array<{ key: string; value: string }>;
+    };
+    appConfigTable: {
+      exists: boolean;
+      recordCount: number;
+      error?: string;
+      records?: Array<{ key: string; value: string }>;
+    };
+  };
   sessionStorageState: {
     hasCodeVerifier: boolean;
     hasState: boolean;
@@ -379,12 +477,94 @@ export async function diagnoseLinuxDoConfig(): Promise<{
   const config = await getLinuxDoConfig();
   const hasClientId = !!config?.clientId;
   const hasClientSecret = !!config?.clientSecret;
-
+  const hasRedirectUri = !!config?.redirectUri;
+  
   let clientIdSource: 'env' | 'database' | 'none' = 'none';
   if (import.meta.env.VITE_LINUXDO_CLIENT_ID) {
     clientIdSource = 'env';
   } else if (config?.clientId) {
     clientIdSource = 'database';
+  }
+
+  // 详细检查数据库读取情况
+  const databaseReadDetails = {
+    oauthConfigTable: {
+      exists: false,
+      recordCount: 0,
+      records: [] as Array<{ key: string; value: string }>,
+      error: undefined as string | undefined,
+      foundProvider: '' as string,
+    },
+    appConfigTable: {
+      exists: false,
+      recordCount: 0,
+      records: [] as Array<{ key: string; value: string }>,
+      error: undefined as string | undefined,
+    },
+  };
+
+  if (supabase) {
+    try {
+      // 检查 oauth_config 表，支持多种 provider 名称
+      const providerNames = ['linuxdo', 'slack', 'slack_oidc'];
+      let foundProvider = '';
+      let oauthConfig: Array<{ key: string; value: string }> | null = null;
+      let oauthError: any = null;
+
+      for (const providerName of providerNames) {
+        const { data, error } = await supabase
+          .from('oauth_config')
+          .select('key, value')
+          .eq('provider', providerName);
+        
+        if (!error && data && data.length > 0) {
+          oauthConfig = data;
+          foundProvider = providerName;
+          break;
+        } else if (error) {
+          oauthError = error;
+        }
+      }
+      
+      if (oauthError && !oauthConfig) {
+        databaseReadDetails.oauthConfigTable.error = `${oauthError.message} (code: ${oauthError.code})`;
+        if (oauthError.code === '42P01') {
+          databaseReadDetails.oauthConfigTable.error += ' - 表不存在，请先执行 create_oauth_config_table.sql';
+        } else if (oauthError.code === '42501') {
+          databaseReadDetails.oauthConfigTable.error += ' - 权限不足，请检查 RLS 策略，执行 fix_oauth_config_rls_for_anonymous.sql';
+        }
+      } else if (oauthConfig && oauthConfig.length > 0) {
+        databaseReadDetails.oauthConfigTable.exists = true;
+        databaseReadDetails.oauthConfigTable.recordCount = oauthConfig.length;
+        databaseReadDetails.oauthConfigTable.records = oauthConfig;
+        databaseReadDetails.oauthConfigTable.foundProvider = foundProvider;
+      }
+    } catch (error) {
+      databaseReadDetails.oauthConfigTable.error = error instanceof Error ? error.message : '未知错误';
+    }
+
+    try {
+      // 检查 app_config 表
+      const { data: appConfig, error: appError } = await supabase
+        .from('app_config')
+        .select('key, value')
+        .in('key', ['linuxdo_client_id', 'linuxdo_client_secret', 'linuxdo_redirect_uri']);
+      
+      if (appError) {
+        databaseReadDetails.appConfigTable.error = `${appError.message} (code: ${appError.code})`;
+        if (appError.code === '42P01') {
+          databaseReadDetails.appConfigTable.error += ' - 表不存在';
+        } else if (appError.code === '42501') {
+          databaseReadDetails.appConfigTable.error += ' - 权限不足，请检查 RLS 策略';
+        }
+      } else {
+        databaseReadDetails.appConfigTable.exists = true;
+        databaseReadDetails.appConfigTable.recordCount = appConfig?.length || 0;
+        databaseReadDetails.appConfigTable.records = appConfig || [];
+      }
+    } catch (error) {
+      databaseReadDetails.appConfigTable.error = error instanceof Error ? error.message : '未知错误';
+    }
   }
 
   const sessionStorageState = {
@@ -394,21 +574,52 @@ export async function diagnoseLinuxDoConfig(): Promise<{
   };
 
   const recommendations: string[] = [];
-  if (!hasClientId) {
-    recommendations.push('配置 Linux.do Client ID：在 Supabase 数据库的 oauth_config 或 app_config 表中添加配置，或设置环境变量 VITE_LINUXDO_CLIENT_ID');
-  }
+  
   if (!supabase) {
-    recommendations.push('配置 Supabase：确保 Supabase 客户端已正确初始化');
+    recommendations.push('❌ Supabase 客户端未初始化：检查环境变量 VITE_SUPABASE_URL 和 VITE_SUPABASE_ANON_KEY');
+  } else {
+    if (!hasClientId) {
+      recommendations.push('❌ Client ID 未配置：在 oauth_config 表中添加 (provider=\'linuxdo\', key=\'client_id\')');
+    }
+    if (!hasRedirectUri) {
+      recommendations.push('❌ Redirect URI 未配置：在 oauth_config 表中添加 (provider=\'linuxdo\', key=\'redirect_uri\')');
+    }
+    
+    if (databaseReadDetails.oauthConfigTable.error) {
+      if (databaseReadDetails.oauthConfigTable.error.includes('42501')) {
+        recommendations.push('🔧 RLS 策略问题：执行 fix_oauth_config_rls_for_anonymous.sql 修复策略');
+      } else if (databaseReadDetails.oauthConfigTable.error.includes('42P01')) {
+        recommendations.push('🔧 表不存在：执行 create_oauth_config_table.sql 创建表');
+      } else {
+        recommendations.push(`🔧 数据库错误：${databaseReadDetails.oauthConfigTable.error}`);
+      }
+    }
+    
+    if (databaseReadDetails.oauthConfigTable.exists && databaseReadDetails.oauthConfigTable.recordCount === 0) {
+      recommendations.push('⚠️ oauth_config 表中没有找到 provider=\'linuxdo\'、\'slack\' 或 \'slack_oidc\' 的配置记录');
+      recommendations.push('💡 如果配置在 Supabase 中显示为 "Slack (OIDC)"，请使用 provider=\'slack\' 或 \'slack_oidc\'');
+      recommendations.push('💡 执行以下 SQL 添加配置：');
+      recommendations.push('   INSERT INTO oauth_config (provider, key, value) VALUES');
+      recommendations.push('     (\'slack\', \'client_id\', \'你的client_id\'),  -- 或使用 \'linuxdo\'、\'slack_oidc\'');
+      recommendations.push('     (\'slack\', \'client_secret\', \'你的client_secret\'),');
+      recommendations.push('     (\'slack\', \'redirect_uri\', \'你的回调地址\');');
+    } else if (databaseReadDetails.oauthConfigTable.foundProvider) {
+      recommendations.push(`✅ 找到配置，provider="${databaseReadDetails.oauthConfigTable.foundProvider}"`);
+    }
   }
+
   if (sessionStorageState.hasCodeVerifier || sessionStorageState.hasState) {
-    recommendations.push('检测到未完成的登录流程：请清除浏览器 sessionStorage 或重新开始登录流程');
+    recommendations.push('⚠️ 检测到未完成的登录流程：清除浏览器 sessionStorage 后重试');
   }
 
   return {
     hasClientId,
     clientIdSource,
     hasClientSecret,
+    hasRedirectUri,
+    redirectUriValue: config?.redirectUri,
     supabaseConfigured: !!supabase,
+    databaseReadDetails,
     sessionStorageState,
     recommendations,
   };

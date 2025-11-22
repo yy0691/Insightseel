@@ -101,8 +101,6 @@ const AccountPanel: React.FC<AccountPanelProps> = ({ user, onSignOut }) => {
     setLinuxDoStatus("connecting");
 
     try {
-      // 🔧 简化：不需要手动构建 redirect_uri，由 buildLinuxDoAuthUrl 自动处理
-      // 与 Google/GitHub 登录保持一致，前端代码更简洁
       const authUrl = await buildLinuxDoAuthUrl();
       
       // 在当前窗口跳转到授权页面（OAuth 标准流程）
@@ -113,20 +111,55 @@ const AccountPanel: React.FC<AccountPanelProps> = ({ user, onSignOut }) => {
       setLinuxDoStatus("disconnected");
       console.error('Linux.do login error:', e);
       
-      let errorMessage = '未知错误';
-      if (e instanceof Error) {
-        errorMessage = e.message;
+      // 自动运行诊断
+      try {
+        const { diagnoseLinuxDoConfig } = await import('../services/linuxDoAuthService');
+        const diagnosis = await diagnoseLinuxDoConfig();
         
-        // 如果是配置错误，提供更详细的帮助信息
-        if (errorMessage.includes('Client ID') || errorMessage.includes('未配置')) {
-          errorMessage += ' 请检查：1) Supabase 数据库中的 oauth_config 或 app_config 表；2) 环境变量 VITE_LINUXDO_CLIENT_ID；3) 浏览器控制台的详细错误信息。';
+        console.group('🔍 Linux.do 配置诊断结果');
+        console.log('配置状态:', {
+          hasClientId: diagnosis.hasClientId,
+          hasRedirectUri: diagnosis.hasRedirectUri,
+          redirectUri: diagnosis.redirectUriValue,
+          clientIdSource: diagnosis.clientIdSource,
+        });
+        console.log('数据库读取详情:', diagnosis.databaseReadDetails);
+        console.log('建议:', diagnosis.recommendations);
+        console.groupEnd();
+        
+        // 构建详细的错误信息
+        let errorMessage = '';
+        if (e instanceof Error) {
+          errorMessage = e.message;
         }
+        
+        // 添加诊断建议
+        if (diagnosis.recommendations.length > 0) {
+          errorMessage += '\n\n诊断建议：\n' + diagnosis.recommendations.join('\n');
+        }
+        
+        // 如果是数据库读取问题，提供具体信息
+        if (diagnosis.databaseReadDetails.oauthConfigTable.error) {
+          errorMessage += `\n\n数据库错误：${diagnosis.databaseReadDetails.oauthConfigTable.error}`;
+        }
+        
+        toast.error({ 
+          title: 'Linux.do 登录失败', 
+          description: errorMessage,
+          duration: 10000, // 显示更长时间
+        });
+      } catch (diagError) {
+        // 如果诊断也失败，至少显示原始错误
+        let errorMessage = '未知错误';
+        if (e instanceof Error) {
+          errorMessage = e.message;
+        }
+        toast.error({ 
+          title: 'Linux.do 登录失败', 
+          description: errorMessage + '\n\n请查看浏览器控制台（F12）了解详细错误信息',
+          duration: 10000,
+        });
       }
-      
-      toast.error({ 
-        title: 'Linux.do 登录失败', 
-        description: errorMessage 
-      });
     }
   };
 

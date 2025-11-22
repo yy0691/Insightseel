@@ -55,12 +55,16 @@
 2. **插入配置数据**：
    ```sql
    INSERT INTO oauth_config (provider, key, value) VALUES
-     ('linuxdo', 'client_id', 'your_client_id_here'),
-     ('linuxdo', 'client_secret', 'your_client_secret_here'),
-     ('linuxdo', 'redirect_uri', 'https://yourdomain.com')  -- ⚠️ 必须与 Linux.do 应用中的回调 URL 完全一致
+     ('slack', 'client_id', 'your_client_id_here'),  -- ⚠️ 如果 Supabase 中显示为 "Slack (OIDC)"，使用 'slack' 或 'slack_oidc'
+     ('slack', 'client_secret', 'your_client_secret_here'),
+     ('slack', 'redirect_uri', 'https://yourdomain.com')  -- ⚠️ 必须与 Linux.do 应用中的回调 URL 完全一致
    ON CONFLICT (provider, key) DO UPDATE SET value = EXCLUDED.value, updated_at = now();
    ```
    - 将 `your_client_id_here` 和 `your_client_secret_here` 替换为实际值
+   - ⚠️ **重要 - Provider 名称**：
+     - 如果 Supabase 中显示为 "Slack (OIDC)"，`provider` 字段应使用 `'slack'` 或 `'slack_oidc'`
+     - 也可以使用 `'linuxdo'`（如果单独配置）
+     - 系统会自动尝试以下 provider 名称：`'linuxdo'`、`'slack'`、`'slack_oidc'`
    - ⚠️ **重要**：Linux.do OAuth 通常要求 `client_secret`，即使使用 PKCE。请确保同时配置 `client_id` 和 `client_secret`
    - ⚠️ **重定向地址配置（必需）**：
      - `redirect_uri` 是**必需**配置项，必须在 `oauth_config` 表中配置
@@ -68,7 +72,7 @@
      - 如果 Linux.do Connect 的回调地址填的是 Supabase 的回调地址（如 `https://xxx.supabase.co/auth/v1/callback`），则 `redirect_uri` 也应该配置为相同的地址
      - 示例：
        - Linux.do 应用回调地址：`https://xxx.supabase.co/auth/v1/callback`
-       - 数据库配置：`INSERT INTO oauth_config (provider, key, value) VALUES ('linuxdo', 'redirect_uri', 'https://xxx.supabase.co/auth/v1/callback');`
+       - 数据库配置：`INSERT INTO oauth_config (provider, key, value) VALUES ('slack', 'redirect_uri', 'https://xxx.supabase.co/auth/v1/callback');`
 
 #### 方法 2：使用 app_config 表（如果已存在）
 
@@ -81,6 +85,11 @@ INSERT INTO app_config (key, value) VALUES
   ('linuxdo_redirect_uri', 'https://xxx.supabase.co/auth/v1/callback')  -- ⚠️ 必需，必须与 Linux.do 应用中的回调 URL 完全一致
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
 ```
+
+**⚠️ 重要提示 - Provider 名称**：
+- 如果 Linux.do 在 Supabase 中配置为 "Slack (OIDC)"，在 `oauth_config` 表中应使用 `provider='slack'` 或 `provider='slack_oidc'`
+- 系统会自动尝试以下 provider 名称查找配置：`'linuxdo'`、`'slack'`、`'slack_oidc'`
+- 如果使用 `app_config` 表，则不受此限制（使用固定的 key 名称）
 
 ### 4. 配置环境变量（备选方式）
 

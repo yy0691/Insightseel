@@ -171,27 +171,17 @@ function normalizeRedirectUri(uri: string): string {
   return normalized;
 }
 
-/**
- * 自动构建 redirect_uri（从 window.location）
- * 使用当前页面的 origin，因为 Supabase Authentication 中已经配置了这些重定向地址
- */
-function buildRedirectUri(): string {
-  if (typeof window === 'undefined') {
-    throw new Error('无法构建 redirect_uri：请在浏览器环境中调用');
-  }
-  // 使用 origin（不包含 pathname），因为 Supabase Authentication 中配置的重定向地址通常是域名级别
-  // 例如：https://prompt.luoyuanai.cn/ 或 https://prompt-mate-rust.vercel.app/
-  return normalizeRedirectUri(window.location.origin);
-}
+// 已移除 buildRedirectUri 函数
+// 重定向地址必须从数据库配置中读取，不允许前端动态构建
 
 // ==================== OAuth 流程 ====================
 /**
  * 构建 OAuth 授权 URL
- * 重定向地址优先级：数据库配置 > 参数传入 > 前端自动构建（仅作为最后备选）
  * 
- * ⚠️ 重要：重定向地址应该在 Supabase 数据库中配置，确保与 Linux.do 应用中的回调 URL 完全一致
+ * ⚠️ 重要：重定向地址必须从 Supabase 数据库配置中读取，与其他服务（Google、GitHub）保持一致
+ * 不允许前端动态构建，确保配置的统一性和一致性
  * 
- * @param redirectUri - 可选，仅在数据库未配置时使用（不推荐）
+ * @param redirectUri - 已废弃，不再使用。重定向地址必须从数据库配置中读取
  */
 export async function buildLinuxDoAuthUrl(redirectUri?: string): Promise<string> {
   const config = await getLinuxDoConfig();
@@ -199,24 +189,16 @@ export async function buildLinuxDoAuthUrl(redirectUri?: string): Promise<string>
     throw new Error('Linux.do Client ID 未配置。请在 Supabase 数据库的 oauth_config 或 app_config 表中添加配置，或设置环境变量 VITE_LINUXDO_CLIENT_ID。');
   }
 
-  // 重定向地址优先级：数据库配置 > 参数传入 > 当前页面 origin（匹配 Supabase Authentication 配置）
-  let finalRedirectUri: string;
-  
-  if (config.redirectUri) {
-    // 优先使用数据库配置的重定向地址
-    finalRedirectUri = normalizeRedirectUri(config.redirectUri);
-    console.log('[Linux.do] 使用数据库配置的重定向地址:', finalRedirectUri);
-  } else if (redirectUri) {
-    // 其次使用参数传入的（不推荐，仅用于特殊情况）
-    finalRedirectUri = normalizeRedirectUri(redirectUri);
-    console.warn('[Linux.do] ⚠️ 使用参数传入的重定向地址（建议在数据库中配置）:', finalRedirectUri);
-  } else {
-    // 使用当前页面的 origin，因为 Supabase Authentication 中已经配置了这些重定向地址
-    // 这样就不需要在 oauth_config 表中单独配置 redirect_uri 了
-    finalRedirectUri = buildRedirectUri();
-    console.log('[Linux.do] 使用当前页面 origin 作为重定向地址（匹配 Supabase Authentication 配置）:', finalRedirectUri);
-    console.log('[Linux.do] 💡 提示：如果遇到 redirect_uri 不匹配错误，请确保当前域名已在 Supabase Authentication → URL Configuration 中配置');
+  // 重定向地址必须从数据库配置中读取，不允许前端动态构建
+  if (!config.redirectUri) {
+    throw new Error(
+      'Linux.do 重定向地址未配置。请在 Supabase 数据库的 oauth_config 或 app_config 表中添加 redirect_uri 配置。\n' +
+      '例如：INSERT INTO oauth_config (provider, key, value) VALUES (\'linuxdo\', \'redirect_uri\', \'你的回调地址\');'
+    );
   }
+
+  const finalRedirectUri = normalizeRedirectUri(config.redirectUri);
+  console.log('[Linux.do] 使用数据库配置的重定向地址:', finalRedirectUri);
 
   // 清除之前的 OAuth 状态
   Object.values(STORAGE_KEYS).forEach(key => sessionStorage.removeItem(key));
@@ -265,9 +247,16 @@ export async function exchangeCodeForToken(
   }
 
   // 使用存储的 redirect_uri 或提供的 redirect_uri
+  // 重定向地址必须从数据库配置中读取，不允许前端动态构建
+  if (!storedRedirectUri && !redirectUri) {
+    throw new Error(
+      '重定向地址未找到。请确保在 Supabase 数据库中配置了 redirect_uri，并重新开始登录流程。'
+    );
+  }
+  
   const finalRedirectUri = redirectUri 
     ? normalizeRedirectUri(redirectUri) 
-    : storedRedirectUri || buildRedirectUri();
+    : storedRedirectUri!;
 
   // 构建请求体
   const bodyParams: Record<string, string> = {

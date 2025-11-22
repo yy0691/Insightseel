@@ -34,11 +34,16 @@ CREATE POLICY "Allow authenticated users to manage oauth config"
   WITH CHECK (true);
 
 -- Example: Insert Linux.do OAuth configuration
--- Replace 'your_client_id_here' and 'your_client_secret_here' with actual values
+-- Replace the values with actual values from Linux.do Connect
 -- You can run these INSERT statements in Supabase SQL Editor after creating the table
+
+-- ⚠️ 重要：redirect_uri 必须与 Linux.do 应用中配置的回调 URL 完全一致（包括协议、域名、路径、尾部斜杠等）
+-- 例如：如果 Linux.do 应用中配置的是 'https://yourdomain.com'，这里也必须是 'https://yourdomain.com'
+-- 如果配置的是 'https://yourdomain.com/'，这里也必须是 'https://yourdomain.com/'
 
 -- INSERT INTO oauth_config (provider, key, value) VALUES
 --   ('linuxdo', 'client_id', 'your_client_id_here'),
---   ('linuxdo', 'client_secret', 'your_client_secret_here')
+--   ('linuxdo', 'client_secret', 'your_client_secret_here'),
+--   ('linuxdo', 'redirect_uri', 'https://yourdomain.com')  -- ⚠️ 必须与 Linux.do 应用中的回调 URL 完全一致
 -- ON CONFLICT (provider, key) DO UPDATE SET value = EXCLUDED.value, updated_at = now();
 

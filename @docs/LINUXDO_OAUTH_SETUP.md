@@ -4,6 +4,18 @@
 
 本应用已集成 Linux.do OAuth 2.0 登录功能，使用 PKCE（Proof Key for Code Exchange）流程确保安全性。
 
+## 💡 关于重定向地址配置
+
+**重要提示**：由于 Supabase Authentication 中已经配置了多个重定向地址（如 `https://prompt.luoyuanai.cn/`、`https://prompt-mate-rust.vercel.app/` 等），系统会**自动使用当前页面的 origin** 作为重定向地址，**不需要**在 `oauth_config` 表中单独配置 `redirect_uri`。
+
+**仅在以下情况需要配置 `redirect_uri`**：
+- Linux.do 应用中配置的回调 URL 与 Supabase Authentication 中的重定向地址不一致
+- 需要使用特定的路径（如 `/auth/callback`）而不是根路径
+
+**配置优先级**：
+1. 数据库配置的 `redirect_uri`（如果存在）
+2. 当前页面的 origin（自动匹配 Supabase Authentication 配置）
+
 ## 🔧 配置步骤
 
 ### 1. 在 Linux.do 注册 OAuth 应用
@@ -12,11 +24,12 @@
 2. 创建新的 OAuth 应用
 3. 配置以下信息：
    - **应用名称**：你的应用名称
-   - **回调 URL（Redirect URI）**：必须与你的应用实际 URL 完全匹配
-     - 示例：`https://insight.luoyuanai.cn/` 或 `https://insight.luoyuanai.cn`
+   - **回调 URL（Redirect URI）**：建议与 Supabase Authentication 中配置的重定向地址一致
+     - 示例：如果 Supabase Authentication 中配置了 `https://prompt.luoyuanai.cn/`，Linux.do 应用中也应配置 `https://prompt.luoyuanai.cn/`
      - ⚠️ **重要**：必须包括尾部斜杠（如果有的话）
      - ⚠️ **重要**：必须与代码中使用的 redirect_uri 完全一致
      - 开发环境可以使用：`http://localhost:5173/` 或 `http://localhost:5173`
+     - 💡 **提示**：如果 Linux.do 应用中的回调 URL 与 Supabase Authentication 中的重定向地址一致，系统会自动使用当前页面的 origin，无需额外配置
    - **权限范围（Scope）**：`read`（根据实际需求调整）
    
    **⚠️ redirect_uri 匹配规则**：
@@ -46,11 +59,17 @@
    ```sql
    INSERT INTO oauth_config (provider, key, value) VALUES
      ('linuxdo', 'client_id', 'your_client_id_here'),
-     ('linuxdo', 'client_secret', 'your_client_secret_here')
+     ('linuxdo', 'client_secret', 'your_client_secret_here'),
+     ('linuxdo', 'redirect_uri', 'https://yourdomain.com')  -- ⚠️ 必须与 Linux.do 应用中的回调 URL 完全一致
    ON CONFLICT (provider, key) DO UPDATE SET value = EXCLUDED.value, updated_at = now();
    ```
    - 将 `your_client_id_here` 和 `your_client_secret_here` 替换为实际值
    - ⚠️ **重要**：Linux.do OAuth 通常要求 `client_secret`，即使使用 PKCE。请确保同时配置 `client_id` 和 `client_secret`
+   - ⚠️ **重定向地址配置（可选）**：
+     - 如果 **Linux.do 应用中的回调 URL** 与 **Supabase Authentication 中配置的重定向地址**一致，则**不需要**在 `oauth_config` 表中配置 `redirect_uri`
+     - 系统会自动使用当前页面的 origin（例如：`https://prompt.luoyuanai.cn`），这与 Supabase Authentication 中已配置的地址匹配
+     - 只有在 Linux.do 应用中配置的回调 URL 与 Supabase Authentication 中的重定向地址不一致时，才需要在 `oauth_config` 表中单独配置 `redirect_uri`
+     - 如果配置 `redirect_uri`，必须与 Linux.do 应用中配置的回调 URL **完全一致**（包括协议、域名、路径、尾部斜杠等）
 
 #### 方法 2：使用 app_config 表（如果已存在）
 
@@ -60,6 +79,8 @@
 INSERT INTO app_config (key, value) VALUES
   ('linuxdo_client_id', 'your_client_id_here'),
   ('linuxdo_client_secret', 'your_client_secret_here')
+  -- redirect_uri 是可选的，如果 Linux.do 应用中的回调 URL 与 Supabase Authentication 中的重定向地址一致，则不需要配置
+  -- ('linuxdo_redirect_uri', 'https://yourdomain.com')  -- 仅在需要时配置
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
 ```
 

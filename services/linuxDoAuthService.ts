@@ -22,6 +22,7 @@ const STORAGE_KEYS = {
 interface OAuthConfig {
   clientId: string;
   clientSecret?: string;
+  redirectUri?: string; // 重定向地址，从数据库配置读取
 }
 
 interface TokenResponse {
@@ -49,26 +50,32 @@ let cachedConfig: OAuthConfig | null = null;
 /**
  * 获取 Linux.do OAuth 配置
  * 优先级：环境变量 > oauth_config 表 > app_config 表
+ * 重定向地址优先从数据库读取，确保与 Linux.do 应用配置一致
  */
 async function getLinuxDoConfig(): Promise<OAuthConfig | null> {
   if (cachedConfig) return cachedConfig;
 
-  // 1. 优先从环境变量读取
+  // 1. 优先从环境变量读取（仅用于开发/测试）
   const envClientId = import.meta.env.VITE_LINUXDO_CLIENT_ID;
   const envClientSecret = import.meta.env.VITE_LINUXDO_CLIENT_SECRET;
+  const envRedirectUri = import.meta.env.VITE_LINUXDO_REDIRECT_URI;
   if (envClientId) {
-    cachedConfig = { clientId: envClientId, clientSecret: envClientSecret };
+    cachedConfig = { 
+      clientId: envClientId, 
+      clientSecret: envClientSecret,
+      redirectUri: envRedirectUri
+    };
     return cachedConfig;
   }
 
-  // 2. 从数据库读取
+  // 2. 从数据库读取（推荐方式）
   if (!supabase) {
     console.warn('[Linux.do] Supabase 未配置，无法从数据库读取配置');
     return null;
   }
 
   try {
-    // 方法1: oauth_config 表
+    // 方法1: oauth_config 表（推荐）
     const { data: oauthConfig } = await supabase
       .from('oauth_config')
       .select('key, value')
@@ -79,27 +86,37 @@ async function getLinuxDoConfig(): Promise<OAuthConfig | null> {
       oauthConfig.forEach((item: { key: string; value: string }) => {
         if (item.key === 'client_id') config.clientId = item.value;
         if (item.key === 'client_secret') config.clientSecret = item.value;
+        if (item.key === 'redirect_uri') config.redirectUri = item.value;
       });
       if (config.clientId) {
-        cachedConfig = { clientId: config.clientId, clientSecret: config.clientSecret };
+        cachedConfig = { 
+          clientId: config.clientId, 
+          clientSecret: config.clientSecret,
+          redirectUri: config.redirectUri
+        };
         return cachedConfig;
       }
     }
 
-    // 方法2: app_config 表
+    // 方法2: app_config 表（备选）
     const { data: appConfig } = await supabase
       .from('app_config')
       .select('key, value')
-      .in('key', ['linuxdo_client_id', 'linuxdo_client_secret']);
+      .in('key', ['linuxdo_client_id', 'linuxdo_client_secret', 'linuxdo_redirect_uri']);
 
     if (appConfig && appConfig.length > 0) {
       const config: Partial<OAuthConfig> = {};
       appConfig.forEach((item: { key: string; value: string }) => {
         if (item.key === 'linuxdo_client_id') config.clientId = item.value;
         if (item.key === 'linuxdo_client_secret') config.clientSecret = item.value;
+        if (item.key === 'linuxdo_redirect_uri') config.redirectUri = item.value;
       });
       if (config.clientId) {
-        cachedConfig = { clientId: config.clientId, clientSecret: config.clientSecret };
+        cachedConfig = { 
+          clientId: config.clientId, 
+          clientSecret: config.clientSecret,
+          redirectUri: config.redirectUri
+        };
         return cachedConfig;
       }
     }
@@ -156,18 +173,25 @@ function normalizeRedirectUri(uri: string): string {
 
 /**
  * 自动构建 redirect_uri（从 window.location）
+ * 使用当前页面的 origin，因为 Supabase Authentication 中已经配置了这些重定向地址
  */
 function buildRedirectUri(): string {
   if (typeof window === 'undefined') {
     throw new Error('无法构建 redirect_uri：请在浏览器环境中调用');
   }
-  return normalizeRedirectUri(`${window.location.origin}${window.location.pathname}`);
+  // 使用 origin（不包含 pathname），因为 Supabase Authentication 中配置的重定向地址通常是域名级别
+  // 例如：https://prompt.luoyuanai.cn/ 或 https://prompt-mate-rust.vercel.app/
+  return normalizeRedirectUri(window.location.origin);
 }
 
 // ==================== OAuth 流程 ====================
 /**
  * 构建 OAuth 授权 URL
- * @param redirectUri - 可选，未提供时自动从 window.location 构建
+ * 重定向地址优先级：数据库配置 > 参数传入 > 前端自动构建（仅作为最后备选）
+ * 
+ * ⚠️ 重要：重定向地址应该在 Supabase 数据库中配置，确保与 Linux.do 应用中的回调 URL 完全一致
+ * 
+ * @param redirectUri - 可选，仅在数据库未配置时使用（不推荐）
  */
 export async function buildLinuxDoAuthUrl(redirectUri?: string): Promise<string> {
   const config = await getLinuxDoConfig();
@@ -175,8 +199,24 @@ export async function buildLinuxDoAuthUrl(redirectUri?: string): Promise<string>
     throw new Error('Linux.do Client ID 未配置。请在 Supabase 数据库的 oauth_config 或 app_config 表中添加配置，或设置环境变量 VITE_LINUXDO_CLIENT_ID。');
   }
 
-  // 自动构建 redirect_uri（如果未提供）
-  const finalRedirectUri = redirectUri ? normalizeRedirectUri(redirectUri) : buildRedirectUri();
+  // 重定向地址优先级：数据库配置 > 参数传入 > 当前页面 origin（匹配 Supabase Authentication 配置）
+  let finalRedirectUri: string;
+  
+  if (config.redirectUri) {
+    // 优先使用数据库配置的重定向地址
+    finalRedirectUri = normalizeRedirectUri(config.redirectUri);
+    console.log('[Linux.do] 使用数据库配置的重定向地址:', finalRedirectUri);
+  } else if (redirectUri) {
+    // 其次使用参数传入的（不推荐，仅用于特殊情况）
+    finalRedirectUri = normalizeRedirectUri(redirectUri);
+    console.warn('[Linux.do] ⚠️ 使用参数传入的重定向地址（建议在数据库中配置）:', finalRedirectUri);
+  } else {
+    // 使用当前页面的 origin，因为 Supabase Authentication 中已经配置了这些重定向地址
+    // 这样就不需要在 oauth_config 表中单独配置 redirect_uri 了
+    finalRedirectUri = buildRedirectUri();
+    console.log('[Linux.do] 使用当前页面 origin 作为重定向地址（匹配 Supabase Authentication 配置）:', finalRedirectUri);
+    console.log('[Linux.do] 💡 提示：如果遇到 redirect_uri 不匹配错误，请确保当前域名已在 Supabase Authentication → URL Configuration 中配置');
+  }
 
   // 清除之前的 OAuth 状态
   Object.values(STORAGE_KEYS).forEach(key => sessionStorage.removeItem(key));

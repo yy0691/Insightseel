@@ -874,12 +874,12 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
 
 
   return (
-    <div className="min-h-screen bg-slate-50 px-6 py-6">
+    <div className="min-h-screen px-6 py-6">
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 max-w-6xl xl:max-w-7xl mx-auto">
         {/* Left Column */}
         <div className="lg:col-span-7 flex flex-col gap-6 lg:max-h-[calc(100vh-3rem)]">
           {/* Video Player Card */}
-          <div className="bg-white rounded-3xl shadow-sm flex flex-col overflow-hidden flex-shrink-0 lg:sticky lg:top-6">
+          <div className="bg-white/50 rounded-3xl shadow-sm flex flex-col overflow-hidden flex-shrink-0 lg:sticky lg:top-6">
               <div className="px-5 py-3.5 border-b border-slate-100 flex justify-between items-center">
                   <div className="min-w-0">
                     <p className="text-[11px] uppercase tracking-[0.08em] text-slate-400">
@@ -939,13 +939,13 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
         </div>
 
         {/* Transcript Card */}
-        <div className="bg-white rounded-3xl shadow-sm flex flex-col flex-1 min-h-0  overflow-hidden">
+        <div className="bg-white/50 rounded-3xl shadow-sm flex flex-col flex-1 min-h-0  overflow-hidden">
           <div ref={subtitleContainerRef} className="flex-1 min-h-0 overflow-y-auto relative custom-scrollbar">
             {isGeneratingSubtitles || isTranslating ? (
-                <div className="flex flex-col items-center justify-center h-full text-center px-6">
+                <div className="flex flex-col items-center justify-center min-h-full text-center px-6">
                     <p className="mt-4 text-sm text-slate-700">{isTranslating ? t('translatingSubtitles') : generationStatus.stage || t('generatingSubtitles')}</p>
                     {generationStatus.progress > 0 && (
-                      <div className="w-full max-w-xs bg-slate-200 rounded-full h-1.5 mt-3">
+                      <div className="w-full max-w-xs bg-slate-200 rounded-full mt-3">
                         <div className="bg-slate-500 h-1.5 rounded-full transition-all" style={{width: `${generationStatus.progress}%`}}></div>
                       </div>
                     )}
@@ -1096,8 +1096,8 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
                 </div>
               </>
             ) : (
-                // No subtitles
-                <div className="flex flex-col items-center justify-center h-full text-center px-8 py-12">
+                // No subtitles - 使用 min-h-full 确保与有字幕时的最大高度一致
+                <div className="flex flex-col items-center justify-center min-h-full text-center px-8 py-12">
                   <p className="text-sm text-slate-600 mb-6">
                     {t('noSubtitles') || 'No subtitles yet'}
                   </p>
@@ -1125,7 +1125,7 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
 
       {/* Right Column */}
       <div className="lg:col-span-5 flex flex-col gap-6 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)]">
-        <div className="bg-white rounded-3xl shadow-sm flex flex-col flex-1 min-h-0 overflow-hidden">
+        <div className="bg-white/50 rounded-3xl shadow-sm flex flex-col flex-1 min-h-0 overflow-hidden">
           {/* Tabs */}
           <div className="flex-shrink-0 px-5 py-3.5 border-b border-slate-100">
             <div className="inline-flex rounded-full bg-slate-100 p-1 text-xs" role="tablist">
@@ -1149,7 +1149,7 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
 
           {/* Tab Content */}
           {activeTab === 'KeyMoments' && (
-              <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+              <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-6">
                 <div className="space-y-2">
                   {parsedKeyInfo.length > 0 ? (
                     parsedKeyInfo.map((info, index) => {
@@ -1183,9 +1183,9 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
               </div>
           )}
           {activeTab === 'Insights' && (
-              <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+              <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-6">
                   {generationStatus.active ? (
-                      <div className="flex flex-col items-center justify-center h-full text-center">
+                      <div className="flex flex-col items-center justify-center min-h-full text-center">
                           <div className="w-12 h-12 border-[3px] border-slate-300 border-t-slate-600 rounded-full animate-spin"></div>
                           <p className="mt-4 text-sm text-slate-700">{generationStatus.stage}</p>
                           {generationStatus.stage === t('insightsPreparingVideo') && (

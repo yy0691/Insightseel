@@ -101,15 +101,17 @@ const VideoItem: React.FC<VideoItemProps> = ({
   };
 
   const isSelected = selectedVideoId === video.id;
-  const commonClasses = `flex items-center w-full rounded-xl text-[13px] transition-colors ${isCollapsed ? 'justify-center p-2' : 'px-3 py-2 pr-8'}`;
+  const baseClasses = `flex items-center text-[13px] transition-colors ${isCollapsed ? 'justify-center p-2' : 'px-3 py-2 pr-8'}`;
+  const shapeClasses = isSelected ? 'rounded-full' : (isCollapsed ? 'rounded-full' : 'rounded-xl');
+  const commonClasses = `${baseClasses} ${shapeClasses}`;
   const selectedClasses = "bg-slate-900 text-slate-50 shadow-sm";
   const hoverClasses = "text-slate-700 hover:bg-slate-100/80";
 
   return (
-    <li className="relative group" ref={setNodeRef} style={style}>
+    <li className={`relative group ${isCollapsed ? 'flex items-center justify-center' : ''}`} ref={setNodeRef} style={style}>
       <button
         onClick={() => onSelectVideo(video.id)}
-        className={`${commonClasses} ${isSelected ? selectedClasses : hoverClasses}`}
+        className={`${commonClasses} ${isSelected ? selectedClasses : hoverClasses} ${isCollapsed ? 'w-auto' : 'w-full'}`}
       >
         {/* Drag handle - only visible when not collapsed */}
         {!isCollapsed && (
@@ -471,7 +473,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     `${baseControlButtonClasses} justify-center gap-1.5 h-9 px-3 rounded-xl text-[11px] text-slate-600 hover:bg-slate-100`;
 
   return (
-    <div className={`h-full flex flex-col transition-all duration-300 ease-in-out ${sidebarWidthClass} rounded-[32px] bg-white/95 shadow-[0_18px_80px_rgba(15,23,42,0.16)]`}>
+    <div className={`h-full flex flex-col transition-all duration-300 ease-in-out ${sidebarWidthClass} rounded-[32px] bg-white/30 shadow-[0_18px_80px_rgba(15,23,42,0.16)]`}>
       {/* Header */}
       <div className={`px-4 pt-4 pb-3 flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
         <button

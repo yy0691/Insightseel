@@ -41,7 +41,30 @@ const sizeClasses: Record<ModalSize, string> = {
   lg: 'max-w-lg',
 };
 
-export const BaseModal: React.FC<BaseModalProps> = ({
+// 类型声明：让 TypeScript 知道 BaseModal 有这些子组件
+interface BaseModalComponent extends React.FC<BaseModalProps> {
+  Header: React.FC<HeaderProps>;
+  Body: React.FC<BodyProps>;
+  Footer: React.FC<FooterProps>;
+}
+
+// 前向声明（在 Header/Body/Footer 定义之前）
+interface HeaderProps {
+  title: string;
+  subtitle?: string;
+}
+
+interface BodyProps {
+  children: React.ReactNode;
+  className?: string;
+}
+
+interface FooterProps {
+  children: React.ReactNode;
+  className?: string;
+}
+
+export const BaseModal: BaseModalComponent = ({
   open,
   onOpenChange,
   children,
@@ -115,12 +138,7 @@ export const BaseModal: React.FC<BaseModalProps> = ({
 };
 
 // Header 子组件
-interface HeaderProps {
-  title: string;
-  subtitle?: string;
-}
-
-BaseModal.Header = ({ title, subtitle }: HeaderProps) => (
+const Header: React.FC<HeaderProps> = ({ title, subtitle }) => (
   <div className="border-b border-slate-100 px-8 py-6">
     <h2 className="text-lg font-semibold tracking-tight text-slate-900">
       {title}
@@ -134,24 +152,14 @@ BaseModal.Header = ({ title, subtitle }: HeaderProps) => (
 );
 
 // Body 子组件
-interface BodyProps {
-  children: React.ReactNode;
-  className?: string;
-}
-
-BaseModal.Body = ({ children, className = '' }: BodyProps) => (
+const Body: React.FC<BodyProps> = ({ children, className = '' }) => (
   <div className={`px-8 py-6 ${className}`}>
     {children}
   </div>
 );
 
 // Footer 子组件
-interface FooterProps {
-  children: React.ReactNode;
-  className?: string;
-}
-
-BaseModal.Footer = ({ children, className = '' }: FooterProps) => (
+const Footer: React.FC<FooterProps> = ({ children, className = '' }) => (
   <div className={`
     flex items-center justify-between
     border-t border-slate-100
@@ -162,4 +170,9 @@ BaseModal.Footer = ({ children, className = '' }: FooterProps) => (
     {children}
   </div>
 );
+
+// 将子组件附加到 BaseModal
+BaseModal.Header = Header;
+BaseModal.Body = Body;
+BaseModal.Footer = Footer;
 

@@ -340,30 +340,32 @@ export async function exchangeCodeForToken(
     ? normalizeRedirectUri(redirectUri) 
     : storedRedirectUri!;
 
-  // 构建请求体
-  const bodyParams: Record<string, string> = {
-    grant_type: 'authorization_code',
-    client_id: config.clientId,
+  // 构建请求体（通过后端 API 代理，避免 CORS 问题）
+  const requestBody: Record<string, string> = {
     code,
+    client_id: config.clientId,
     redirect_uri: finalRedirectUri,
     code_verifier: codeVerifier,
   };
 
   if (config.clientSecret) {
-    bodyParams.client_secret = config.clientSecret;
+    requestBody.client_secret = config.clientSecret;
   }
 
-  // 发送请求
+  // 使用后端 API 代理发送请求（解决 CORS 问题）
+  const apiUrl = `${window.location.origin}/api/linuxdo-token`;
+  
   try {
-    const response = await fetch(LINUXDO_TOKEN_URL, {
+    const response = await fetch(apiUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams(bodyParams),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Token 交换失败 (${response.status}): ${errorText}`);
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+      const errorMessage = errorData.error_description || errorData.error || `Token 交换失败 (${response.status})`;
+      throw new Error(errorMessage);
     }
 
     // 清除已使用的状态
@@ -373,8 +375,8 @@ export async function exchangeCodeForToken(
     return await response.json();
   } catch (error) {
     if (error instanceof Error) {
-      if (error.message.includes('fetch')) {
-        throw new Error('网络请求失败：无法连接到 Linux.do 服务器。请检查网络连接后重试。');
+      if (error.message.includes('fetch') || error.message.includes('Failed to fetch')) {
+        throw new Error('网络请求失败：无法连接到服务器。请检查网络连接后重试。');
       }
       throw error;
     }
@@ -386,21 +388,28 @@ export async function exchangeCodeForToken(
  * 获取 Linux.do 用户信息
  */
 export async function getLinuxDoUserInfo(accessToken: string): Promise<UserInfo> {
+  // 使用后端 API 代理发送请求（解决 CORS 问题）
+  const apiUrl = `${window.location.origin}/api/linuxdo-userinfo`;
+  
   try {
-    const response = await fetch(LINUXDO_USER_INFO_URL, {
-      headers: { 'Authorization': `Bearer ${accessToken}` },
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers: { 
+        'Authorization': `Bearer ${accessToken}`,
+      },
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`获取用户信息失败 (${response.status}): ${errorText}`);
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+      const errorMessage = errorData.error_description || errorData.error || `获取用户信息失败 (${response.status})`;
+      throw new Error(errorMessage);
     }
 
     return await response.json();
   } catch (error) {
     if (error instanceof Error) {
-      if (error.message.includes('fetch')) {
-        throw new Error('网络请求失败：无法连接到 Linux.do 服务器。请检查网络连接后重试。');
+      if (error.message.includes('fetch') || error.message.includes('Failed to fetch')) {
+        throw new Error('网络请求失败：无法连接到服务器。请检查网络连接后重试。');
       }
       throw error;
     }

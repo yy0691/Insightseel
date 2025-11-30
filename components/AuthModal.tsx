@@ -230,13 +230,13 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess, initi
                   className="flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 transition"
                   title={t('linuxDoLogin')}
                 >
-                  {/* Linux.do logo - using a terminal/command line icon as placeholder */}
-                  <svg width="4" height="4" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                      <clipPath id="a"><circle cx="60" cy="60" r="47"/></clipPath>
-                      <circle fill="#f0f0f0" cx="60" cy="60" r="50"/>
-                      <rect fill="#1c1c1e" clip-path="url(#a)" x="10" y="10" width="100" height="30"/>
-                      <rect fill="#f0f0f0" clip-path="url(#a)" x="10" y="40" width="100" height="40"/>
-                      <rect fill="#ffb003" clip-path="url(#a)" x="10" y="80" width="100" height="30"/>
+                  {/* Linux.do official logo */}
+                  <svg className="h-4 w-4" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+                    <clipPath id="linuxdo-clip"><circle cx="60" cy="60" r="47"/></clipPath>
+                    <circle fill="#f0f0f0" cx="60" cy="60" r="50"/>
+                    <rect fill="#1c1c1e" clipPath="url(#linuxdo-clip)" x="10" y="10" width="100" height="30"/>
+                    <rect fill="#f0f0f0" clipPath="url(#linuxdo-clip)" x="10" y="40" width="100" height="40"/>
+                    <rect fill="#ffb003" clipPath="url(#linuxdo-clip)" x="10" y="80" width="100" height="30"/>
                   </svg>
                   <span className="hidden sm:inline">{t('linuxDo')}</span>
                 </button>

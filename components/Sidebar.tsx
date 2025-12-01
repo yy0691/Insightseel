@@ -473,7 +473,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     `${baseControlButtonClasses} justify-center gap-1.5 h-9 px-3 rounded-xl text-[11px] text-slate-600 hover:bg-slate-100`;
 
   return (
-    <div className={`h-full flex flex-col transition-all duration-300 ease-in-out ${sidebarWidthClass} rounded-[32px] bg-white/30 shadow-[0_18px_80px_rgba(15,23,42,0.16)]`}>
+    <div className={`h-full flex flex-col transition-all duration-300 ease-in-out ${sidebarWidthClass} rounded-[32px] bg-white/80 backdrop-blur-md shadow-[0_18px_80px_rgba(15,23,42,0.16)]`}>
       {/* Header */}
       <div className={`px-4 pt-4 pb-3 flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
         <button

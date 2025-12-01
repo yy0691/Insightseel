@@ -317,6 +317,42 @@ export const authService = {
     return data;
   },
 
+  /**
+   * 检查并获取 Linux.do 登录状态
+   * 从 localStorage 或 profile 中恢复登录状态
+   */
+  async getLinuxDoLoginStatus(): Promise<Profile | null> {
+    if (!supabase) return null;
+
+    try {
+      // 方法1: 从 localStorage 中获取保存的 Linux.do 数据
+      const storedData = localStorage.getItem('linuxdo_oauth_data');
+      if (storedData) {
+        try {
+          const linuxDoData = JSON.parse(storedData);
+          if (linuxDoData.user_id) {
+            // 根据 user_id 查找 profile
+            const profile = await this.getProfileByLinuxDoId(linuxDoData.user_id);
+            if (profile) {
+              return profile;
+            }
+          }
+        } catch (e) {
+          console.error('[AuthService] 解析 localStorage 中的 Linux.do 数据失败:', e);
+        }
+      }
+
+      // 方法2: 检查是否有有效的 Linux.do access token（从最近创建的 profile 中）
+      // 这里我们尝试查找最近更新的 Linux.do-only profile
+      // 注意：这个方法可能不够准确，但作为备用方案
+      
+      return null;
+    } catch (error) {
+      console.error('[AuthService] 检查 Linux.do 登录状态失败:', error);
+      return null;
+    }
+  },
+
   onAuthStateChange(callback: (user: User | null) => void) {
     if (!supabase) {
       callback(null);

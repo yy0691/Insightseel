@@ -24,11 +24,28 @@ export default defineConfig({
       'Cross-Origin-Embedder-Policy': 'credentialless',
     },
   },
-  plugins: [react()],
+  plugins: [
+    react(),
+    // 自定义插件：跳过 HTML 文件的导入分析
+    {
+      name: 'skip-html-import-analysis',
+      enforce: 'pre',
+      transform(code: string, id: string) {
+        // 如果是 HTML 文件，返回空内容，跳过导入分析
+        if (id.endsWith('.html')) {
+          return { code: '', map: null };
+        }
+      },
+    },
+  ],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, '.'),
       '@assets': path.resolve(__dirname, 'attached_assets'),
     }
-  }
+  },
+  // 配置 HTML 处理，避免解析 importmap 时出错
+  html: {
+    minify: false,
+  },
 });

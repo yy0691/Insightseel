@@ -28,7 +28,7 @@ import { ToastProvider, toast } from "./hooks/useToastStore";
 import { ToastHost } from "./components/ui/ToastHost";
 import { clearOldCache } from "./services/cacheService";
 import { User } from "@supabase/supabase-js";
-import { authService } from "./services/authService";
+import { authService, type Profile } from "./services/authService";
 import autoSyncService, { getSyncStatus } from "./services/autoSyncService";
 import { saveSubtitles } from "./services/subtitleService";
 
@@ -171,6 +171,7 @@ const AppContent: React.FC<{
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
   const [showAccountPanel, setShowAccountPanel] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [linuxDoProfile, setLinuxDoProfile] = useState<Profile | null>(null);
   const [syncStatusSnapshot, setSyncStatusSnapshot] = useState(() =>
     getSyncStatus(),
   );
@@ -188,6 +189,13 @@ const AppContent: React.FC<{
         // Sync avatar from OAuth provider if user just logged in
         if (user) {
           authService.syncAvatarFromProvider(user).catch(console.error);
+        } else {
+          // 如果没有 Supabase 用户，检查是否有 Linux.do 登录状态
+          const linuxDoProfile = await authService.getLinuxDoLoginStatus();
+          if (mounted && linuxDoProfile) {
+            setLinuxDoProfile(linuxDoProfile);
+            console.log('[App] 检测到 Linux.do 登录状态:', linuxDoProfile);
+          }
         }
       }
     };
@@ -290,7 +298,28 @@ const AppContent: React.FC<{
       );
 
       // 处理结果
-      if (result.success) {
+      if (result.success && result.profile) {
+        // 保存 profile 到状态
+        setLinuxDoProfile(result.profile);
+        
+        // 确保 localStorage 中有数据（用于页面刷新后恢复状态）
+        if (result.profile.linuxdo_user_id) {
+          const storedData = localStorage.getItem('linuxdo_oauth_data');
+          if (!storedData && result.profile.linuxdo_access_token) {
+            // 如果没有保存的数据，创建一个基本的记录
+            const linuxDoData = {
+              user_id: result.profile.linuxdo_user_id,
+              username: result.profile.linuxdo_username || result.profile.full_name,
+              avatar_url: result.profile.linuxdo_avatar_url || result.profile.avatar_url,
+              access_token: result.profile.linuxdo_access_token,
+              token_expires_at: result.profile.linuxdo_token_expires_at,
+              user_data: result.profile.linuxdo_user_data,
+            };
+            localStorage.setItem('linuxdo_oauth_data', JSON.stringify(linuxDoData));
+            console.log('[App] 已保存 Linux.do 登录状态到 localStorage');
+          }
+        }
+        
         toast.success({ title: 'Linux.do 登录成功！' });
         setTimeout(() => window.location.reload(), 2000);
       } else {

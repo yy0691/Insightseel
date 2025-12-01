@@ -879,7 +879,7 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
         {/* Left Column */}
         <div className="lg:col-span-7 flex flex-col gap-6 lg:max-h-[calc(100vh-3rem)]">
           {/* Video Player Card */}
-          <div className="bg-white/50 rounded-3xl shadow-sm flex flex-col overflow-hidden flex-shrink-0 lg:sticky lg:top-6">
+          <div className="bg-white/80 rounded-3xl shadow-sm flex flex-col overflow-hidden flex-shrink-0 lg:sticky lg:top-6">
               <div className="px-5 py-3.5 border-b border-slate-100 flex justify-between items-center">
                   <div className="min-w-0">
                     <p className="text-[11px] uppercase tracking-[0.08em] text-slate-400">
@@ -939,7 +939,7 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
         </div>
 
         {/* Transcript Card */}
-        <div className="bg-white/50 rounded-3xl shadow-sm flex flex-col flex-1 min-h-0  overflow-hidden">
+        <div className="bg-white/80 rounded-3xl shadow-sm flex flex-col flex-1 min-h-0  overflow-hidden">
           <div ref={subtitleContainerRef} className="flex-1 min-h-0 overflow-y-auto relative custom-scrollbar">
             {isGeneratingSubtitles || isTranslating ? (
                 <div className="flex flex-col items-center justify-center min-h-full text-center px-6">
@@ -1125,7 +1125,7 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
 
       {/* Right Column */}
       <div className="lg:col-span-5 flex flex-col gap-6 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)]">
-        <div className="bg-white/50 rounded-3xl shadow-sm flex flex-col flex-1 min-h-0 overflow-hidden">
+        <div className="bg-white/80 rounded-3xl shadow-sm flex flex-col flex-1 min-h-0 overflow-hidden">
           {/* Tabs */}
           <div className="flex-shrink-0 px-5 py-3.5 border-b border-slate-100">
             <div className="inline-flex rounded-full bg-slate-100 p-1 text-xs" role="tablist">

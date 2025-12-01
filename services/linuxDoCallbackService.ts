@@ -253,7 +253,25 @@ async function findOrCreateLinuxDoProfile(
       await authService.updateProfile(profile.id, profileUpdates);
       console.log('[Linux.do Callback] 已更新 Linux.do profile 的 token 信息');
       
-      return await authService.getProfile(profile.id);
+      const updatedProfile = await authService.getProfile(profile.id);
+      
+      // 确保 localStorage 中有数据（用于页面刷新后恢复状态）
+      if (updatedProfile && updatedProfile.linuxdo_user_id) {
+        const linuxDoData = {
+          user_id: updatedProfile.linuxdo_user_id,
+          username: updatedProfile.linuxdo_username || updatedProfile.full_name,
+          avatar_url: updatedProfile.linuxdo_avatar_url || updatedProfile.avatar_url,
+          access_token: updatedProfile.linuxdo_access_token || tokenData.access_token,
+          token_expires_at: updatedProfile.linuxdo_token_expires_at || (tokenData.expires_in
+            ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
+            : undefined),
+          user_data: updatedProfile.linuxdo_user_data || userInfo,
+        };
+        localStorage.setItem('linuxdo_oauth_data', JSON.stringify(linuxDoData));
+        console.log('[Linux.do Callback] 已保存登录状态到 localStorage');
+      }
+      
+      return updatedProfile;
     }
 
     // 如果创建失败，保存到 localStorage

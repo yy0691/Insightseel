@@ -31,9 +31,9 @@ export default defineConfig({
       name: 'skip-html-import-analysis',
       enforce: 'pre',
       transform(code: string, id: string) {
-        // 如果是 HTML 文件，返回空内容，跳过导入分析
+        // 如果是 HTML 文件，直接返回原始内容，跳过导入分析，避免页面被清空
         if (id.endsWith('.html')) {
-          return { code: '', map: null };
+          return { code, map: null };
         }
       },
     },

@@ -335,7 +335,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'detectVideo') {
     const videoInfo = getPageVideoInfo();
     sendResponse(videoInfo);
-    return true; // Keep channel open for async response
+    return false;
   } else if (message.action === 'getVideoDetails') {
     const videoElement = document.querySelector('video') as HTMLVideoElement | null;
     if (videoElement) {
@@ -348,7 +348,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     } else {
       sendResponse(null);
     }
-    return true;
+    return false;
   }
   return false;
 });

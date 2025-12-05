@@ -44,8 +44,20 @@ export default defineConfig({
       '@assets': path.resolve(__dirname, 'attached_assets'),
     }
   },
-  // 配置 HTML 处理，避免解析 importmap 时出错
-  html: {
-    minify: false,
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom'],
+          'ui-vendor': ['framer-motion', 'lucide-react', '@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities', 'marked'],
+          'ffmpeg': ['@ffmpeg/ffmpeg', '@ffmpeg/util'],
+          'ai-client': ['@google/genai', '@anthropic-ai/sdk'],
+          'supabase': ['@supabase/supabase-js'],
+        }
+      }
+    },
+    chunkSizeWarningLimit: 1000,
   },
+  // 配置 HTML 处理，避免解析 importmap 时出错
+  html: {},
 });

@@ -1,13 +1,21 @@
 import React, { useState, useEffect, useCallback } from "react";
+// Lazy load heavy components
+const VideoDetail = React.lazy(() => import("./components/VideoDetail"));
+const SettingsModal = React.lazy(() => import("./components/SettingsModal"));
+const FeedbackModal = React.lazy(() => import("./components/FeedbackModal"));
+const AuthModal = React.lazy(() => import("./components/AuthModal"));
+const AccountPanel = React.lazy(() => import("./components/AccountPanel"));
+const TaskQueuePanel = React.lazy(() => import("./components/TaskQueuePanel"));
+
 import Sidebar from "./components/Sidebar";
-import VideoDetail from "./components/VideoDetail";
+// import VideoDetail from "./components/VideoDetail"; // Replaced with lazy
 import WelcomeScreen from "./components/WelcomeScreen";
-import SettingsModal from "./components/SettingsModal";
-import FeedbackModal from "./components/FeedbackModal";
-import AuthModal from "./components/AuthModal";
-import AccountPanel from "./components/AccountPanel";
+// import SettingsModal from "./components/SettingsModal"; // Replaced with lazy
+// import FeedbackModal from "./components/FeedbackModal"; // Replaced with lazy
+// import AuthModal from "./components/AuthModal"; // Replaced with lazy
+// import AccountPanel from "./components/AccountPanel"; // Replaced with lazy
 import Footer from "./components/Footer";
-import TaskQueuePanel from "./components/TaskQueuePanel";
+// import TaskQueuePanel from "./components/TaskQueuePanel"; // Replaced with lazy
 import { Video, Subtitles, Analysis, Note, APISettings } from "./types";
 import {
   videoDB,
@@ -238,7 +246,7 @@ const AppContent: React.FC<{
         if (!storedData) return;
 
         const linuxDoData = JSON.parse(storedData);
-        
+
         // Check if profile already has Linux.do data
         const profile = await authService.getProfile(currentUser.id);
         if (profile?.linuxdo_user_id) {
@@ -301,7 +309,7 @@ const AppContent: React.FC<{
       if (result.success && result.profile) {
         // 保存 profile 到状态
         setLinuxDoProfile(result.profile);
-        
+
         // 确保 localStorage 中有数据（用于页面刷新后恢复状态）
         if (result.profile.linuxdo_user_id) {
           const storedData = localStorage.getItem('linuxdo_oauth_data');
@@ -319,7 +327,7 @@ const AppContent: React.FC<{
             console.log('[App] 已保存 Linux.do 登录状态到 localStorage');
           }
         }
-        
+
         toast.success({ title: 'Linux.do 登录成功！' });
         setTimeout(() => window.location.reload(), 2000);
       } else {
@@ -669,7 +677,7 @@ const AppContent: React.FC<{
     try {
       // Update videos state immediately for responsive UI
       setVideos(reorderedVideos);
-      
+
       // Save each video's new order to database
       await Promise.all(
         reorderedVideos.map((video) => videoDB.put(video))
@@ -691,30 +699,36 @@ const AppContent: React.FC<{
 
       {/* Settings Modal */}
       {isSettingsModalOpen && settings && (
-        <SettingsModal
-          settings={settings}
-          onSave={handleSaveSettings}
-          onClose={() => setIsSettingsModalOpen(false)}
-        />
+        <React.Suspense fallback={null}>
+          <SettingsModal
+            settings={settings}
+            onSave={handleSaveSettings}
+            onClose={() => setIsSettingsModalOpen(false)}
+          />
+        </React.Suspense>
       )}
       {/* Feedback Modal */}
       {isFeedbackModalOpen && (
-        <FeedbackModal
-          onClose={() => setIsFeedbackModalOpen(false)}
-          feedbackUrl="https://n1ddxc0sfaq.feishu.cn/share/base/form/shrcnf7gC1S58t8Av4x4eNxWSlh"
-        />
+        <React.Suspense fallback={null}>
+          <FeedbackModal
+            onClose={() => setIsFeedbackModalOpen(false)}
+            feedbackUrl="https://n1ddxc0sfaq.feishu.cn/share/base/form/shrcnf7gC1S58t8Av4x4eNxWSlh"
+          />
+        </React.Suspense>
       )}
       {/* Auth Modal */}
       {isAuthModalOpen && (
-        <AuthModal
-          isOpen={isAuthModalOpen}
-          initialMode={authMode}
-          onClose={() => setIsAuthModalOpen(false)}
-          onSuccess={() => {
-            setIsAuthModalOpen(false);
-            setShowAccountPanel(true);
-          }}
-        />
+        <React.Suspense fallback={null}>
+          <AuthModal
+            isOpen={isAuthModalOpen}
+            initialMode={authMode}
+            onClose={() => setIsAuthModalOpen(false)}
+            onSuccess={() => {
+              setIsAuthModalOpen(false);
+              setShowAccountPanel(true);
+            }}
+          />
+        </React.Suspense>
       )}
       {/* Account Panel */}
       {showAccountPanel && currentUser && (
@@ -723,7 +737,9 @@ const AppContent: React.FC<{
           onClick={() => setShowAccountPanel(false)}
         >
           <div className="w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-            <AccountPanel user={currentUser} onSignOut={handleSignOut} />
+            <React.Suspense fallback={<div className="bg-white p-4 rounded-xl">Loading...</div>}>
+              <AccountPanel user={currentUser} onSignOut={handleSignOut} />
+            </React.Suspense>
           </div>
         </div>
       )}
@@ -798,23 +814,29 @@ const AppContent: React.FC<{
               </div>
             </>
           )}
-
           {/* Main Content Area */}
-          <main
-            className={`flex-1 overflow-y-auto transition-all duration-300 ease-in-out ${isSidebarCollapsed ? "lg:pl-[5.25rem]" : "lg:pl-[17.25rem]"}`}
-          >
+          <main className={`flex-1 overflow-y-auto transition-all duration-300 ease-in-out ${isSidebarCollapsed ? "lg:pl-20" : "lg:pl-72"}`}>
             <div className="w-full max-w-[1800px] mx-auto px-4 lg:px-8 xl:px-12 min-h-full flex flex-col">
               <div className="flex-1">
-                <VideoDetail
-                  video={selectedVideo}
-                  subtitles={subtitles[selectedVideo.id] || null}
-                  analyses={analyses[selectedVideo.id] || []}
-                  note={notes[selectedVideo.id] || null}
-                  onAnalysesChange={loadDataForVideo}
-                  onSubtitlesChange={loadDataForVideo}
-                  onDeleteVideo={handleDeleteVideo}
-                  onFirstInsightGenerated={handleFirstTimeInsightSuccess}
-                />
+                <React.Suspense fallback={
+                  <div className="flex items-center justify-center min-h-screen">
+                    <div className="text-center">
+                      <div className="w-8 h-8 border-2 border-slate-200 border-t-slate-800 rounded-full animate-spin mx-auto mb-2"></div>
+                      <p className="text-sm text-slate-500">Loading editor...</p>
+                    </div>
+                  </div>
+                }>
+                  <VideoDetail
+                    video={selectedVideo}
+                    subtitles={subtitles[selectedVideo.id] || null}
+                    analyses={analyses[selectedVideo.id] || []}
+                    note={notes[selectedVideo.id] || null}
+                    onAnalysesChange={loadDataForVideo}
+                    onSubtitlesChange={loadDataForVideo}
+                    onDeleteVideo={handleDeleteVideo}
+                    onFirstInsightGenerated={handleFirstTimeInsightSuccess}
+                  />
+                </React.Suspense>
               </div>
               <Footer />
             </div>
@@ -859,29 +881,31 @@ const AppContent: React.FC<{
           <Footer />
         </div>
       )}
-      {showSyncStatus && (
-        <div className="fixed top-6 right-6 z-40">
-          <div className="rounded-2xl border border-white/10 bg-slate-900/80 text-slate-100 px-4 py-3 shadow-2xl backdrop-blur-lg min-w-[220px]">
-            <p className="text-sm font-medium tracking-wide">
-              {syncPrimaryMessage}
-              {queueLength > 0 && `（${queueLength} 项待同步）`}
-            </p>
-            {syncState === "error" && lastError && (
-              <p className="text-xs text-red-200 mt-1 leading-relaxed">
-                {lastError}
+      {
+        showSyncStatus && (
+          <div className="fixed top-6 right-6 z-40">
+            <div className="rounded-2xl border border-white/10 bg-slate-900/80 text-slate-100 px-4 py-3 shadow-2xl backdrop-blur-lg min-w-[220px]">
+              <p className="text-sm font-medium tracking-wide">
+                {syncPrimaryMessage}
+                {queueLength > 0 && `（${queueLength} 项待同步）`}
               </p>
-            )}
-            {formattedLastSync && syncState !== "error" && (
-              <p className="text-xs text-slate-300 mt-1 leading-relaxed">
-                最后同步：{formattedLastSync}
-              </p>
-            )}
+              {syncState === "error" && lastError && (
+                <p className="text-xs text-red-200 mt-1 leading-relaxed">
+                  {lastError}
+                </p>
+              )}
+              {formattedLastSync && syncState !== "error" && (
+                <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+                  最后同步：{formattedLastSync}
+                </p>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        )
+      }
       {/* Task Queue Panel - Floating task status indicator */}
       <TaskQueuePanel />
-    </div>
+    </div >
   );
 };
 

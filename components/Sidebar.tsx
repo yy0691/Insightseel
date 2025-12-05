@@ -4,23 +4,28 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { User } from '@supabase/supabase-js';
 import { authService } from '../services/authService';
 import { exportService } from '../services/exportService';
-import { 
-  FolderInput, 
-  Video as VideoIcon, 
-  X, 
-  Search, 
-  ArrowUpDown, 
-  ChevronDown, 
-  Folder, 
-  User as UserIcon, 
-  LogIn, 
-  Download, 
-  Settings, 
-  Menu, 
+import {
+  FolderInput,
+  Video as VideoIcon,
+  X,
+  Search,
+  ArrowUpDown,
+  ChevronDown,
+  Folder,
+  User as UserIcon,
+  LogIn,
+  Download,
+  Settings,
+  Menu,
   PanelLeft,
   PanelLeftOpen,
   Trash2,
-  GripVertical
+  GripVertical,
+  CheckSquare,
+  Square,
+  ChevronsUp,
+  ChevronsDown,
+  ListChecks,
 } from 'lucide-react';
 import {
   DndContext,
@@ -56,6 +61,7 @@ interface SidebarProps {
   onOpenAuth?: () => void;
   onOpenAccount?: () => void;
   currentUser?: User | null;
+  onBatchDelete?: (ids: string[]) => void;
 }
 
 type VideoItemProps = {
@@ -64,6 +70,9 @@ type VideoItemProps = {
   onSelectVideo: (id: string | null) => void;
   isCollapsed: boolean;
   onDeleteVideo?: (id: string) => void;
+  isSelectionMode: boolean;
+  isSelected: boolean;
+  onToggleSelection: (id: string) => void;
 };
 
 type FolderItemProps = {
@@ -76,6 +85,10 @@ type FolderItemProps = {
   onSelectVideo: (id: string | null) => void;
   onToggleFolder: (folderPath: string, e?: React.MouseEvent) => void;
   onDeleteVideo?: (id: string) => void;
+  isSelectionMode: boolean;
+  selectedIds: Set<string>;
+  onToggleSelection: (id: string) => void;
+  onToggleFolderSelection: (folderPath: string, isSelected: boolean) => void;
 };
 
 const VideoItem: React.FC<VideoItemProps> = ({
@@ -84,6 +97,9 @@ const VideoItem: React.FC<VideoItemProps> = ({
   onSelectVideo,
   isCollapsed,
   onDeleteVideo,
+  isSelectionMode,
+  isSelected: isItemChecked,
+  onToggleSelection,
 }) => {
   const {
     attributes,
@@ -110,22 +126,43 @@ const VideoItem: React.FC<VideoItemProps> = ({
   return (
     <li className={`relative group ${isCollapsed ? 'flex items-center justify-center' : ''}`} ref={setNodeRef} style={style}>
       <button
-        onClick={() => onSelectVideo(video.id)}
+        onClick={(e) => {
+          if (isSelectionMode) {
+            e.stopPropagation();
+            onToggleSelection(video.id);
+          } else {
+            onSelectVideo(video.id);
+          }
+        }}
         className={`${commonClasses} ${isSelected ? selectedClasses : hoverClasses} ${isCollapsed ? 'w-auto' : 'w-full'}`}
       >
-        {/* Drag handle - only visible when not collapsed */}
-        {!isCollapsed && (
+        {/* Drag handle - only visible when not collapsed and not in selection mode */}
+        {!isCollapsed && !isSelectionMode && (
           <div {...attributes} {...listeners} className="mr-1 cursor-grab active:cursor-grabbing">
             <GripVertical className="h-3.5 w-3.5 text-slate-400" />
           </div>
         )}
-        <VideoIcon className={`h-4 w-4 flex-shrink-0 ${isSelected ? 'text-slate-50' : 'text-slate-500'}`} />
+
+        {/* Selection Checkbox */}
+        {!isCollapsed && isSelectionMode ? (
+          <div className="mr-2.5 flex-shrink-0">
+            {isItemChecked ? (
+              <CheckSquare className="h-4 w-4 text-slate-900 fill-slate-900 bg-white rounded-sm" />
+            ) : (
+              <Square className="h-4 w-4 text-slate-400" />
+            )}
+          </div>
+        ) : (
+          <VideoIcon className={`h-4 w-4 flex-shrink-0 ${isSelected ? 'text-slate-50' : 'text-slate-500'}`} />
+        )}
+
         {!isCollapsed && (
           <span className={`ml-2.5 truncate ${isSelected ? 'text-slate-50' : 'text-slate-700'}`}>{video.name}</span>
         )}
       </button>
-      {/* Delete button: only when not collapsed and onDeleteVideo is provided */}
-      {!isCollapsed && onDeleteVideo && (
+
+      {/* Delete button: only when not collapsed, not in selection mode, and onDeleteVideo is provided */}
+      {!isCollapsed && !isSelectionMode && onDeleteVideo && (
         <button
           type="button"
           className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-xl hover:bg-slate-200"
@@ -139,6 +176,7 @@ const VideoItem: React.FC<VideoItemProps> = ({
           <Trash2 className="h-3.5 w-3.5 text-slate-400" />
         </button>
       )}
+
       {isCollapsed && (
         <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-opacity duration-200 bg-slate-900 text-white text-xs px-2.5 py-1.5 rounded-2xl whitespace-nowrap z-50 shadow-lg pointer-events-none">
           {video.name}
@@ -158,30 +196,45 @@ const FolderItem: React.FC<FolderItemProps> = ({
   onSelectVideo,
   onToggleFolder,
   onDeleteVideo,
+  isSelectionMode,
+  selectedIds,
+  onToggleSelection,
+  onToggleFolderSelection,
 }) => {
   const [showHoverMenu, setShowHoverMenu] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
   const hoverMenuRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
+  const allSelected = folderVideos.every(v => selectedIds.has(v.id));
+  const someSelected = folderVideos.some(v => selectedIds.has(v.id));
+  const isIndeterminate = someSelected && !allSelected;
+
   return (
     <li className="relative group/folder">
       <button
         ref={buttonRef}
-        onClick={(e) => onToggleFolder(folderKey, e)}
+        onClick={(e) => {
+          if (isSelectionMode && !isCollapsed) {
+            e.stopPropagation();
+            onToggleFolderSelection(folderKey, !allSelected);
+          } else {
+            onToggleFolder(folderKey, e);
+          }
+        }}
         onMouseEnter={() => {
           if (isCollapsed && !isMobile && buttonRef.current) {
             const rect = buttonRef.current.getBoundingClientRect();
             const menuWidth = 200; // 菜单最小宽度
             const spacing = 8; // 间距
-            
+
             // 计算菜单位置，确保不超出视口
             let left = rect.right + spacing;
             // 如果菜单会超出右边界，则显示在按钮左侧
             if (left + menuWidth > window.innerWidth) {
               left = rect.left - menuWidth - spacing;
             }
-            
+
             setMenuPosition({
               top: Math.max(8, rect.top), // 至少距离顶部8px
               left: Math.max(8, left), // 至少距离左侧8px
@@ -201,14 +254,30 @@ const FolderItem: React.FC<FolderItemProps> = ({
         }}
         className={`flex items-center w-full rounded-xl bg-slate-50 transition-colors text-slate-700 hover:bg-slate-100/80 ${isCollapsed ? 'justify-center p-2' : 'px-3 py-2'}`}
       >
-        <Folder className="w-4 h-4 text-slate-500 flex-shrink-0" />
+        {isSelectionMode && !isCollapsed ? (
+          <div className="mr-2.5 flex-shrink-0">
+            {allSelected ? (
+              <CheckSquare className="w-4 h-4 text-slate-900" />
+            ) : isIndeterminate ? (
+              <div className="w-4 h-4 bg-slate-200 rounded flex items-center justify-center">
+                <div className="w-2 h-0.5 bg-slate-600"></div>
+              </div>
+            ) : (
+              <Square className="w-4 h-4 text-slate-400" />
+            )}
+          </div>
+        ) : (
+          <Folder className="w-4 h-4 text-slate-500 flex-shrink-0" />
+        )}
         {!isCollapsed && <span className="truncate ml-2.5 flex-1 text-left text-[13px] font-medium">{folderKey}</span>}
       </button>
+
       {isCollapsed && !showHoverMenu && (
-         <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 invisible opacity-0 group-hover/folder:visible group-hover/folder:opacity-100 transition-opacity duration-200 bg-slate-900 text-white text-xs px-2.5 py-1.5 rounded-2xl whitespace-nowrap z-20 shadow-lg pointer-events-none">
-            {folderKey} ({folderVideos.length})
-          </div>
+        <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 invisible opacity-0 group-hover/folder:visible group-hover/folder:opacity-100 transition-opacity duration-200 bg-slate-900 text-white text-xs px-2.5 py-1.5 rounded-2xl whitespace-nowrap z-20 shadow-lg pointer-events-none">
+          {folderKey} ({folderVideos.length})
+        </div>
       )}
+
       {/* 折叠状态下的悬停菜单 */}
       {isCollapsed && showHoverMenu && !isMobile && (
         <div
@@ -238,11 +307,10 @@ const FolderItem: React.FC<FolderItemProps> = ({
                     onSelectVideo(video.id);
                     setShowHoverMenu(false);
                   }}
-                  className={`w-full text-left px-3 py-1.5 text-xs transition-colors flex items-center gap-2 ${
-                    selectedVideoId === video.id
+                  className={`w-full text-left px-3 py-1.5 text-xs transition-colors flex items-center gap-2 ${selectedVideoId === video.id
                       ? 'bg-slate-100 text-slate-900 font-medium'
                       : 'text-slate-600 hover:bg-slate-50'
-                  }`}
+                    }`}
                 >
                   <VideoIcon className="w-3.5 h-3.5 flex-shrink-0 text-slate-400" />
                   <span className="truncate">{video.name}</span>
@@ -252,10 +320,17 @@ const FolderItem: React.FC<FolderItemProps> = ({
           </ul>
         </div>
       )}
+
       {isExpanded && !isCollapsed && (
         <ul className="pl-5 mt-1 space-y-1.5">
           {folderVideos.map(video => (
-            <VideoItem key={video.id} {...{ video, selectedVideoId, onSelectVideo, isCollapsed, onDeleteVideo }} />
+            <VideoItem
+              key={video.id}
+              {...{ video, selectedVideoId, onSelectVideo, isCollapsed, onDeleteVideo }}
+              isSelectionMode={isSelectionMode}
+              isSelected={selectedIds.has(video.id)}
+              onToggleSelection={onToggleSelection}
+            />
           ))}
         </ul>
       )}
@@ -279,11 +354,14 @@ const Sidebar: React.FC<SidebarProps> = ({
   onOpenAuth,
   onOpenAccount,
   currentUser: propCurrentUser,
+  onBatchDelete,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const { t } = useLanguage();
 
   // Configure drag sensors
@@ -378,6 +456,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   };
 
   const handleDragStart = (event: DragStartEvent) => {
+    if (isSelectionMode) return; // Disable drag in selection mode
     setActiveId(event.active.id as string);
   };
 
@@ -455,6 +534,40 @@ const Sidebar: React.FC<SidebarProps> = ({
     });
   }, [groupedVideos]);
 
+  const toggleSelection = (id: string) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedIds(newSelected);
+  };
+
+  const toggleFolderSelection = (folderPath: string, isSelected: boolean) => {
+    const videosInFolder = groupedVideos[folderPath] || [];
+    const newSelected = new Set(selectedIds);
+    videosInFolder.forEach(v => {
+      if (isSelected) newSelected.add(v.id);
+      else newSelected.delete(v.id);
+    });
+    setSelectedIds(newSelected);
+  };
+
+  const handleExpandAll = () => {
+    const allKeys = Object.keys(groupedVideos);
+    const newExpanded = allKeys.reduce((acc, key) => {
+      if (key !== '__root__') acc[key] = true;
+      return acc;
+    }, {} as Record<string, boolean>);
+    setExpandedFolders(newExpanded);
+  };
+
+  const handleCollapseAll = () => {
+    setExpandedFolders({});
+  };
+
+  const selectedCount = selectedIds.size;
   const sidebarWidthClass = isCollapsed ? 'w-16' : 'w-64';
 
   const baseControlButtonClasses =
@@ -530,16 +643,16 @@ const Sidebar: React.FC<SidebarProps> = ({
               >
                 <ArrowUpDown className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">
-                  {sortMode === 'nameAsc' ? t('sortAZ') : 
-                   sortMode === 'nameDesc' ? t('sortZA') :
-                   sortMode === 'dateDesc' ? t('sortDateNewest') :
-                   sortMode === 'dateAsc' ? t('sortDateOldest') :
-                   sortMode === 'sizeDesc' ? t('sortSizeLargest') :
-                   t('sortSizeSmallest')}
+                  {sortMode === 'nameAsc' ? t('sortAZ') :
+                    sortMode === 'nameDesc' ? t('sortZA') :
+                      sortMode === 'dateDesc' ? t('sortDateNewest') :
+                        sortMode === 'dateAsc' ? t('sortDateOldest') :
+                          sortMode === 'sizeDesc' ? t('sortSizeLargest') :
+                            t('sortSizeSmallest')}
                 </span>
                 <ChevronDown className="h-3 w-3" />
               </button>
-              
+
               {showSortMenu && (
                 <div className="absolute right-0 top-full mt-1 z-50 w-44 bg-white border border-slate-200/60 rounded-2xl py-1 shadow-lg">
                   <button
@@ -585,6 +698,53 @@ const Sidebar: React.FC<SidebarProps> = ({
             </div>
           </div>
         )}
+
+        {/* Batch Selection Controls - Only when not collapsed */}
+        {!isCollapsed && (
+          <div className="flex items-center justify-between px-4 pb-2">
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => {
+                  if (isSelectionMode) {
+                    setIsSelectionMode(false);
+                    setSelectedIds(new Set());
+                  } else {
+                    setIsSelectionMode(true);
+                  }
+                }}
+                className={`p-1.5 rounded-lg transition-colors ${isSelectionMode ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-100'}`}
+                title={isSelectionMode ? t('cancelSelection') : t('batchSelect')}
+              >
+                <ListChecks className="w-3.5 h-3.5" />
+              </button>
+              {(isSelectionMode || Object.keys(expandedFolders).length > 0 || Object.keys(groupedVideos).some(k => k !== '__root__')) && (
+                <>
+                  <div className="h-3 w-[1px] bg-slate-200 mx-1"></div>
+                  <button
+                    onClick={handleExpandAll}
+                    className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors"
+                    title={t('expandAll')}
+                  >
+                    <ChevronsDown className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={handleCollapseAll}
+                    className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors"
+                    title={t('collapseAll')}
+                  >
+                    <ChevronsUp className="w-3.5 h-3.5" />
+                  </button>
+                </>
+              )}
+            </div>
+            {isSelectionMode && (
+              <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">
+                {selectedCount} Selected
+              </span>
+            )}
+          </div>
+        )}
+
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
@@ -600,7 +760,13 @@ const Sidebar: React.FC<SidebarProps> = ({
                 const folderVideos = groupedVideos[folderKey];
                 if (folderKey === '__root__') {
                   return folderVideos.map(video => (
-                    <VideoItem key={video.id} {...{ video, selectedVideoId, onSelectVideo, isCollapsed, onDeleteVideo }} />
+                    <VideoItem
+                      key={video.id}
+                      {...{ video, selectedVideoId, onSelectVideo, isCollapsed, onDeleteVideo }}
+                      isSelectionMode={isSelectionMode}
+                      isSelected={selectedIds.has(video.id)}
+                      onToggleSelection={toggleSelection}
+                    />
                   ));
                 }
 
@@ -617,6 +783,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                     onSelectVideo={onSelectVideo}
                     onToggleFolder={toggleFolder}
                     onDeleteVideo={onDeleteVideo}
+                    isSelectionMode={isSelectionMode}
+                    selectedIds={selectedIds}
+                    onToggleSelection={toggleSelection}
+                    onToggleFolderSelection={toggleFolderSelection}
                   />
                 );
               })}
@@ -684,6 +854,33 @@ const Sidebar: React.FC<SidebarProps> = ({
             aria-label={t('expandSidebar')}
           >
             <PanelLeftOpen className="h-4 w-4" />
+          </button>
+        </div>
+      ) : isSelectionMode ? (
+        // Selection Mode Footer
+        <div className="px-3 pb-3 pt-2.5 border-t border-slate-100 bg-slate-50/50 space-y-2.5">
+          <button
+            onClick={() => {
+              if (onBatchDelete) {
+                onBatchDelete(Array.from(selectedIds));
+                setIsSelectionMode(false);
+                setSelectedIds(new Set());
+              }
+            }}
+            disabled={selectedCount === 0}
+            className="w-full flex items-center justify-center gap-2 h-9 rounded-xl bg-red-50 text-red-600 font-medium text-xs hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Delete Selected ({selectedCount})
+          </button>
+          <button
+            onClick={() => {
+              setIsSelectionMode(false);
+              setSelectedIds(new Set());
+            }}
+            className="w-full h-9 rounded-xl text-xs text-slate-500 hover:bg-slate-100 transition-colors"
+          >
+            Cancel
           </button>
         </div>
       ) : (
@@ -787,7 +984,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 {!isMobile && <span className="text-xs">{t('collapseSidebar')}</span>}
               </button>
             )}
-            
+
           </div>
         </div>
       )}
@@ -798,7 +995,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         ref={fileInputRef}
         onChange={handleFileChange}
         className="hidden"
-        accept="video/mp4,video/webm,video/ogg,video/quicktime,.srt,.vtt"
+        accept="video/*"
         multiple
       />
       <input
@@ -806,11 +1003,8 @@ const Sidebar: React.FC<SidebarProps> = ({
         ref={folderInputRef}
         onChange={handleFolderChange}
         className="hidden"
-        // @ts-ignore
-        webkitdirectory=""
-        multiple
+        {...{ webkitdirectory: "", directory: "" } as any}
       />
-
     </div>
   );
 };

@@ -651,6 +651,32 @@ const AppContent: React.FC<{
     }
   };
 
+  // Batch delete videos
+  const handleBatchDelete = async (videoIds: string[]) => {
+    if (videoIds.length === 0) return;
+
+    if (
+      window.confirm(
+        t("batchDeleteConfirmation", videoIds.length),
+      )
+    ) {
+      try {
+        await Promise.all(videoIds.map(id => appDB.deleteVideo(id)));
+        const remainingVideos = videos.filter(v => !videoIds.includes(v.id));
+        setVideos(remainingVideos);
+
+        // If selected video was deleted, select another one
+        if (selectedVideoId && videoIds.includes(selectedVideoId)) {
+          setSelectedVideoId(
+            remainingVideos.length > 0 ? remainingVideos[0].id : null,
+          );
+        }
+      } catch (err) {
+        handleError(err, "Failed to delete selected videos.");
+      }
+    }
+  };
+
   // Save settings
   const handleSaveSettings = async (newSettings: APISettings) => {
     try {
@@ -758,6 +784,7 @@ const AppContent: React.FC<{
               onOpenSettings={() => setIsSettingsModalOpen(true)}
               onDeleteFolder={handleDeleteFolder}
               onDeleteVideo={handleDeleteVideo}
+              onBatchDelete={handleBatchDelete}
               onReorderVideos={handleReorderVideos}
               isMobile={false}
               onOpenAuth={() => openAuthModal("signin")}
@@ -799,6 +826,7 @@ const AppContent: React.FC<{
                   }}
                   onDeleteFolder={handleDeleteFolder}
                   onDeleteVideo={handleDeleteVideo}
+                  onBatchDelete={handleBatchDelete}
                   onReorderVideos={handleReorderVideos}
                   isMobile={true}
                   onOpenAuth={() => {

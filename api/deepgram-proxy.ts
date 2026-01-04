@@ -76,6 +76,7 @@ export default async function handler(
       language, 
       smart_format = 'true', 
       punctuate = 'true',
+      diarize = 'true',
       url_mode = 'false'
     } = req.query;
     
@@ -84,6 +85,7 @@ export default async function handler(
       model: model as string,
       smart_format: smart_format as string,
       punctuate: punctuate as string,
+      diarize: diarize as string,
       paragraphs: 'false',
       utterances: 'false',
     });

@@ -463,6 +463,7 @@ export async function generateSubtitlesWithDeepgram(
             model: 'nova-2',
             smart_format: 'true',
             punctuate: 'true',
+            diarize: 'true',
             paragraphs: 'false',
             utterances: 'false',
           });
@@ -539,6 +540,7 @@ export async function generateSubtitlesWithDeepgram(
             model: 'nova-2',
             smart_format: 'true',
             punctuate: 'true',
+            diarize: 'true',
             paragraphs: 'false',
             utterances: 'false',
           });
@@ -640,6 +642,7 @@ export async function generateSubtitlesWithDeepgram(
               model: 'nova-2',
               smart_format: 'true',
               punctuate: 'true',
+              diarize: 'true',
               paragraphs: 'false',
               utterances: 'false',
             });
@@ -788,6 +791,7 @@ export async function generateSubtitlesWithDeepgram(
             model: 'nova-2',
             smart_format: 'true',
             punctuate: 'true',
+            diarize: 'true',
             paragraphs: 'false',
             utterances: 'false',
           });
@@ -959,6 +963,7 @@ export async function generateSubtitlesWithDeepgram(
     model: 'nova-2',
     smart_format: 'true',
     punctuate: 'true',
+    diarize: 'true',
     paragraphs: 'false',
     utterances: 'false',
   });

@@ -470,11 +470,35 @@ const AppContent: React.FC<{
     lastSyncTime,
     lastError,
   } = syncStatusSnapshot;
+  
+  // 同步通知自动关闭状态
+  const [syncNotificationDismissed, setSyncNotificationDismissed] = useState(false);
+  const [prevSyncState, setPrevSyncState] = useState(syncState);
+  
+  // 当同步状态变化时，重置关闭状态
+  useEffect(() => {
+    if (syncState !== prevSyncState) {
+      setPrevSyncState(syncState);
+      setSyncNotificationDismissed(false);
+    }
+  }, [syncState, prevSyncState]);
+  
+  // 成功同步后 5 秒自动关闭通知
+  useEffect(() => {
+    if (syncState === "idle" && queueLength === 0 && lastSyncTime && !syncNotificationDismissed) {
+      const timer = setTimeout(() => {
+        setSyncNotificationDismissed(true);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [syncState, queueLength, lastSyncTime, syncNotificationDismissed]);
+  
   const showSyncStatus =
-    syncState !== "idle" ||
+    !syncNotificationDismissed &&
+    (syncState !== "idle" ||
     queueLength > 0 ||
     Boolean(lastSyncTime) ||
-    Boolean(lastError);
+    Boolean(lastError));
   const formattedLastSync = lastSyncTime
     ? lastSyncTime.toLocaleTimeString()
     : null;
@@ -912,8 +936,24 @@ const AppContent: React.FC<{
       {
         showSyncStatus && (
           <div className="fixed top-6 right-6 z-40">
-            <div className="rounded-2xl border border-white/10 bg-slate-900/80 text-slate-100 px-4 py-3 shadow-2xl backdrop-blur-lg min-w-[220px]">
-              <p className="text-sm font-medium tracking-wide">
+            <div 
+              className="rounded-2xl border border-white/10 bg-slate-900/80 text-slate-100 px-4 py-3 shadow-2xl backdrop-blur-lg min-w-[220px] cursor-pointer hover:bg-slate-800/80 transition-colors relative group"
+              onClick={() => setSyncNotificationDismissed(true)}
+              title="点击关闭"
+            >
+              <button
+                className="absolute top-2 right-2 text-slate-400 hover:text-slate-200 opacity-0 group-hover:opacity-100 transition-opacity"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSyncNotificationDismissed(true);
+                }}
+                aria-label="关闭通知"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+              <p className="text-sm font-medium tracking-wide pr-6">
                 {syncPrimaryMessage}
                 {queueLength > 0 && `（${queueLength} 项待同步）`}
               </p>

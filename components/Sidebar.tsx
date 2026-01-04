@@ -362,6 +362,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [activeId, setActiveId] = useState<string | null>(null);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isHovered, setIsHovered] = useState(false);
   const { t } = useLanguage();
 
   // Configure drag sensors
@@ -586,7 +587,11 @@ const Sidebar: React.FC<SidebarProps> = ({
     `${baseControlButtonClasses} justify-center gap-1.5 h-9 px-3 rounded-xl text-[11px] text-slate-600 hover:bg-slate-100`;
 
   return (
-    <div className={`h-full flex flex-col transition-all duration-300 ease-in-out ${sidebarWidthClass} rounded-[32px] bg-white/80 backdrop-blur-md shadow-[0_18px_80px_rgba(15,23,42,0.16)]`}>
+    <div 
+      className={`h-full flex flex-col transition-all duration-300 ease-in-out ${sidebarWidthClass} rounded-[32px] bg-white/80 backdrop-blur-md shadow-[0_18px_80px_rgba(15,23,42,0.16)] ${!isHovered && !isMobile ? 'opacity-30 saturate-50' : 'opacity-100 saturate-100'}`}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
       {/* Header */}
       <div className={`px-4 pt-4 pb-3 flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
         <button

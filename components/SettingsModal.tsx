@@ -19,8 +19,18 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onSave, onClose
   // Check for build-time environment variables to determine UI behavior
   const systemModel = import.meta.env.VITE_MODEL;
   const systemBaseUrl = import.meta.env.VITE_BASE_URL;
+  const systemHttpReferer = import.meta.env.VITE_HTTP_REFERER;
+  const systemXTitle = import.meta.env.VITE_X_TITLE;
   const proxyAvailable = import.meta.env.VITE_USE_PROXY === 'true';
   const systemDeepgramKey = import.meta.env.VITE_DEEPGRAM_API_KEY;
+  const providerDefaults: Record<string, { model: string; baseUrl: string }> = {
+    gemini: { model: 'gemini-2.5-flash', baseUrl: 'https://generativelanguage.googleapis.com' },
+    openai: { model: 'gpt-4o', baseUrl: 'https://api.openai.com/v1' },
+    openai_compatible: { model: 'gpt-4o-mini', baseUrl: '' },
+    xiaomi_mimo: { model: 'mimo-v2-omni', baseUrl: 'https://token-plan-cn.xiaomimimo.com/v1' },
+    poe: { model: 'GPT-4o', baseUrl: 'https://api.poe.com/v1' },
+    custom: { model: 'default', baseUrl: '' },
+  };
 
   // Determine if the currently displayed settings are from the system fallback
   const isModelSystemInUse = !!systemModel && currentSettings.model === systemModel;
@@ -36,6 +46,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onSave, onClose
     if (!!systemBaseUrl && settings.baseUrl === systemBaseUrl) {
       displaySettings.baseUrl = '';
     }
+    if (!!systemHttpReferer && settings.httpReferer === systemHttpReferer) {
+      displaySettings.httpReferer = '';
+    }
+    if (!!systemXTitle && settings.xTitle === systemXTitle) {
+      displaySettings.xTitle = '';
+    }
     // Security: Never display system environment variable values in the UI
     if (!!systemDeepgramKey) {
       // If user's key matches system key, clear it to prevent exposing the system key
@@ -46,7 +62,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onSave, onClose
     }
 
     setCurrentSettings(displaySettings);
-  }, [settings, systemBaseUrl, systemModel, systemDeepgramKey]);
+  }, [settings, systemBaseUrl, systemModel, systemDeepgramKey, systemHttpReferer, systemXTitle]);
 
   const handleSettingChange = (update: Partial<APISettings>) => {
     setCurrentSettings(prev => ({ ...prev, ...update }));
@@ -63,10 +79,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onSave, onClose
     // For testing, we must use the effective settings
     const settingsToTest: APISettings = {
         ...currentSettings,
-        model: currentSettings.model || systemModel || 'gemini-2.5-flash',
-        baseUrl: currentSettings.baseUrl || systemBaseUrl,
+        model: currentSettings.model || systemModel || providerDefaults[currentSettings.provider || 'gemini']?.model || 'gemini-2.5-flash',
+        baseUrl: currentSettings.baseUrl || systemBaseUrl || providerDefaults[currentSettings.provider || 'gemini']?.baseUrl,
         apiKey: currentSettings.apiKey,
-        useProxy: !currentSettings.apiKey && proxyAvailable,
+        useProxy: currentSettings.useProxy ?? (!currentSettings.apiKey && proxyAvailable),
+        httpReferer: currentSettings.httpReferer || systemHttpReferer,
+        xTitle: currentSettings.xTitle || systemXTitle,
     }
     try {
       const result = await testConnection(settingsToTest);
@@ -121,11 +139,23 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onSave, onClose
                 <select
                   id="provider-select"
                   value={currentSettings.provider || 'gemini'}
-                  onChange={(e) => handleSettingChange({ provider: e.target.value as any })}
+                  onChange={(e) => {
+                    const provider = e.target.value as APISettings['provider'];
+                    const defaults = providerDefaults[provider];
+                    handleSettingChange({
+                      provider,
+                      model: defaults?.model || '',
+                      baseUrl: defaults?.baseUrl || '',
+                      httpReferer: provider === 'xiaomi_mimo' ? (currentSettings.httpReferer || 'https://cherry-ai.com') : currentSettings.httpReferer,
+                      xTitle: provider === 'xiaomi_mimo' ? (currentSettings.xTitle || 'Cherry Studio') : currentSettings.xTitle,
+                    });
+                  }}
                   className="w-full rounded-2xl bg-slate-50 px-3 py-2.5 text-sm border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition"
                 >
                   <option value="gemini">Google Gemini</option>
                   <option value="openai">OpenAI</option>
+                  <option value="openai_compatible">OpenAI Compatible</option>
+                  <option value="xiaomi_mimo">Xiaomi MiMo</option>
                   <option value="poe">Poe API</option>
                   <option value="custom">Custom API</option>
                 </select>
@@ -201,6 +231,36 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onSave, onClose
                 />
                 <p className="text-xs text-slate-500 mt-1">{t('apiKeyHelpText')}</p>
               </div>
+              {(currentSettings.provider === 'openai_compatible' || currentSettings.provider === 'xiaomi_mimo') && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="http-referer" className="block text-xs font-medium text-slate-600 mb-1.5">
+                      HTTP-Referer
+                    </label>
+                    <input
+                      type="text"
+                      id="http-referer"
+                      value={currentSettings.httpReferer || ''}
+                      onChange={(e) => handleSettingChange({ httpReferer: e.target.value.trim() })}
+                      placeholder={currentSettings.provider === 'xiaomi_mimo' ? 'https://cherry-ai.com' : 'https://your-app.example'}
+                      className="w-full rounded-2xl bg-slate-50 px-3 py-2.5 text-sm border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="x-title" className="block text-xs font-medium text-slate-600 mb-1.5">
+                      X-Title
+                    </label>
+                    <input
+                      type="text"
+                      id="x-title"
+                      value={currentSettings.xTitle || ''}
+                      onChange={(e) => handleSettingChange({ xTitle: e.target.value.trim() })}
+                      placeholder={currentSettings.provider === 'xiaomi_mimo' ? 'Cherry Studio' : 'Insightseel'}
+                      className="w-full rounded-2xl bg-slate-50 px-3 py-2.5 text-sm border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </section>
 

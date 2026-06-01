@@ -44,6 +44,7 @@ const VideoIcon: React.FC<{ className?: string }> = ({ className }) => (
 interface WelcomeScreenProps {
   onImportFiles: (files: FileList) => void;
   onImportFolderSelection: (files: FileList) => void;
+  onImportUrl: (url: string) => void;
   onLogin: () => void;
   onRegister: () => void;
   onOpenAccount?: () => void;
@@ -78,6 +79,7 @@ const demoFileCards = [
 const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   onImportFiles,
   onImportFolderSelection,
+  onImportUrl,
   onLogin,
   onRegister,
   onOpenAccount,
@@ -103,6 +105,12 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
   const triggerFileUpload = () => fileInputRef.current?.click();
   const triggerFolderUpload = () => folderInputRef.current?.click();
+  const triggerUrlImport = () => {
+    const url = window.prompt('Paste a YouTube video link');
+    if (url?.trim()) {
+      onImportUrl(url.trim());
+    }
+  };
 
   return (
     <div className="min-h-screen w-full bg-slate-50 flex flex-col">
@@ -117,6 +125,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         <Hero
           onPrimaryClick={triggerFileUpload}
           onSecondaryClick={triggerFolderUpload}
+          onUrlClick={triggerUrlImport}
         />
 
         <MagicDemo />
@@ -216,9 +225,10 @@ const Navbar: React.FC<NavbarProps> = ({
 interface HeroProps {
   onPrimaryClick: () => void;
   onSecondaryClick: () => void;
+  onUrlClick: () => void;
 }
 
-const Hero: React.FC<HeroProps> = ({ onPrimaryClick, onSecondaryClick }) => {
+const Hero: React.FC<HeroProps> = ({ onPrimaryClick, onSecondaryClick, onUrlClick }) => {
   const { t } = useLanguage();
   const rotatingWords = ["数据", "语音", "内容", "场景", "情绪", "洞察"];
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
@@ -277,6 +287,12 @@ const Hero: React.FC<HeroProps> = ({ onPrimaryClick, onSecondaryClick }) => {
               className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-6 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
             >
               {t("welcomeImportFolderButton")}
+            </button>
+            <button
+              onClick={onUrlClick}
+              className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-6 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              YouTube Link
             </button>
           </div>
         </div>

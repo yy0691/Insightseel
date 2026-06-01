@@ -11,6 +11,9 @@ export interface Video {
   importedAt: string;
   folderPath?: string;
   order?: number; // Custom order for drag and drop sorting
+  sourceType?: 'file' | 'youtube';
+  sourceUrl?: string;
+  thumbnailUrl?: string;
 }
 
 export interface SubtitleSegment {
@@ -61,7 +64,7 @@ export interface Note {
   updatedAt: string;
 }
 
-export type APIProvider = 'gemini' | 'openai' | 'poe' | 'custom';
+export type APIProvider = 'gemini' | 'openai' | 'openai_compatible' | 'xiaomi_mimo' | 'poe' | 'custom';
 
 export interface APISettings {
   id: 'user-settings';
@@ -74,6 +77,8 @@ export interface APISettings {
   openaiApiKey?: string; // For Whisper API (speech-to-text)
   useWhisper?: boolean; // Prefer Whisper for subtitle generation
   deepgramApiKey?: string; // For Deepgram ($200 free credits)
+  httpReferer?: string; // Optional compatibility header for OpenAI-compatible gateways
+  xTitle?: string; // Optional app title header for OpenAI-compatible gateways
 }
 
 // Provider-specific configuration
@@ -85,4 +90,5 @@ export interface ProviderConfig {
   supportsStreaming: boolean;
   supportsVision: boolean;
   supportsAudio: boolean;
+  protocol?: 'gemini' | 'openai' | 'poe';
 }

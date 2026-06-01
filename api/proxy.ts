@@ -1,11 +1,13 @@
 // Type-only import removed to avoid dependency on '@vercel/node' during local builds
 
-type APIProvider = 'gemini' | 'openai' | 'poe' | 'custom';
+type APIProvider = 'gemini' | 'openai' | 'openai_compatible' | 'xiaomi_mimo' | 'poe' | 'custom';
 
 interface ProxyConfig {
   apiKey: string;
   baseUrl: string;
   model: string;
+  httpReferer?: string;
+  xTitle?: string;
 }
 
 /**
@@ -24,6 +26,22 @@ function getProviderConfig(provider: APIProvider): ProxyConfig | null {
         apiKey: process.env.OPENAI_API_KEY || '',
         baseUrl: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
         model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+      };
+    case 'openai_compatible':
+      return {
+        apiKey: process.env.OPENAI_COMPATIBLE_API_KEY || process.env.CUSTOM_API_KEY || '',
+        baseUrl: process.env.OPENAI_COMPATIBLE_BASE_URL || process.env.CUSTOM_BASE_URL || '',
+        model: process.env.OPENAI_COMPATIBLE_MODEL || process.env.CUSTOM_MODEL || 'gpt-4o-mini',
+        httpReferer: process.env.OPENAI_COMPATIBLE_HTTP_REFERER || process.env.CUSTOM_HTTP_REFERER,
+        xTitle: process.env.OPENAI_COMPATIBLE_X_TITLE || process.env.CUSTOM_X_TITLE,
+      };
+    case 'xiaomi_mimo':
+      return {
+        apiKey: process.env.XIAOMI_MIMO_API_KEY || process.env.MIMO_API_KEY || process.env.CUSTOM_API_KEY || '',
+        baseUrl: process.env.XIAOMI_MIMO_BASE_URL || process.env.MIMO_BASE_URL || 'https://token-plan-cn.xiaomimimo.com/v1',
+        model: process.env.XIAOMI_MIMO_MODEL || process.env.MIMO_MODEL || 'mimo-v2-omni',
+        httpReferer: process.env.XIAOMI_MIMO_HTTP_REFERER || process.env.MIMO_HTTP_REFERER || 'https://cherry-ai.com',
+        xTitle: process.env.XIAOMI_MIMO_X_TITLE || process.env.MIMO_X_TITLE || 'Cherry Studio',
       };
     case 'poe':
       return {
@@ -132,6 +150,8 @@ async function handleOpenAIRequest(
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${config.apiKey}`,
+      ...(config.httpReferer ? { 'HTTP-Referer': config.httpReferer } : {}),
+      ...(config.xTitle ? { 'X-Title': config.xTitle } : {}),
     },
     body: JSON.stringify(payload),
   });
@@ -239,6 +259,8 @@ export default async function handler(req: any, res: any) {
         response = await handleGeminiRequest(config, contents, systemInstruction, stream);
         break;
       case 'openai':
+      case 'openai_compatible':
+      case 'xiaomi_mimo':
         response = await handleOpenAIRequest(config, contents, systemInstruction, stream);
         break;
       case 'poe':
@@ -294,7 +316,7 @@ export default async function handler(req: any, res: any) {
     // Normalize response format for different providers
     let normalizedData = data;
     
-    if (provider === 'openai') {
+    if (provider === 'openai' || provider === 'openai_compatible' || provider === 'xiaomi_mimo') {
       // Convert OpenAI format to Gemini-like format for consistency
       const text = data.choices?.[0]?.message?.content || '';
       normalizedData = {

@@ -39,6 +39,7 @@ import { User } from "@supabase/supabase-js";
 import { authService, type Profile } from "./services/authService";
 import autoSyncService, { getSyncStatus } from "./services/autoSyncService";
 import { saveSubtitles } from "./services/subtitleService";
+import { fetchYouTubeCaptions } from "./services/onlineVideoService";
 
 const SUPPORTED_SUBTITLE_EXTENSIONS = [".srt", ".vtt"];
 
@@ -184,7 +185,7 @@ const AppContent: React.FC<{
     getSyncStatus(),
   );
 
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
 
   useEffect(() => {
     let mounted = true;
@@ -603,6 +604,70 @@ const AppContent: React.FC<{
     }
   };
 
+  const handleImportOnlineVideo = async (url: string) => {
+    const trimmedUrl = url.trim();
+    if (!trimmedUrl) return;
+
+    try {
+      toast.info({
+        title: language === 'zh' ? '正在导入 YouTube 字幕' : 'Importing YouTube Captions',
+        description: trimmedUrl,
+        duration: 3000,
+      });
+
+      const captionResult = await fetchYouTubeCaptions(trimmedUrl, language === 'zh' ? 'zh' : 'en');
+      const videoId = await generateDeterministicUUID(`youtube:${captionResult.videoId}`);
+
+      if (videos.some((v) => v.id === videoId)) {
+        setSelectedVideoId(videoId);
+        return;
+      }
+
+      const placeholderFile = new File([], `${captionResult.title}.youtube`, { type: 'video/mp4' });
+      const newVideo: Video = {
+        id: videoId,
+        file: placeholderFile,
+        name: captionResult.title,
+        duration: captionResult.duration,
+        width: 1280,
+        height: 720,
+        size: 0,
+        importedAt: new Date().toISOString(),
+        folderPath: 'YouTube',
+        sourceType: 'youtube',
+        sourceUrl: captionResult.canonicalUrl,
+        thumbnailUrl: captionResult.thumbnailUrl,
+        language: captionResult.selectedTrack.languageCode,
+      };
+
+      await videoDB.put(newVideo);
+      await saveSubtitles(videoId, {
+        id: videoId,
+        videoId,
+        segments: captionResult.segments,
+      });
+
+      setVideos((prev) => {
+        const updated = [newVideo, ...prev];
+        updated.sort(
+          (a, b) =>
+            new Date(b.importedAt).getTime() - new Date(a.importedAt).getTime(),
+        );
+        return updated;
+      });
+      setSelectedVideoId(videoId);
+      await loadDataForVideo(videoId);
+
+      toast.success({
+        title: language === 'zh' ? 'YouTube 字幕已导入' : 'YouTube captions imported',
+        description: `${captionResult.segments.length} subtitles`,
+        duration: 3000,
+      });
+    } catch (err) {
+      handleError(err, language === 'zh' ? 'YouTube 字幕导入失败' : 'Failed to import YouTube captions');
+    }
+  };
+
   // Import folder
   const handleImportFolderSelection = async (files: FileList) => {
     if (!files || files.length === 0) return;
@@ -803,6 +868,7 @@ const AppContent: React.FC<{
               onSelectVideo={setSelectedVideoId}
               onImportFiles={handleFileImports}
               onImportFolderSelection={handleImportFolderSelection}
+              onImportUrl={handleImportOnlineVideo}
               isCollapsed={isSidebarCollapsed}
               onToggle={() => setIsSidebarCollapsed((prev) => !prev)}
               onOpenSettings={() => setIsSettingsModalOpen(true)}
@@ -840,6 +906,10 @@ const AppContent: React.FC<{
                   }}
                   onImportFolderSelection={(files) => {
                     handleImportFolderSelection(files);
+                    setIsMobileSidebarOpen(false);
+                  }}
+                  onImportUrl={(url) => {
+                    handleImportOnlineVideo(url);
                     setIsMobileSidebarOpen(false);
                   }}
                   isCollapsed={false}
@@ -924,6 +994,7 @@ const AppContent: React.FC<{
             <WelcomeScreen
               onImportFiles={handleFileImports}
               onImportFolderSelection={handleImportFolderSelection}
+              onImportUrl={handleImportOnlineVideo}
               onLogin={() => openAuthModal("signin")}
               onRegister={() => openAuthModal("signup")}
               onOpenAccount={() => setShowAccountPanel(true)}

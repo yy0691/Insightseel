@@ -15,6 +15,7 @@ export const PROVIDER_CONFIGS: Record<APIProvider, ProviderConfig> = {
     supportsStreaming: true,
     supportsVision: true,
     supportsAudio: true,
+    protocol: 'gemini',
   },
   openai: {
     name: 'OpenAI',
@@ -24,6 +25,27 @@ export const PROVIDER_CONFIGS: Record<APIProvider, ProviderConfig> = {
     supportsStreaming: true,
     supportsVision: true,
     supportsAudio: true,
+    protocol: 'openai',
+  },
+  openai_compatible: {
+    name: 'OpenAI Compatible',
+    defaultBaseUrl: 'https://api.openai.com/v1',
+    defaultModel: 'gpt-4o-mini',
+    requiresProxy: false,
+    supportsStreaming: true,
+    supportsVision: true,
+    supportsAudio: false,
+    protocol: 'openai',
+  },
+  xiaomi_mimo: {
+    name: 'Xiaomi MiMo',
+    defaultBaseUrl: 'https://token-plan-cn.xiaomimimo.com/v1',
+    defaultModel: 'mimo-v2-omni',
+    requiresProxy: false,
+    supportsStreaming: true,
+    supportsVision: false,
+    supportsAudio: false,
+    protocol: 'openai',
   },
   poe: {
     name: 'Poe API',
@@ -33,6 +55,7 @@ export const PROVIDER_CONFIGS: Record<APIProvider, ProviderConfig> = {
     supportsStreaming: true,
     supportsVision: false,
     supportsAudio: false,
+    protocol: 'poe',
   },
   custom: {
     name: 'Custom API',
@@ -42,6 +65,7 @@ export const PROVIDER_CONFIGS: Record<APIProvider, ProviderConfig> = {
     supportsStreaming: false,
     supportsVision: false,
     supportsAudio: false,
+    protocol: 'gemini',
   },
 };
 
@@ -211,7 +235,8 @@ export class OpenAIAdapter implements APIAdapter {
   constructor(
     private apiKey: string,
     private baseUrl: string,
-    private model: string
+    private model: string,
+    private extraHeaders: Record<string, string> = {}
   ) {}
 
   private buildMessages(request: APIRequest): any[] {
@@ -221,19 +246,18 @@ export class OpenAIAdapter implements APIAdapter {
       messages.push({ role: 'system', content: request.systemInstruction });
     }
 
-    const content: any[] = [{ type: 'text', text: request.prompt }];
-
-    // Add images
     if (request.images && request.images.length > 0) {
+      const content: any[] = [{ type: 'text', text: request.prompt }];
       content.push(
         ...request.images.map((img) => ({
           type: 'image_url',
           image_url: { url: `data:image/jpeg;base64,${img}` },
         }))
       );
+      messages.push({ role: 'user', content });
+    } else {
+      messages.push({ role: 'user', content: request.prompt });
     }
-
-    messages.push({ role: 'user', content });
 
     return messages;
   }
@@ -259,6 +283,7 @@ export class OpenAIAdapter implements APIAdapter {
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${this.apiKey}`,
+        ...this.extraHeaders,
       },
       body: JSON.stringify(payload),
     });
@@ -297,6 +322,7 @@ export class OpenAIAdapter implements APIAdapter {
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${this.apiKey}`,
+        ...this.extraHeaders,
       },
       body: JSON.stringify(payload),
     });
@@ -449,13 +475,16 @@ export function createAPIAdapter(
   provider: APIProvider,
   apiKey: string,
   baseUrl: string,
-  model: string
+  model: string,
+  extraHeaders: Record<string, string> = {}
 ): APIAdapter {
   switch (provider) {
     case 'gemini':
       return new GeminiAdapter(apiKey, baseUrl, model);
     case 'openai':
-      return new OpenAIAdapter(apiKey, baseUrl, model);
+    case 'openai_compatible':
+    case 'xiaomi_mimo':
+      return new OpenAIAdapter(apiKey, baseUrl, model, extraHeaders);
     case 'poe':
       return new PoeAdapter(apiKey, baseUrl, model);
     case 'custom':

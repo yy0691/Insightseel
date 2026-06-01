@@ -6,6 +6,73 @@ import { createAPIAdapter, PROVIDER_CONFIGS, APIRequest } from './apiProviders';
 
 const DEFAULT_MODEL = 'gemini-2.5-flash';
 
+function getProviderExtraHeaders(settings: APISettings): Record<string, string> {
+  const headers: Record<string, string> = {};
+  const isXiaomiMimo = settings.provider === 'xiaomi_mimo';
+  const httpReferer = settings.httpReferer || (isXiaomiMimo ? 'https://cherry-ai.com' : undefined);
+  const xTitle = settings.xTitle || (isXiaomiMimo ? 'Cherry Studio' : undefined);
+
+  if (httpReferer) {
+    headers['HTTP-Referer'] = httpReferer;
+  }
+  if (xTitle) {
+    headers['X-Title'] = xTitle;
+  }
+
+  return headers;
+}
+
+function extractAPIRequestFromContents(
+  contents: any,
+  systemInstruction?: string,
+): APIRequest {
+  const contentsArray = Array.isArray(contents) ? contents : [contents];
+  const promptParts: string[] = [];
+  const images: string[] = [];
+  let hasAudio = false;
+
+  for (const content of contentsArray) {
+    if (typeof content === 'string') {
+      promptParts.push(content);
+      continue;
+    }
+
+    const role = content.role === 'model' ? 'assistant' : (content.role || 'user');
+    const parts = content.parts || [];
+    const textParts: string[] = [];
+
+    for (const part of parts) {
+      if (part.text) {
+        textParts.push(part.text);
+      }
+      if (part.inlineData) {
+        const mimeType = part.inlineData.mimeType || '';
+        if (mimeType.startsWith('image/')) {
+          images.push(part.inlineData.data);
+        } else if (mimeType.startsWith('audio/')) {
+          hasAudio = true;
+        }
+      }
+    }
+
+    if (textParts.length > 0) {
+      promptParts.push(`${role}: ${textParts.join('\n')}`);
+    }
+  }
+
+  if (hasAudio) {
+    throw new Error(
+      'The selected OpenAI-compatible provider does not support direct audio transcription in this app. Please configure Deepgram for subtitle recognition.'
+    );
+  }
+
+  return {
+    prompt: promptParts.join('\n\n').trim(),
+    systemInstruction,
+    images: images.length > 0 ? images : undefined,
+  };
+}
+
 async function getAIConfig(): Promise<{ai: GoogleGenAI | null, settings: APISettings, apiKey: string}> {
     const settings = await getEffectiveSettings();
     
@@ -55,7 +122,7 @@ async function generateWithAdapter(
   const baseUrl = settings.baseUrl || config.defaultBaseUrl;
   const model = settings.model || config.defaultModel;
   
-  const adapter = createAPIAdapter(provider, apiKey, baseUrl, model);
+  const adapter = createAPIAdapter(provider, apiKey, baseUrl, model, getProviderExtraHeaders(settings));
   
   if (streaming && onChunk) {
     const response = await adapter.generateContentStream(request, onChunk);
@@ -218,6 +285,19 @@ async function generateContentWithCustomAPI(
     }
 
     const modelName = settings.model || DEFAULT_MODEL;
+    const provider = settings.provider || 'custom';
+    const config = PROVIDER_CONFIGS[provider];
+
+    if (config?.protocol === 'openai') {
+        const request = extractAPIRequestFromContents(contents, systemInstruction);
+        const adapter = createAPIAdapter(provider, apiKey, baseUrl, modelName, getProviderExtraHeaders(settings));
+        const response = await adapter.generateContent(request);
+        if (!response.text) {
+            throw new Error('API returned empty response');
+        }
+        return response.text;
+    }
+
     const url = `${baseUrl.replace(/\/$/, '')}/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
     
     const payload: any = {
@@ -750,6 +830,14 @@ export async function testConnection(settings: APISettings): Promise<{success: b
         }
 
         if (baseUrl) {
+            const provider = settings.provider || 'custom';
+            const config = PROVIDER_CONFIGS[provider];
+            if (config?.protocol === 'openai') {
+                const adapter = createAPIAdapter(provider, apiKey, baseUrl, modelName, getProviderExtraHeaders(settings));
+                await adapter.generateContent({ prompt: 'Hello', maxTokens: 32 });
+                return { success: true, message: `Successfully connected to ${config.name}!` };
+            }
+
             const url = `${baseUrl.replace(/\/$/, '')}/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
             const response = await fetch(url, {
                 method: 'POST',

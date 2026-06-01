@@ -155,11 +155,22 @@ export async function getEffectiveSettings(): Promise<APISettings> {
     const proxyAvailable = import.meta.env.VITE_USE_PROXY === 'true';
     const systemBaseUrl = import.meta.env.VITE_BASE_URL;
     const systemModel = import.meta.env.VITE_MODEL;
+    const systemHttpReferer = import.meta.env.VITE_HTTP_REFERER;
+    const systemXTitle = import.meta.env.VITE_X_TITLE;
     const DEFAULT_MODEL = 'gemini-2.5-flash';
 
     const provider = userSettings?.provider || 'gemini';
-    const finalBaseUrl = userSettings?.baseUrl ?? systemBaseUrl;
-    const finalModel = userSettings?.model ?? systemModel ?? DEFAULT_MODEL;
+    const providerDefaults = {
+        gemini: { baseUrl: 'https://generativelanguage.googleapis.com', model: DEFAULT_MODEL },
+        openai: { baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o' },
+        openai_compatible: { baseUrl: '', model: 'gpt-4o-mini' },
+        xiaomi_mimo: { baseUrl: 'https://token-plan-cn.xiaomimimo.com/v1', model: 'mimo-v2-omni' },
+        poe: { baseUrl: 'https://api.poe.com/v1', model: 'GPT-4o' },
+        custom: { baseUrl: '', model: 'default' },
+    } as const;
+    const defaults = providerDefaults[provider] || providerDefaults.gemini;
+    const finalBaseUrl = userSettings?.baseUrl || systemBaseUrl || defaults.baseUrl;
+    const finalModel = userSettings?.model || systemModel || defaults.model;
     
     const useProxy = userSettings?.useProxy ?? (!userSettings?.apiKey && proxyAvailable);
 
@@ -174,5 +185,7 @@ export async function getEffectiveSettings(): Promise<APISettings> {
         openaiApiKey: userSettings?.openaiApiKey,
         useWhisper: userSettings?.useWhisper,
         deepgramApiKey: userSettings?.deepgramApiKey,
+        httpReferer: userSettings?.httpReferer || systemHttpReferer,
+        xTitle: userSettings?.xTitle || systemXTitle,
     };
 }

@@ -51,6 +51,7 @@ interface SidebarProps {
   onSelectVideo: (id: string | null) => void;
   onImportFiles: (files: FileList) => void;
   onImportFolderSelection: (files: FileList) => void;
+  onImportUrl?: (url: string) => void;
   isCollapsed: boolean;
   onToggle: () => void;
   onOpenSettings: () => void;
@@ -344,6 +345,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onSelectVideo,
   onImportFiles,
   onImportFolderSelection,
+  onImportUrl,
   isCollapsed,
   onToggle,
   onOpenSettings,
@@ -441,6 +443,14 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   const handleImportFolderClick = () => {
     folderInputRef.current?.click();
+    setShowImportMenu(false);
+  };
+
+  const handleImportUrlClick = () => {
+    const url = window.prompt('Paste a YouTube video link');
+    if (url?.trim()) {
+      onImportUrl?.(url.trim());
+    }
     setShowImportMenu(false);
   };
 
@@ -835,6 +845,14 @@ const Sidebar: React.FC<SidebarProps> = ({
                 >
                   {t('importFolder')}
                 </button>
+                {onImportUrl && (
+                  <button
+                    onClick={handleImportUrlClick}
+                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-100 transition-colors text-slate-600"
+                  >
+                    YouTube Link
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -945,6 +963,14 @@ const Sidebar: React.FC<SidebarProps> = ({
                   >
                     {t('importFolder')}
                   </button>
+                  {onImportUrl && (
+                    <button
+                      onClick={handleImportUrlClick}
+                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-100 transition-colors text-slate-600"
+                    >
+                      YouTube Link
+                    </button>
+                  )}
                 </div>
               )}
             </div>

@@ -65,6 +65,29 @@ const formatProcessingEstimate = ({ min, max }: { min: number; max: number }) =>
   return `${formatValue(min)}-${formatValue(max)} minutes`;
 };
 
+const getYouTubeEmbedUrl = (url?: string, startSeconds?: number): string => {
+  if (!url) return '';
+  try {
+    const parsed = new URL(url);
+    const videoId = parsed.hostname.includes('youtu.be')
+      ? parsed.pathname.split('/').filter(Boolean)[0]
+      : parsed.pathname.startsWith('/shorts/')
+        ? parsed.pathname.split('/').filter(Boolean)[1]
+        : parsed.searchParams.get('v');
+
+    if (!videoId) return url;
+
+    const embed = new URL(`https://www.youtube.com/embed/${videoId}`);
+    embed.searchParams.set('rel', '0');
+    if (startSeconds && startSeconds > 0) {
+      embed.searchParams.set('start', Math.floor(startSeconds).toString());
+    }
+    return embed.toString();
+  } catch {
+    return url;
+  }
+};
+
 const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, note, onAnalysesChange, onSubtitlesChange, onDeleteVideo, onFirstInsightGenerated }) => {
   const [videoUrl, setVideoUrl] = useState('');
   const [activeTab, setActiveTab] = useState<TabType>('Insights');
@@ -138,6 +161,12 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
 
   // Generate video hash on mount for caching
   useEffect(() => {
+    if (video.sourceType === 'youtube' && video.sourceUrl) {
+      setVideoHash(`youtube:${video.id}`);
+      isSegmentedProcessingAvailable().then(setSegmentedAvailable).catch(() => setSegmentedAvailable(false));
+      return;
+    }
+
     // Generate video hash for caching
     generateVideoHash(video.file).then(hash => {
       setVideoHash(hash);
@@ -156,6 +185,24 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
   const TABS = useMemo(() => (['KeyMoments', 'Insights', 'Chat', 'Notes'] as TabType[]), []);
 
   useEffect(() => {
+    if (video.sourceType === 'youtube' && video.sourceUrl) {
+      setVideoUrl(getYouTubeEmbedUrl(video.sourceUrl));
+      setActiveTab('Insights');
+      setScreenshotDataUrl(null);
+      setIsGeneratingSubtitles(false);
+      setIsTranslating(false);
+      setGenerationStatus({ active: false, stage: '', progress: 0 });
+      setActiveTopic(null);
+      setSelectedVideoLanguage(null);
+      isInitialMountRef.current = true;
+      userClickedRef.current = false;
+      setClickedSegmentIndex(null);
+      const timer = setTimeout(() => {
+        isInitialMountRef.current = false;
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+
     const url = URL.createObjectURL(video.file);
     setVideoUrl(url);
     setActiveTab('Insights');
@@ -267,6 +314,26 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
   }, [activeSegmentIndex, scrollToActiveSegment]);
 
   const handleSeekTo = (time: number, segmentIndex?: number) => {
+    if (video.sourceType === 'youtube' && video.sourceUrl) {
+      userClickedRef.current = true;
+      if (segmentIndex !== undefined) {
+        setClickedSegmentIndex(segmentIndex);
+        setTimeout(() => {
+          setClickedSegmentIndex(null);
+        }, 2000);
+      }
+      setCurrentTime(time);
+      setVideoUrl(getYouTubeEmbedUrl(video.sourceUrl, time));
+      setTimeout(() => {
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            scrollToActiveSegment();
+          }, 50);
+        });
+      }, 50);
+      return;
+    }
+
     if (videoRef.current) {
       userClickedRef.current = true; // Mark as user click to prevent auto-scroll
 
@@ -466,6 +533,13 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
     // Prevent duplicate calls
     if (isGeneratingSubtitles) {
       console.log('Subtitle generation already in progress, ignoring duplicate call');
+      return;
+    }
+
+    if (video.sourceType === 'youtube') {
+      alert(language === 'zh'
+        ? 'YouTube 视频会优先导入平台字幕。当前不支持对在线 YouTube 视频重新转写，请重新导入链接以刷新字幕。'
+        : 'YouTube videos use imported platform captions. Online retranscription is not supported yet; re-import the link to refresh captions.');
       return;
     }
 
@@ -903,18 +977,30 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
               </button>
             </div>
             <div className="relative group aspect-video bg-black">
-              <video
-                ref={videoRef}
-                src={videoUrl || undefined}
-                controls
-                onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
-                className="w-full h-full rounded-none"
-              />
-              <div className="absolute bottom-3 right-3 flex gap-2 rounded-full bg-black/40 backdrop-blur-sm px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button onClick={handleScreenshot} className="px-2.5 py-0.5 text-[11px] font-medium text-slate-50 rounded-full hover:bg-white/10">
-                  Screenshot
-                </button>
-              </div>
+              {video.sourceType === 'youtube' ? (
+                <iframe
+                  src={videoUrl || undefined}
+                  title={video.name}
+                  className="w-full h-full border-0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                />
+              ) : (
+                <>
+                  <video
+                    ref={videoRef}
+                    src={videoUrl || undefined}
+                    controls
+                    onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+                    className="w-full h-full rounded-none"
+                  />
+                  <div className="absolute bottom-3 right-3 flex gap-2 rounded-full bg-black/40 backdrop-blur-sm px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={handleScreenshot} className="px-2.5 py-0.5 text-[11px] font-medium text-slate-50 rounded-full hover:bg-white/10">
+                      Screenshot
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
 
             {parsedKeyInfo.length > 0 && (

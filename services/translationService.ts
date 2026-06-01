@@ -1,9 +1,29 @@
-import { GoogleGenAI } from '@google/genai';
 import { getEffectiveSettings } from './dbService';
 import { SubtitleSegment } from '../types';
-import { createAPIAdapter, APIRequest } from './apiProviders';
+import { createAPIAdapter, APIRequest, PROVIDER_CONFIGS } from './apiProviders';
 
-const BATCH_SIZE = 50;
+const BATCH_SIZE = 30;
+const MAX_RETRIES = 3;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function getProviderExtraHeaders(settings: Awaited<ReturnType<typeof getEffectiveSettings>>): Record<string, string> {
+  const headers: Record<string, string> = {};
+  const isXiaomiMimo = settings.provider === 'xiaomi_mimo';
+  const httpReferer = settings.httpReferer || (isXiaomiMimo ? 'https://cherry-ai.com' : undefined);
+  const xTitle = settings.xTitle || (isXiaomiMimo ? 'Cherry Studio' : undefined);
+
+  if (httpReferer) {
+    headers['HTTP-Referer'] = httpReferer;
+  }
+  if (xTitle) {
+    headers['X-Title'] = xTitle;
+  }
+
+  return headers;
+}
 
 export async function translateSubtitles(
   segments: SubtitleSegment[],
@@ -37,7 +57,7 @@ export async function translateSubtitles(
 
     onProgress?.(progress, `Translating batch ${batchIndex + 1}/${totalBatches}...`);
 
-    const translatedBatch = await translateBatch(batch, targetLangName, settings.useProxy);
+    const translatedBatch = await translateBatchWithRetry(batch, targetLangName, settings.useProxy);
     translatedSegments.push(...translatedBatch);
 
     console.log(`[Translation] Batch ${batchIndex + 1}/${totalBatches} complete`);
@@ -47,6 +67,32 @@ export async function translateSubtitles(
   console.log('[Translation] All translations complete');
 
   return translatedSegments;
+}
+
+async function translateBatchWithRetry(
+  segments: SubtitleSegment[],
+  targetLanguage: string,
+  useProxy: boolean = false
+): Promise<SubtitleSegment[]> {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      return await translateBatch(segments, targetLanguage, useProxy);
+    } catch (error) {
+      lastError = error;
+      console.warn(`[Translation] Batch attempt ${attempt}/${MAX_RETRIES} failed:`, error);
+      if (attempt < MAX_RETRIES) {
+        await sleep(800 * attempt);
+      }
+    }
+  }
+
+  console.error('[Translation] Batch failed after retries, preserving original text:', lastError);
+  return segments.map((seg) => ({
+    ...seg,
+    translatedText: seg.translatedText || seg.text,
+  }));
 }
 
 async function translateBatch(
@@ -108,7 +154,17 @@ ${textToTranslate}`;
     }
   } else {
     const settings = await getEffectiveSettings();
-    const adapter = createAPIAdapter(settings.provider || 'gemini');
+    const provider = settings.provider || 'gemini';
+    const config = PROVIDER_CONFIGS[provider];
+    const apiKey = settings.apiKey;
+
+    if (!apiKey) {
+      throw new Error('API Key not configured');
+    }
+
+    const baseUrl = settings.baseUrl || config.defaultBaseUrl;
+    const model = settings.model || config.defaultModel;
+    const adapter = createAPIAdapter(provider, apiKey, baseUrl, model, getProviderExtraHeaders(settings));
 
     const request: APIRequest = {
       prompt,
@@ -116,19 +172,26 @@ ${textToTranslate}`;
       maxTokens: 8000
     };
 
-    translatedText = await adapter.generateText(request, settings);
+    const response = await adapter.generateContent(request);
+    translatedText = response.text;
   }
 
   const translatedLines = translatedText.trim().split('\n');
   const translatedMap = new Map<number, string>();
 
   for (const line of translatedLines) {
-    const match = line.match(/^(\d+)\|(.+)$/);
+    const cleanedLine = line.trim().replace(/^[-*]\s*/, '');
+    const match = cleanedLine.match(/^(\d+)\|(.*)$/);
     if (match) {
       const index = parseInt(match[1]) - 1;
       const text = match[2].trim();
       translatedMap.set(index, text);
     }
+  }
+
+  const matchedRatio = segments.length > 0 ? translatedMap.size / segments.length : 1;
+  if (matchedRatio < 0.7) {
+    throw new Error(`Translation response format invalid: only ${translatedMap.size}/${segments.length} lines matched`);
   }
 
   return segments.map((seg, idx) => ({

@@ -42,6 +42,46 @@ interface DeepgramSegment {
   text: string;
 }
 
+function splitTranscriptIntoTimedSegments(transcript: string, duration: number = 10): DeepgramSegment[] {
+  const cleanTranscript = transcript.replace(/\s+/g, ' ').trim();
+  if (!cleanTranscript) {
+    return [];
+  }
+
+  const chunks: string[] = [];
+  const sentenceParts = cleanTranscript
+    .split(/(?<=[。！？.!?])\s*/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  let current = '';
+  for (const part of sentenceParts.length > 0 ? sentenceParts : [cleanTranscript]) {
+    if ((current + part).length > 90 && current) {
+      chunks.push(current.trim());
+      current = part;
+    } else {
+      current = current ? `${current} ${part}` : part;
+    }
+  }
+
+  if (current.trim()) {
+    chunks.push(current.trim());
+  }
+
+  if (chunks.length === 0) {
+    return [];
+  }
+
+  const safeDuration = Math.max(duration || 0, chunks.length);
+  const segmentDuration = safeDuration / chunks.length;
+
+  return chunks.map((text, index) => ({
+    start: index * segmentDuration,
+    end: Math.min(safeDuration, (index + 1) * segmentDuration),
+    text,
+  }));
+}
+
 /**
  * Get the Deepgram API key to use
  * Priority: User's key > System default key
@@ -482,11 +522,9 @@ export async function generateSubtitlesWithDeepgram(
           const contentType = file.type || 'video/mp4';
           const directUrl = `https://api.deepgram.com/v1/listen?${params.toString()}`;
 
-          // 🎯 添加Content-Length头
           const headers: HeadersInit = {
             'Authorization': `Token ${apiKey}`,
             'Content-Type': contentType,
-            'Content-Length': file.size.toString(),
           };
 
           console.log('[Deepgram] 📤 Uploading original file directly to Deepgram (compression not effective)...');
@@ -562,20 +600,13 @@ export async function generateSubtitlesWithDeepgram(
           console.log('[Deepgram] 📤 Uploading compressed audio directly to Deepgram (bypassing Vercel)...');
           console.log(`[Deepgram] 📊 Compressed audio: ${compressedSizeMB.toFixed(2)}MB (within Deepgram's 2GB limit)`);
 
-          // 🎯 添加Content-Length头，帮助Deepgram正确读取请求
           const headers: HeadersInit = {
             'Authorization': `Token ${apiKey}`,
             'Content-Type': 'audio/wav',
           };
 
-          // 对于Blob，添加Content-Length头
-          if (audioBlob instanceof Blob) {
-            headers['Content-Length'] = audioBlob.size.toString();
-          }
-
           console.log('[Deepgram] Request headers:', {
             'Content-Type': headers['Content-Type'],
-            'Content-Length': headers['Content-Length'],
             'Authorization': 'Token ***' // 不记录完整key
           });
 
@@ -780,8 +811,8 @@ export async function generateSubtitlesWithDeepgram(
       const compressedFileSizeMB = file.size / (1024 * 1024);
       console.log(`[Deepgram] 📊 Compressed audio size: ${compressedFileSizeMB.toFixed(2)}MB`);
 
-      if (compressedFileSizeMB <= DEEPGRAM_DIRECT_LIMIT_MB) {
-        console.log(`[Deepgram] 🚀 Compressed audio (${compressedFileSizeMB.toFixed(2)}MB) is small enough for direct API call`);
+      if (compressedFileSizeMB > VERCEL_SIZE_LIMIT_MB && compressedFileSizeMB <= DEEPGRAM_DIRECT_LIMIT_MB) {
+        console.log(`[Deepgram] 🚀 Compressed audio (${compressedFileSizeMB.toFixed(2)}MB) is too large for proxy, trying direct API call`);
         console.log('[Deepgram] 🎯 Attempting direct call (bypassing Vercel & Storage)...');
 
         try {
@@ -813,20 +844,13 @@ export async function generateSubtitlesWithDeepgram(
 
           console.log('[Deepgram] 📤 Uploading compressed audio directly to Deepgram...');
 
-          // 🎯 添加Content-Length头，帮助Deepgram正确读取请求
           const headers: HeadersInit = {
             'Authorization': `Token ${apiKey}`,
             'Content-Type': contentType,
           };
 
-          // 对于File/Blob，添加Content-Length头
-          if (file instanceof File || file instanceof Blob) {
-            headers['Content-Length'] = file.size.toString();
-          }
-
           console.log('[Deepgram] Request headers:', {
             'Content-Type': headers['Content-Type'],
-            'Content-Length': headers['Content-Length'],
             'Authorization': 'Token ***'
           });
 
@@ -865,8 +889,7 @@ export async function generateSubtitlesWithDeepgram(
           console.log('[Deepgram] Will try proxy mode as fallback...');
         }
       } else {
-        console.log(`[Deepgram] ⚠️ Compressed audio (${compressedFileSizeMB.toFixed(2)}MB) still too large for direct call`);
-        console.log('[Deepgram] Will try uploading to Storage or use proxy...');
+        console.log(`[Deepgram] ✅ Compressed audio (${compressedFileSizeMB.toFixed(2)}MB) fits proxy mode; skipping browser direct call`);
       }
 
     } catch (error) {
@@ -1058,11 +1081,7 @@ export function deepgramToSegments(response: DeepgramResponse): DeepgramSegment[
     const transcript = response.results.channels[0]?.alternatives[0]?.transcript;
     if (transcript) {
       console.log('[Deepgram] Using transcript as fallback:', transcript.substring(0, 100));
-      return [{
-        start: 0,
-        end: response.metadata.duration || 10,
-        text: transcript.trim(),
-      }];
+      return splitTranscriptIntoTimedSegments(transcript, response.metadata.duration || 10);
     }
     return [];
   }
@@ -1134,7 +1153,10 @@ export function deepgramToSegments(response: DeepgramResponse): DeepgramSegment[
 
   if (validWords.length === 0) {
     console.warn('[Deepgram] No valid words after filtering');
-    return [];
+    const transcript = response.results.channels[0]?.alternatives[0]?.transcript;
+    return transcript
+      ? splitTranscriptIntoTimedSegments(transcript, response.metadata.duration || 10)
+      : [];
   }
 
   console.log('[Deepgram] Valid words after filtering:', {
@@ -1234,6 +1256,14 @@ export function deepgramToSrt(response: DeepgramResponse): string {
 
   if (segments.length === 0) {
     const transcript = response.results.channels[0]?.alternatives[0]?.transcript || '';
+    const transcriptSegments = splitTranscriptIntoTimedSegments(transcript, response.metadata.duration || 10);
+    if (transcriptSegments.length > 0) {
+      return transcriptSegments.map((segment, index) => {
+        const startTime = formatTimestamp(segment.start);
+        const endTime = formatTimestamp(segment.end);
+        return `${index + 1}\n${startTime} --> ${endTime}\n${segment.text.trim()}\n`;
+      }).join('\n');
+    }
     return `1\n00:00:00,000 --> 00:00:10,000\n${transcript}\n`;
   }
 

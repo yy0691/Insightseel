@@ -43,3 +43,14 @@
   scrollbar-width: none !important;
   -ms-overflow-style: none !important;
 }
+
+/* Subtitle overlay: larger text in fullscreen */
+:fullscreen .subtitle-overlay div,
+:-webkit-full-screen .subtitle-overlay div {
+  font-size: clamp(18px, 2.5vw, 28px) !important;
+  padding: 6px 14px !important;
+}
+:fullscreen .subtitle-overlay,
+:-webkit-full-screen .subtitle-overlay {
+  bottom: 5rem;
+}

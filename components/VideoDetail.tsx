@@ -109,8 +109,10 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
   const [activeTab, setActiveTab] = useState<TabType>('Insights');
   const subtitleInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const videoContainerRef = useRef<HTMLDivElement>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [screenshotDataUrl, setScreenshotDataUrl] = useState<string | null>(null);
+  const [showSubtitleOverlay, setShowSubtitleOverlay] = useState(true);
   const { t, language } = useLanguage();
 
   // 🔍 调试：检查传入组件的字幕数据
@@ -191,6 +193,21 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
     targetLang: 'zh-CN' | 'zh-TW' | 'en';
     hasPartial: boolean; // true = partial, false = fully translated
   } | null>(null);
+
+  // Intercept native video fullscreen so our subtitle overlay stays visible.
+  // When the <video> element alone enters fullscreen (e.g. via native controls),
+  // exit and re-enter with the container div so the overlay is included.
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      if (videoRef.current && document.fullscreenElement === videoRef.current) {
+        document.exitFullscreen().then(() => {
+          videoContainerRef.current?.requestFullscreen().catch(() => {});
+        }).catch(() => {});
+      }
+    };
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
+  }, []);
 
   // Recovery prompt: show when a prior generation was interrupted for this video
   useEffect(() => {
@@ -1159,7 +1176,7 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
                 </svg>
               </button>
             </div>
-            <div className="relative group aspect-video bg-black">
+            <div ref={videoContainerRef} className="relative group aspect-video bg-black">
               {video.sourceType === 'youtube' ? (
                 <iframe
                   src={videoUrl || undefined}
@@ -1177,9 +1194,51 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
                     onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
                     className="w-full h-full rounded-none"
                   />
-                  <div className="absolute bottom-3 right-3 flex gap-2 rounded-full bg-black/40 backdrop-blur-sm px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">
+
+                  {/* Subtitle overlay — shown on top of video, visible in fullscreen */}
+                  {showSubtitleOverlay && subtitles && activeSegmentIndex >= 0 && (() => {
+                    const seg = subtitles.segments[activeSegmentIndex];
+                    const showOriginal = displayMode === 'original' || displayMode === 'bilingual';
+                    const showTranslated = (displayMode === 'translated' || displayMode === 'bilingual') && !!seg?.translatedText;
+                    const fallbackToOriginal = displayMode === 'translated' && !seg?.translatedText;
+                    return (
+                      <div className="subtitle-overlay absolute bottom-14 left-0 right-0 flex justify-center pointer-events-none z-20 px-4">
+                        <div className="max-w-[90%] text-center px-3 py-1 rounded bg-black/75 text-white leading-snug"
+                          style={{ textShadow: '0 1px 3px rgba(0,0,0,0.9)', fontSize: 'clamp(13px, 1.8vw, 18px)' }}
+                        >
+                          {(showOriginal || fallbackToOriginal) && <p>{seg?.text}</p>}
+                          {showTranslated && (
+                            <p className={displayMode === 'bilingual' ? 'text-yellow-300 mt-0.5' : ''}>
+                              {seg?.translatedText}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Controls overlay: CC toggle + Screenshot + Fullscreen */}
+                  <div className="absolute bottom-3 right-3 flex gap-1.5 rounded-full bg-black/40 backdrop-blur-sm px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {subtitles && subtitles.segments.length > 0 && (
+                      <button
+                        onClick={() => setShowSubtitleOverlay(v => !v)}
+                        className={`px-2 py-0.5 text-[11px] font-medium rounded-full transition ${showSubtitleOverlay ? 'bg-white/20 text-white' : 'text-white/50 hover:bg-white/10'}`}
+                        title={showSubtitleOverlay ? 'Hide subtitle overlay' : 'Show subtitle overlay'}
+                      >
+                        CC
+                      </button>
+                    )}
                     <button onClick={handleScreenshot} className="px-2.5 py-0.5 text-[11px] font-medium text-slate-50 rounded-full hover:bg-white/10">
                       Screenshot
+                    </button>
+                    <button
+                      onClick={() => videoContainerRef.current?.requestFullscreen().catch(() => {})}
+                      className="px-2 py-0.5 text-[11px] font-medium text-slate-50 rounded-full hover:bg-white/10"
+                      title="Fullscreen (subtitles included)"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
+                      </svg>
                     </button>
                   </div>
                 </>

@@ -111,6 +111,10 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
   const videoRef = useRef<HTMLVideoElement>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
   const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [screenshotDataUrl, setScreenshotDataUrl] = useState<string | null>(null);
   const [showSubtitleOverlay, setShowSubtitleOverlay] = useState(true);
   const { t, language } = useLanguage();
@@ -194,16 +198,17 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
     hasPartial: boolean; // true = partial, false = fully translated
   } | null>(null);
 
-  // Intercept native video fullscreen so our subtitle overlay stays visible.
-  // When the <video> element alone enters fullscreen (e.g. via native controls),
-  // exit and re-enter with the container div so the overlay is included.
+  // Intercept native video fullscreen so our subtitle overlay stays visible,
+  // and keep isFullscreen state in sync.
   useEffect(() => {
     const onFullscreenChange = () => {
-      if (videoRef.current && document.fullscreenElement === videoRef.current) {
+      const fsEl = document.fullscreenElement;
+      if (videoRef.current && fsEl === videoRef.current) {
         document.exitFullscreen().then(() => {
           videoContainerRef.current?.requestFullscreen().catch(() => {});
         }).catch(() => {});
       }
+      setIsFullscreen(!!fsEl);
     };
     document.addEventListener('fullscreenchange', onFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
@@ -569,6 +574,43 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
       }
     }
   };
+
+  // ── Custom video player helpers ─────────────────────────────────────────
+  const formatPlayerTime = (s: number) => {
+    if (!isFinite(s) || s < 0) return '0:00';
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = Math.floor(s % 60);
+    if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+    return `${m}:${sec.toString().padStart(2, '0')}`;
+  };
+
+  const handlePlayPause = () => {
+    if (!videoRef.current) return;
+    videoRef.current.paused
+      ? videoRef.current.play().catch(() => {})
+      : videoRef.current.pause();
+  };
+
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!videoRef.current) return;
+    videoRef.current.currentTime = parseFloat(e.target.value);
+  };
+
+  const handleMuteToggle = () => {
+    if (!videoRef.current) return;
+    videoRef.current.muted = !videoRef.current.muted;
+  };
+
+  const handleFullscreenToggle = () => {
+    if (!videoContainerRef.current) return;
+    if (isFullscreen) {
+      document.exitFullscreen().catch(() => {});
+    } else {
+      videoContainerRef.current.requestFullscreen().catch(() => {});
+    }
+  };
+  // ────────────────────────────────────────────────────────────────────────
 
   const handleImportSubtitlesClick = () => {
     subtitleInputRef.current?.click();
@@ -1187,22 +1229,28 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
                 />
               ) : (
                 <>
+                  {/* Video element — no native controls */}
                   <video
                     ref={videoRef}
                     src={videoUrl || undefined}
-                    controls
                     onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
-                    className="w-full h-full rounded-none"
+                    onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
+                    onPlay={() => setIsPlaying(true)}
+                    onPause={() => setIsPlaying(false)}
+                    onEnded={() => setIsPlaying(false)}
+                    onVolumeChange={(e) => setIsMuted(e.currentTarget.muted)}
+                    onClick={handlePlayPause}
+                    className="w-full h-full cursor-pointer"
                   />
 
-                  {/* Subtitle overlay — shown on top of video, visible in fullscreen */}
+                  {/* Subtitle overlay */}
                   {showSubtitleOverlay && subtitles && activeSegmentIndex >= 0 && (() => {
                     const seg = subtitles.segments[activeSegmentIndex];
                     const showOriginal = displayMode === 'original' || displayMode === 'bilingual';
                     const showTranslated = (displayMode === 'translated' || displayMode === 'bilingual') && !!seg?.translatedText;
                     const fallbackToOriginal = displayMode === 'translated' && !seg?.translatedText;
                     return (
-                      <div className="subtitle-overlay absolute bottom-14 left-0 right-0 flex justify-center pointer-events-none z-20 px-4">
+                      <div className="subtitle-overlay absolute bottom-[4.5rem] left-0 right-0 flex justify-center pointer-events-none z-20 px-4">
                         <div className="max-w-[90%] text-center px-3 py-1 rounded bg-black/75 text-white leading-snug"
                           style={{ textShadow: '0 1px 3px rgba(0,0,0,0.9)', fontSize: 'clamp(13px, 1.8vw, 18px)' }}
                         >
@@ -1217,29 +1265,94 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
                     );
                   })()}
 
-                  {/* Controls overlay: CC toggle + Screenshot + Fullscreen */}
-                  <div className="absolute bottom-3 right-3 flex gap-1.5 rounded-full bg-black/40 backdrop-blur-sm px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {subtitles && subtitles.segments.length > 0 && (
-                      <button
-                        onClick={() => setShowSubtitleOverlay(v => !v)}
-                        className={`px-2 py-0.5 text-[11px] font-medium rounded-full transition ${showSubtitleOverlay ? 'bg-white/20 text-white' : 'text-white/50 hover:bg-white/10'}`}
-                        title={showSubtitleOverlay ? 'Hide subtitle overlay' : 'Show subtitle overlay'}
-                      >
-                        CC
+                  {/* Custom controls bar — always visible when paused, fades on hover when playing */}
+                  <div
+                    className={`absolute bottom-0 left-0 right-0 z-30 transition-opacity duration-200
+                      bg-gradient-to-t from-black/85 via-black/40 to-transparent pt-8 px-3 pb-2
+                      ${isPlaying ? 'opacity-0 group-hover:opacity-100' : 'opacity-100'}`}
+                  >
+                    {/* Seek bar */}
+                    <input
+                      type="range"
+                      min={0}
+                      max={duration || 0}
+                      step={0.05}
+                      value={currentTime}
+                      onChange={handleSeek}
+                      className="w-full h-1 block mb-2 cursor-pointer"
+                      style={{ accentColor: 'white' }}
+                    />
+
+                    {/* Controls row */}
+                    <div className="flex items-center gap-2">
+                      {/* Play / Pause */}
+                      <button onClick={handlePlayPause} className="text-white/90 hover:text-white p-0.5 flex-shrink-0" title={isPlaying ? 'Pause' : 'Play'}>
+                        {isPlaying ? (
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+                          </svg>
+                        ) : (
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M8 5v14l11-7z"/>
+                          </svg>
+                        )}
                       </button>
-                    )}
-                    <button onClick={handleScreenshot} className="px-2.5 py-0.5 text-[11px] font-medium text-slate-50 rounded-full hover:bg-white/10">
-                      Screenshot
-                    </button>
-                    <button
-                      onClick={() => videoContainerRef.current?.requestFullscreen().catch(() => {})}
-                      className="px-2 py-0.5 text-[11px] font-medium text-slate-50 rounded-full hover:bg-white/10"
-                      title="Fullscreen (subtitles included)"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
-                      </svg>
-                    </button>
+
+                      {/* Time */}
+                      <span className="text-white/80 text-xs tabular-nums flex-shrink-0 select-none">
+                        {formatPlayerTime(currentTime)} / {formatPlayerTime(duration)}
+                      </span>
+
+                      <div className="flex-1" />
+
+                      {/* Mute toggle */}
+                      <button onClick={handleMuteToggle} className="text-white/90 hover:text-white p-0.5 flex-shrink-0" title={isMuted ? 'Unmute' : 'Mute'}>
+                        {isMuted ? (
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
+                          </svg>
+                        ) : (
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
+                          </svg>
+                        )}
+                      </button>
+
+                      {/* CC toggle */}
+                      {subtitles && subtitles.segments.length > 0 && (
+                        <button
+                          onClick={() => setShowSubtitleOverlay(v => !v)}
+                          className={`text-[11px] font-bold px-1.5 py-0.5 rounded border transition flex-shrink-0
+                            ${showSubtitleOverlay
+                              ? 'text-white border-white/60 bg-white/10'
+                              : 'text-white/40 border-white/20 hover:text-white/70'}`}
+                          title={showSubtitleOverlay ? 'Hide subtitles' : 'Show subtitles'}
+                        >
+                          CC
+                        </button>
+                      )}
+
+                      {/* Screenshot */}
+                      <button onClick={handleScreenshot} className="text-white/90 hover:text-white p-0.5 flex-shrink-0" title="Screenshot">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z" />
+                        </svg>
+                      </button>
+
+                      {/* Fullscreen toggle */}
+                      <button onClick={handleFullscreenToggle} className="text-white/90 hover:text-white p-0.5 flex-shrink-0" title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}>
+                        {isFullscreen ? (
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 9V4.5M9 9H4.5M9 9 3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5 5.25 5.25" />
+                          </svg>
+                        ) : (
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </>
               )}

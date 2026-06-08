@@ -5,12 +5,14 @@ import { subtitleDB } from '../services/dbService';
 import { saveSubtitles } from '../services/subtitleService';
 import { translateSubtitles as translateSubtitlesLegacy } from '../services/geminiService';
 import { translateSubtitles, detectSubtitleLanguage, isTraditionalChinese } from '../services/translationService';
+import type { TranslationOptions } from '../services/translationService';
 import { generateVideoHash, clearVideoCache } from '../services/cacheService';
 import { generateResilientSubtitles, generateResilientInsights } from '../services/videoProcessingService';
 import { isSegmentedProcessingAvailable } from '../services/segmentedProcessor';
 import { isDeepgramAvailable, estimateDeepgramProcessingTime } from '../services/deepgramService';
 import { toast } from '../hooks/useToastStore';
 import { BaseModal } from './ui/BaseModal';
+import { GenerationLogPanel, type LogEntry, type LogLevel } from './ui/GenerationLogPanel';
 import { classifyError } from '../services/errorClassifier';
 import { getErrorDisplay } from '../utils/errorMessages';
 import {
@@ -175,6 +177,20 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
     new Promise((resolve) => {
       setConfirmModal({ title, message, confirmLabel, resolve });
     });
+
+  // Generation log panel
+  const [genLogs, setGenLogs] = useState<LogEntry[]>([]);
+  const addLog = React.useCallback((msg: string, level: LogLevel = 'info') => {
+    const ts = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    setGenLogs(prev => [...prev.slice(-150), { id: Date.now() + Math.random(), ts, level, msg }]);
+  }, []);
+
+  // Re-translate modal: shown when user triggers translation but subtitles are already (partially) translated
+  const [retranslateModal, setRetranslateModal] = useState<{
+    open: boolean;
+    targetLang: 'zh-CN' | 'zh-TW' | 'en';
+    hasPartial: boolean; // true = partial, false = fully translated
+  } | null>(null);
 
   // Recovery prompt: show when a prior generation was interrupted for this video
   useEffect(() => {
@@ -760,6 +776,10 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
       console.warn('Could not get video duration:', err);
     }
 
+    // Reset log panel for new generation run
+    setGenLogs([]);
+    addLog(language === 'zh' ? '开始生成字幕...' : 'Starting subtitle generation...', 'info');
+
     // Update status (initial state already set above)
     setStreamingSubtitles('');
     setSegmentStatus(null);
@@ -789,11 +809,15 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
         prompt,
         sourceLanguage: currentSourceLanguage,
         abortSignal: abortControllerRef.current?.signal,
-        onStatus: ({ stage, progress }) => setGenerationStatus({ active: true, stage, progress }),
+        onStatus: ({ stage, progress }) => {
+          setGenerationStatus({ active: true, stage, progress });
+          addLog(stage, 'info');
+        },
         onStreamText: (text) => setStreamingSubtitles(text),
         onSegmentComplete: (completed, total) => {
           setSegmentStatus({ completed, total });
           recordSegmentComplete(video.id, completed, total);
+          addLog(`Segment ${completed}/${total} complete`, 'success');
         },
         onPartialSubtitles: async (segments) => {
           const partialSubtitles: Subtitles = {
@@ -881,17 +905,17 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
       }
 
       if (classified.category !== 'cancelled') {
+        addLog(`Error: ${classified.rawMessage || classified.category}`, 'error');
         const d = getErrorDisplay(classified, language);
         const hint = language === 'zh'
           ? '部分结果可能已保存，可尝试重新生成。'
           : 'Partial results may have been saved. You can try regenerating.';
-        // For unknown errors, append the raw message so users can see the actual cause
-        // (e.g., Deepgram-specific errors with advice on fixing them)
         const rawDetail = (classified.category === 'unknown' || classified.category === 'server') && classified.rawMessage
           ? `\n\n${classified.rawMessage.substring(0, 400)}`
           : '';
         toast.error({ title: d.title, description: `${d.description}${rawDetail} ${hint}`, duration: Math.max(d.toastDuration, 12000) });
       } else {
+        addLog('Generation cancelled', 'warn');
         console.log('[VideoDetail] Subtitle generation was cancelled by user');
       }
     } finally {
@@ -910,11 +934,18 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
   const handleTranslateSubtitles = async (targetLang?: 'zh-CN' | 'zh-TW' | 'en') => {
     if (!subtitles || !subtitles.segments || subtitles.segments.length === 0) return;
 
-    if (subtitles.segments.some(seg => seg.translatedText)) {
-      toast.info({
-        title: language === 'zh' ? '字幕已翻译' : 'Already Translated',
-        description: t('subtitlesAlreadyTranslated') || (language === 'zh' ? '字幕已经翻译过了。' : 'Subtitles are already translated.'),
-      });
+    // Detect translation state to decide whether to show re-translate / resume dialog
+    const hasAnyTranslated = subtitles.segments.some(s => s.translatedText?.trim());
+    const hasAllTranslated = subtitles.segments.every(s => s.translatedText?.trim());
+
+    if (hasAnyTranslated) {
+      // 如果未指定目标语言，先让用户选语言
+      if (!targetLang) {
+        setShowTranslationLanguageModal(true);
+        return;
+      }
+      // Show the re-translate / resume choice modal
+      setRetranslateModal({ open: true, targetLang, hasPartial: !hasAllTranslated });
       return;
     }
 
@@ -924,19 +955,64 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
       return;
     }
 
-    // 标记这是用户主动触发的翻译，不是自动生成
+    await runTranslation(targetLang, false);
+  };
+
+  /**
+   * Core translation runner — separated so the re-translate modal can call it directly.
+   * @param targetLang  target language
+   * @param forceRetranslate  true = clear all existing translatedText and start fresh
+   */
+  const runTranslation = async (
+    targetLang: 'zh-CN' | 'zh-TW' | 'en',
+    forceRetranslate: boolean
+  ) => {
+    if (!subtitles) return;
+
+    setGenLogs([]);
+    addLog(language === 'zh'
+      ? `开始翻译 → ${targetLang}${forceRetranslate ? '（重新翻译）' : ''}`
+      : `Start translation → ${targetLang}${forceRetranslate ? ' (re-translate)' : ''}`, 'info');
+
+    // Clear existing translations if force-retranslating
+    let inputSegments = subtitles.segments;
+    if (forceRetranslate) {
+      inputSegments = subtitles.segments.map(s => ({ ...s, translatedText: undefined }));
+    }
+
     setIsTranslationFromUser(true);
     setIsTranslating(true);
     setShowTranslationLanguageModal(false);
+    setRetranslateModal(null);
     setGenerationStatus({ active: true, stage: t('translatingSubtitles') || 'Translating...', progress: 0 });
 
     try {
+      const translationOptions: TranslationOptions = {
+        skipAlreadyTranslated: !forceRetranslate,
+        onBatchComplete: async (partial, done, total) => {
+          addLog(`Batch ${done}/${total} done — ${partial.filter(s => s.translatedText?.trim()).length} segments translated`, 'success');
+          // Incremental IDB save so progress is never lost
+          const merged: Subtitles = {
+            ...subtitles,
+            segments: partial,
+            translatedLanguage: targetLang,
+          };
+          try {
+            await saveSubtitles(video.id, merged);
+          } catch (saveErr) {
+            addLog(`Failed to save partial result: ${saveErr instanceof Error ? saveErr.message : String(saveErr)}`, 'warn');
+          }
+        },
+      };
+
       const translatedSegments = await translateSubtitles(
-        subtitles.segments,
+        inputSegments,
         targetLang,
         (progress, stage) => {
           setGenerationStatus({ active: true, stage, progress });
-        }
+          addLog(stage, 'info');
+        },
+        translationOptions
       );
 
       if (translatedSegments.length === 0) {
@@ -951,15 +1027,8 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
       };
 
       await saveSubtitles(video.id, updatedSubtitles);
-      // 🔒 翻译操作不应该触发见解生成
-      // 翻译只是更新了字幕的翻译文本（translatedText），并没有改变原始字幕内容（text）
-      // 见解和关键时刻应该基于原始字幕生成，翻译后不需要重新生成
-      // 调用 onSubtitlesChange 只是为了刷新 UI 显示翻译后的字幕
       onSubtitlesChange(video.id);
-
-      // 🎯 确保翻译操作不会触发见解生成
-      // 通过检查 isTranslationFromUser 标志，确保这是翻译操作而不是字幕生成操作
-      console.log('[VideoDetail] ✅ Translation complete, insights will NOT be regenerated');
+      addLog(language === 'zh' ? '翻译完成 ✓' : 'Translation complete ✓', 'success');
 
       setGenerationStatus({ active: true, stage: t('translationComplete') || 'Translation complete!', progress: 100 });
       setTimeout(() => {
@@ -969,6 +1038,7 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
       }, 1000);
     } catch (err) {
       console.error('[Translation] Error:', err);
+      addLog(`Error: ${err instanceof Error ? err.message : String(err)}`, 'error');
       const c = classifyError(err);
       const d = getErrorDisplay(c, language);
       toast.error({ title: d.title, description: d.description, duration: d.toastDuration });
@@ -995,6 +1065,14 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
       existingAnalyses: analyses.length,
     });
 
+    setGenLogs([]);
+    addLog(language === 'zh' ? '开始生成见解...' : 'Starting insights generation...', 'info');
+    if (analyses.length > 0) {
+      addLog(language === 'zh'
+        ? `检测到 ${analyses.length}/3 项已有分析，将跳过并继续生成剩余部分`
+        : `Detected ${analyses.length}/3 existing analyses — resuming`, 'warn');
+    }
+
     setGenerationStatus({
       active: true,
       stage: subtitles && subtitles.segments.length > 0 ? t('insightsAnalyzing') : t('insightsPreparingVideo'),
@@ -1008,7 +1086,10 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
         subtitles,
         prompts: analysisPrompts,
         existingAnalyses: analyses,
-        onStatus: ({ stage, progress }) => setGenerationStatus({ active: true, stage, progress }),
+        onStatus: ({ stage, progress }) => {
+          setGenerationStatus({ active: true, stage, progress });
+          addLog(stage, 'info');
+        },
       });
 
       console.log('[VideoDetail] ✅ Insights generated:', {
@@ -1184,6 +1265,10 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
                       <p className="text-slate-600 font-mono">{streamingSubtitles}</p>
                     </div>
                   )}
+                  {/* Live generation log */}
+                  <div className="w-full max-w-lg mt-3">
+                    <GenerationLogPanel logs={genLogs} onClear={() => setGenLogs([])} />
+                  </div>
                 </div>
               ) : subtitles && subtitles.segments.length > 0 ? (
                 <>
@@ -1216,12 +1301,17 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
                             ))}
                           </div>
                         )}
-                        {!subtitles.segments.some(seg => seg.translatedText) && (
+                        {/* Translate button — always shown; behaviour adapts based on translation state */}
+                        {(
                           <button
                             className="inline-flex items-center justify-center rounded-full p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition"
                             onClick={() => handleTranslateSubtitles()}
                             disabled={isTranslating}
-                            title={t('translateSubtitles')}
+                            title={
+                              subtitles.segments.some(s => s.translatedText?.trim())
+                                ? (language === 'zh' ? '重新翻译 / 继续翻译' : 'Re-translate / Resume')
+                                : t('translateSubtitles')
+                            }
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
                               <path d="m5 8 6 6" />
@@ -1408,6 +1498,9 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
                       </div>
                     )}
                     <p className="text-xs text-slate-500 mt-2">{t('generatingInsights')}</p>
+                    <div className="w-full max-w-sm mt-3">
+                      <GenerationLogPanel logs={genLogs} onClear={() => setGenLogs([])} />
+                    </div>
                   </div>
                 ) : summaryAnalysis ? (
                   <div className="space-y-6">
@@ -1450,7 +1543,9 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
                       onClick={handleGenerateInsights}
                       className="px-5 py-2 bg-slate-900 text-white rounded-full hover:bg-slate-800 transition text-xs font-medium"
                     >
-                      {t('generateInsights')}
+                      {analyses.length > 0
+                        ? (language === 'zh' ? `继续生成见解 (${analyses.length}/3 已完成)` : `Continue Insights (${analyses.length}/3 done)`)
+                        : t('generateInsights')}
                     </button>
                   </div>
                 )}
@@ -1816,6 +1911,54 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
               className="px-5 py-2 text-sm font-medium text-white bg-slate-900 rounded-xl hover:bg-slate-800 transition"
             >
               {language === 'zh' ? '重新生成' : 'Regenerate'}
+            </button>
+          </BaseModal.Footer>
+        </BaseModal>
+      )}
+      {/* Re-translate / Resume-translate modal */}
+      {retranslateModal?.open && (
+        <BaseModal
+          open
+          onOpenChange={(open) => { if (!open) setRetranslateModal(null); }}
+        >
+          <BaseModal.Header
+            title={
+              language === 'zh'
+                ? (retranslateModal.hasPartial ? '翻译未完成' : '重新翻译')
+                : (retranslateModal.hasPartial ? 'Incomplete Translation' : 'Re-translate')
+            }
+          />
+          <BaseModal.Body>
+            <p className="text-sm text-slate-600">
+              {retranslateModal.hasPartial
+                ? (language === 'zh'
+                    ? '检测到上次翻译未完成，可以从断点继续翻译，也可以重新翻译全部。'
+                    : 'A partial translation was detected. You can resume from where it left off or start over.')
+                : (language === 'zh'
+                    ? '字幕已经翻译过了，确定要重新翻译吗？这将覆盖现有译文。'
+                    : 'Subtitles are already translated. Re-translating will overwrite the existing translation.')}
+            </p>
+          </BaseModal.Body>
+          <BaseModal.Footer>
+            <button
+              onClick={() => setRetranslateModal(null)}
+              className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800 transition"
+            >
+              {language === 'zh' ? '取消' : 'Cancel'}
+            </button>
+            {retranslateModal.hasPartial && (
+              <button
+                onClick={() => runTranslation(retranslateModal.targetLang, false)}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-xl hover:bg-blue-700 transition"
+              >
+                {language === 'zh' ? '从断点继续' : 'Resume'}
+              </button>
+            )}
+            <button
+              onClick={() => runTranslation(retranslateModal.targetLang, true)}
+              className="px-4 py-2 text-sm font-medium text-white bg-slate-900 rounded-xl hover:bg-slate-800 transition"
+            >
+              {language === 'zh' ? '重新翻译' : 'Re-translate'}
             </button>
           </BaseModal.Footer>
         </BaseModal>

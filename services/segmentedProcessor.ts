@@ -40,16 +40,10 @@ async function processSegment(
   onProgress?: (progress: number, stage: string) => void
 ): Promise<SegmentResult> {
   console.log(`Processing segment ${segment.index}: ${segment.startTime.toFixed(1)}s - ${segment.endTime.toFixed(1)}s`);
-  
-  const srtContent = await generateSubtitlesStreaming(
-    segment.file,
-    prompt,
-    onProgress
-  );
 
+  const srtContent = await generateSubtitlesStreaming(segment.file, prompt, onProgress);
   const segments = parseSrt(srtContent);
-  
-  // Adjust timestamps to account for segment offset
+
   const adjustedSegments = segments.map(seg => ({
     ...seg,
     startTime: seg.startTime + segment.startTime,
@@ -65,7 +59,42 @@ async function processSegment(
 }
 
 /**
- * Process multiple segments in parallel with concurrency control
+ * Process a single segment with automatic retry on transient failures
+ */
+async function processSegmentWithRetry(
+  segment: VideoSegmentInfo,
+  prompt: string,
+  maxRetries: number = 2,
+): Promise<SegmentResult> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await processSegment(segment, prompt);
+    } catch (err) {
+      lastError = err;
+      const msg = err instanceof Error ? err.message.toLowerCase() : '';
+      // Retry on transient errors only
+      const isTransient =
+        msg.includes('timeout') ||
+        msg.includes('network') ||
+        msg.includes('rate limit') ||
+        msg.includes('503') ||
+        msg.includes('502') ||
+        msg.includes('overloaded') ||
+        msg.includes('429');
+      if (!isTransient || attempt === maxRetries) break;
+      const delay = 1000 * Math.pow(2, attempt); // exponential backoff
+      console.warn(`[Segmented] Segment ${segment.index} attempt ${attempt + 1} failed (${msg}), retrying in ${delay}ms...`);
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+  throw lastError;
+}
+
+/**
+ * Process multiple segments in parallel with concurrency control.
+ * Uses Promise.allSettled so a single failed segment does NOT abort the batch.
+ * Tolerates up to 30% failure rate across all segments before aborting.
  */
 async function processSegmentsInParallel(
   segments: VideoSegmentInfo[],
@@ -77,49 +106,59 @@ async function processSegmentsInParallel(
   const results: SegmentResult[] = [];
   const totalSegments = segments.length;
   let completedCount = 0;
+  let failedCount = 0;
+  const MAX_FAILURE_RATE = 0.35; // abort if >35% of all segments fail
 
-  // Process segments in batches
   for (let i = 0; i < segments.length; i += maxParallel) {
     const batch = segments.slice(i, i + maxParallel);
     const batchNumber = Math.floor(i / maxParallel) + 1;
     const totalBatches = Math.ceil(segments.length / maxParallel);
-    
-    console.log(`Processing batch ${batchNumber}/${totalBatches} (${batch.length} segments)`);
-    
+
+    console.log(`[Segmented] Batch ${batchNumber}/${totalBatches} — ${batch.length} segments`);
     onProgress?.(
       (completedCount / totalSegments) * 100,
       `Processing batch ${batchNumber}/${totalBatches}...`
     );
 
-    // Process batch in parallel
-    const batchPromises = batch.map((segment) =>
-      processSegment(
-        segment,
-        prompt,
-        (segProgress, stage) => {
-          // Individual segment progress
-          console.log(`Segment ${segment.index} progress: ${segProgress}%`);
-        }
-      )
+    // allSettled: one failure does not cancel sibling promises in the batch
+    const settled = await Promise.allSettled(
+      batch.map(seg => processSegmentWithRetry(seg, prompt, 2))
     );
 
-    const batchResults = await Promise.all(batchPromises);
-    
-    // Add results and notify
-    for (const result of batchResults) {
-      results.push(result);
-      completedCount++;
-      
-      onProgress?.(
-        (completedCount / totalSegments) * 100,
-        `Completed ${completedCount}/${totalSegments} segments`
+    for (const outcome of settled) {
+      if (outcome.status === 'fulfilled') {
+        const result = outcome.value;
+        results.push(result);
+        completedCount++;
+        onProgress?.(
+          (completedCount / totalSegments) * 100,
+          `Completed ${completedCount}/${totalSegments} segments`
+        );
+        onSegmentComplete?.(result.index, totalSegments, result.segments);
+      } else {
+        failedCount++;
+        console.warn(`[Segmented] Segment failed (skipping):`, outcome.reason);
+      }
+    }
+
+    // Abort early only if failure rate exceeds threshold
+    const processed = completedCount + failedCount;
+    if (processed >= totalSegments * 0.5 && failedCount / processed > MAX_FAILURE_RATE) {
+      throw new Error(
+        `[Segmented] Too many segment failures (${failedCount}/${processed}). ` +
+        `Aborting. Check API quota or network.`
       );
-      
-      onSegmentComplete?.(result.index, totalSegments, result.segments);
     }
   }
 
-  // Sort results by index to ensure correct order
+  if (results.length === 0) {
+    throw new Error('[Segmented] All segments failed. No subtitle data could be generated.');
+  }
+
+  if (failedCount > 0) {
+    console.warn(`[Segmented] Completed with partial results: ${completedCount} succeeded, ${failedCount} failed.`);
+  }
+
   return results.sort((a, b) => a.index - b.index);
 }
 
@@ -158,15 +197,23 @@ export async function processVideoInSegments(
   const ffmpegAvailable = await isFFmpegAvailable();
   
   if (!ffmpegAvailable) {
-    console.warn('FFmpeg not available. Processing video as single segment.');
+    const fileSizeMB = video.file.size / (1024 * 1024);
+    if (fileSizeMB > 50) {
+      // Sending a large file to Gemini directly would always fail — fail fast with a useful message
+      throw new Error(
+        `FFmpeg is required to split videos larger than 50MB for Gemini processing ` +
+        `(file: ${fileSizeMB.toFixed(0)}MB). ` +
+        `Configure VITE_FFMPEG_BASE_URL to enable FFmpeg, or configure a Deepgram API key for direct large-file transcription.`
+      );
+    }
+    // Small files: try Gemini direct
+    console.warn('[Segmented] FFmpeg not available. File is small enough for Gemini direct processing.');
     onProgress?.(5, 'Processing video without splitting...');
-    
     const srtContent = await generateSubtitlesStreaming(
       video.file,
       prompt,
       (p, stage) => onProgress?.(5 + p * 0.95, stage)
     );
-    
     return parseSrt(srtContent);
   }
 
@@ -179,13 +226,11 @@ export async function processVideoInSegments(
   // If video is short, don't split
   if (numSegments === 1) {
     onProgress?.(5, 'Video is short, processing without splitting...');
-    
     const srtContent = await generateSubtitlesStreaming(
       video.file,
       prompt,
       (p, stage) => onProgress?.(5 + p * 0.95, stage)
     );
-    
     return parseSrt(srtContent);
   }
 
@@ -205,6 +250,9 @@ export async function processVideoInSegments(
   // Process segments in parallel
   onProgress?.(30, 'Starting parallel subtitle generation...');
   
+  // Accumulate completed results for incremental partial saves
+  const completedSoFar: SegmentResult[] = [];
+
   const results = await processSegmentsInParallel(
     segments,
     prompt,
@@ -214,18 +262,17 @@ export async function processVideoInSegments(
     },
     (segmentIndex, totalSegments, segmentSubtitles) => {
       onSegmentComplete?.(segmentIndex, totalSegments, segmentSubtitles);
-      
-      // Provide partial results as segments complete
+
       if (onPartialSubtitles) {
-        // Merge all completed segments so far
-        const completedResults = results
-          .filter(r => r !== undefined)
-          .sort((a, b) => a.index - b.index);
-        
-        if (completedResults.length > 0) {
-          const partialMerged = mergeSubtitleSegments(completedResults);
-          onPartialSubtitles(partialMerged);
-        }
+        // Push the new segment into our local accumulator and deliver merged result
+        completedSoFar.push({
+          index: segmentIndex,
+          segments: segmentSubtitles,
+          startTime: segmentSubtitles[0]?.startTime ?? 0,
+          endTime: segmentSubtitles[segmentSubtitles.length - 1]?.endTime ?? 0,
+        });
+        const sorted = [...completedSoFar].sort((a, b) => a.index - b.index);
+        onPartialSubtitles(mergeSubtitleSegments(sorted));
       }
     }
   );

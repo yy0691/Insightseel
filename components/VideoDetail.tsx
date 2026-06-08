@@ -50,7 +50,7 @@ const HEATMAP_COLORS = [
   'bg-teal-400', 'bg-orange-400', 'bg-fuchsia-400'
 ];
 
-const MAX_SUBTITLE_DURATION_MIN = 10;
+const GEMINI_TIMEOUT_HINT_MIN = 20; // 超过此时长且无 Deepgram/FFmpeg 时给出提示
 
 const getProcessingEstimate = (durationMinutes: number) => {
   if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) {
@@ -703,7 +703,6 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
 
       const durationMin = metadata.duration / 60;
       const durationSeconds = metadata.duration;
-      const truncatedDuration = canHandleFullVideo ? durationMin : Math.min(durationMin, MAX_SUBTITLE_DURATION_MIN);
 
       // 🎯 检查是否使用 Deepgram，如果是则使用 Deepgram 的估算
       const deepgramReady = await isDeepgramAvailable();
@@ -741,28 +740,22 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
           `[VideoDetail] 📊 Deepgram estimate: ${estimateText} (file: ${fileSizeMB.toFixed(2)}MB, duration: ${durationMin.toFixed(1)}min)`
         );
       } else {
-        // 使用 Gemini 估算（原有逻辑）
-        estimateText = formatProcessingEstimate(getProcessingEstimate(truncatedDuration));
+        // 使用 Gemini 估算（基于完整时长）
+        estimateText = formatProcessingEstimate(getProcessingEstimate(durationMin));
       }
 
-      if (!canHandleFullVideo && durationMin > MAX_SUBTITLE_DURATION_MIN) {
-        const proceed = await showConfirmAsync(
-          language === 'zh' ? '长视频检测' : 'Long Video Detected',
-          language === 'zh'
-            ? `视频时长 ${durationMin.toFixed(1)} 分钟。\n\n为避免代理超时，仅处理前 ${MAX_SUBTITLE_DURATION_MIN} 分钟。\n\n预计处理时间：${estimateText}。`
-            : `This video is ${durationMin.toFixed(1)} minutes long.\n\nTo avoid proxy timeout, only the first ${MAX_SUBTITLE_DURATION_MIN} minutes will be processed.\n\nEstimated time: ${estimateText}.`,
-          language === 'zh' ? '继续' : 'Continue',
-        );
-        if (!proceed) {
-          setIsGeneratingSubtitles(false);
-          setGenerationStatus({ active: false, stage: '', progress: 0 });
-          return;
-        }
-      } else {
-        console.log(
-          `Video duration: ${durationMin.toFixed(1)} minutes. Estimated processing time: ${estimateText}.`
-        );
+      // 仅当没有 Deepgram/FFmpeg 且视频较长时，给出非阻塞的提示（不阻止处理）
+      if (!canHandleFullVideo && durationMin > GEMINI_TIMEOUT_HINT_MIN) {
+        toast.info({
+          title: language === 'zh' ? '长视频提示' : 'Long Video',
+          description: language === 'zh'
+            ? `视频时长 ${durationMin.toFixed(0)} 分钟，正在尝试完整处理。如遇超时，可在设置中配置 Deepgram 以获得更好的长视频支持。`
+            : `Video is ${durationMin.toFixed(0)} min. Attempting full processing. If it times out, configure Deepgram in Settings for better long-video support.`,
+          duration: 8000,
+        });
       }
+
+      console.log(`Video duration: ${durationMin.toFixed(1)} minutes. Estimated processing time: ${estimateText}.`);
     } catch (err) {
       console.warn('Could not get video duration:', err);
     }

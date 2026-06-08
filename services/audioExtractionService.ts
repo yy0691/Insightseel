@@ -55,8 +55,19 @@ export async function extractAndCompressAudio(
     video.onerror = () => reject(new Error('Failed to load video metadata'));
   });
 
-  const duration = maxDurationSeconds 
-    ? Math.min(video.duration, maxDurationSeconds)
+  // Guard against OOM: for files >500MB cap extraction to 60 min if no explicit limit set.
+  // Decoded PCM footprint grows with audio duration; capping prevents heap exhaustion.
+  let effectiveMaxDuration = maxDurationSeconds;
+  if (!effectiveMaxDuration && file.size > 500 * 1024 * 1024) {
+    effectiveMaxDuration = 3600; // 60 minutes
+    console.warn(
+      `[Audio Extraction] File is ${originalSizeMB.toFixed(0)}MB — capping extraction to ` +
+      `60 min to avoid memory issues. Use Deepgram for full long-video transcription.`
+    );
+  }
+
+  const duration = effectiveMaxDuration
+    ? Math.min(video.duration, effectiveMaxDuration)
     : video.duration;
 
   console.log('[Audio Extraction] Video metadata loaded:', {
@@ -70,8 +81,10 @@ export async function extractAndCompressAudio(
   try {
     // Create audio context
     const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-    
-    // Decode audio data
+
+    // Decode audio data — this loads the entire file into memory.
+    // For very large videos this can be significant; the decoded PCM footprint
+    // is proportional to audio duration × sample_rate (typically much smaller than video).
     const arrayBuffer = await file.arrayBuffer();
     const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
 

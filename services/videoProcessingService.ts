@@ -556,24 +556,38 @@ export async function generateResilientSubtitles(
   } catch (routerError) {
     console.warn('[Router] Intelligent routing failed:', routerError);
     
-    // 🎯 对于长视频，即使 intelligent routing 失败，也不应该使用 visual fallback
-    // 因为长视频几乎肯定有音频，失败可能是网络或API问题，而不是真的没有音频
+    // 对于长视频，audio pipeline 失败后尝试 FFmpeg 分段兜底，再报错
     if (shouldForceAudioPipeline) {
-      console.error('[Router] ❌ Long video audio transcription failed. Will NOT use visual fallback.');
-      console.error('[Router] 💡 This is likely a network/API issue, not missing audio. Please retry or check Deepgram API key.');
-      throw new Error(
-        `长视频音频转录失败。这可能是网络或API问题，而不是视频没有音频。\n\n` +
-        `Long video audio transcription failed. This is likely a network/API issue, not missing audio.\n\n` +
-        `建议：\n` +
-        `1. 检查 Deepgram API Key 是否正确配置\n` +
-        `2. 检查网络连接\n` +
-        `3. 稍后重试\n\n` +
-        `Suggestions:\n` +
-        `1. Check if Deepgram API Key is correctly configured\n` +
-        `2. Check network connection\n` +
-        `3. Retry later\n\n` +
-        `原始错误 / Original error: ${routerError instanceof Error ? routerError.message : String(routerError)}`
-      );
+      console.error('[Router] ❌ Long video audio transcription failed.');
+      console.error('[Router] 💡 Attempting FFmpeg segmented fallback before giving up...');
+
+      // Last-ditch attempt: try FFmpeg segmented processing directly
+      try {
+        const { isSegmentedProcessingAvailable, processVideoInSegments } = await import('./segmentedProcessor');
+        const canSegment = await isSegmentedProcessingAvailable();
+        if (canSegment && video) {
+          onStatus?.({ stage: 'Deepgram failed. Trying FFmpeg segmented processing...', progress: 20 });
+          const segmented = await processVideoInSegments({
+            video,
+            prompt: options.prompt,
+            sourceLanguage: options.sourceLanguage,
+            onProgress: (progress, stage) => onStatus?.({ stage, progress: 20 + progress * 0.7 }),
+            onSegmentComplete,
+            onPartialSubtitles,
+          });
+          if (segmented.length > 0) {
+            const normalizedSegs = normalizeSubtitleSegments(segmented);
+            onStatus?.({ stage: 'Complete! (FFmpeg segmented)', progress: 100 });
+            return { segments: normalizedSegs, srt: '', fromCache: false, provider: 'gemini-segmented' };
+          }
+        }
+      } catch (segErr) {
+        console.warn('[Router] FFmpeg segmented fallback also failed:', segErr);
+      }
+
+      // Surface the meaningful root-cause error from the router
+      const rootMsg = routerError instanceof Error ? routerError.message : String(routerError);
+      throw new Error(rootMsg);
     }
     
     onStatus?.({ stage: 'Intelligent routing failed. Trying visual analysis...', progress: 30 });

@@ -31,10 +31,61 @@ export default defineConfig({
       name: 'skip-html-import-analysis',
       enforce: 'pre',
       transform(code: string, id: string) {
-        // 如果是 HTML 文件，直接返回原始内容，跳过导入分析，避免页面被清空
         if (id.endsWith('.html')) {
           return { code, map: null };
         }
+      },
+    },
+    // Dev-only plugin: serve api/* Vercel handlers locally via ssrLoadModule
+    // so `pnpm run dev` works without needing the vercel CLI.
+    {
+      name: 'api-dev-server',
+      apply: 'serve',
+      configureServer(server) {
+        server.middlewares.use('/api', async (req, res, next) => {
+          const urlPath = (req.url ?? '').split('?')[0];
+          try {
+            const mod = await server.ssrLoadModule(`/api${urlPath}.ts`);
+            const handler = mod.default;
+            if (typeof handler !== 'function') { next(); return; }
+
+            // Parse JSON body for POST requests
+            await new Promise<void>((resolve) => {
+              if (req.method !== 'POST') { resolve(); return; }
+              let raw = '';
+              req.on('data', (chunk: Buffer) => { raw += chunk.toString(); });
+              req.on('end', () => {
+                try { (req as any).body = JSON.parse(raw); } catch { (req as any).body = {}; }
+                resolve();
+              });
+            });
+
+            // Minimal Vercel-compatible response adapter
+            const vRes: any = Object.assign(res, {
+              status(code: number) { res.statusCode = code; return vRes; },
+              json(data: unknown) {
+                if (!res.headersSent) {
+                  res.setHeader('Content-Type', 'application/json');
+                  res.end(JSON.stringify(data));
+                }
+                return vRes;
+              },
+              send(data: unknown) {
+                if (!res.headersSent) res.end(String(data));
+                return vRes;
+              },
+            });
+
+            await handler(req, vRes);
+          } catch (err) {
+            console.error('[api-dev]', err);
+            if (!res.headersSent) {
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ error: 'API handler error (dev)' }));
+            }
+          }
+        });
       },
     },
   ],

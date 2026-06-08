@@ -132,6 +132,119 @@ export function withFormat(url: string, format: string): string {
   return parsed.toString();
 }
 
+// ─── InnerTube client configs ────────────────────────────────────────────────
+// YouTube's internal API used by official clients; returns structured JSON
+// without requiring an API key or authentication for public videos.
+const INNERTUBE_CLIENTS = [
+  {
+    // Android client – most reliable for captions
+    clientName: 'ANDROID',
+    clientVersion: '17.31.35',
+    xClientName: '3',
+    userAgent: 'com.google.android.youtube/17.31.35 (Linux; U; Android 11) gzip',
+    extra: { androidSdkVersion: 30 },
+  },
+  {
+    // TV HTML5 – bypasses age/consent gates
+    clientName: 'TVHTML5',
+    clientVersion: '7.20230405.08.01',
+    xClientName: '7',
+    userAgent: 'Mozilla/5.0 (SMART-TV; Linux; Tizen 5.0) AppleWebKit/537.36 Chrome/56.0.2924.0 TV Safari/537.36',
+    extra: {},
+  },
+  {
+    // Web client as final fallback
+    clientName: 'WEB',
+    clientVersion: '2.20240101.00.00',
+    xClientName: '1',
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    extra: {},
+  },
+];
+
+async function fetchPlayerViaInnertube(
+  videoId: string,
+): Promise<{ tracks: CaptionTrack[]; videoDetails: Record<string, any> } | null> {
+  for (const client of INNERTUBE_CLIENTS) {
+    try {
+      const resp = await fetch('https://www.youtube.com/youtubei/v1/player', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': client.userAgent,
+          'X-Youtube-Client-Name': client.xClientName,
+          'X-Youtube-Client-Version': client.clientVersion,
+          'Origin': 'https://www.youtube.com',
+          'Referer': `https://www.youtube.com/watch?v=${videoId}`,
+        },
+        body: JSON.stringify({
+          videoId,
+          context: {
+            client: {
+              clientName: client.clientName,
+              clientVersion: client.clientVersion,
+              hl: 'en',
+              gl: 'US',
+              ...client.extra,
+            },
+          },
+          contentCheckOk: true,
+          racyCheckOk: true,
+        }),
+      });
+
+      if (!resp.ok) continue;
+
+      const data = await resp.json();
+      const tracks: CaptionTrack[] =
+        data?.captions?.playerCaptionsTracklistRenderer?.captionTracks ?? [];
+      const videoDetails = data?.videoDetails ?? {};
+
+      // Accept if we got video details even with no tracks (means video exists)
+      if (videoDetails.videoId || tracks.length > 0) {
+        return { tracks, videoDetails };
+      }
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
+// ─── HTML scraping fallback ───────────────────────────────────────────────────
+// Used only when InnerTube returns nothing; needs CONSENT cookie + better UA
+async function fetchPlayerViaHtml(
+  videoId: string,
+): Promise<{ tracks: CaptionTrack[]; videoDetails: Record<string, any> } | null> {
+  try {
+    const resp = await fetch(
+      `https://www.youtube.com/watch?v=${videoId}&hl=en&gl=US`,
+      {
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept-Language': 'en-US,en;q=0.9',
+          // Bypass GDPR/consent gate
+          'Cookie': 'CONSENT=YES+cb.20210328-17-p0.en+FX+999; SOCS=CAE=',
+        },
+      },
+    );
+
+    if (!resp.ok) return null;
+
+    const html = await resp.text();
+    const playerResponse = extractBalancedJson(html, 'ytInitialPlayerResponse');
+    if (!playerResponse) return null;
+
+    const tracks: CaptionTrack[] =
+      playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks ?? [];
+    return { tracks, videoDetails: playerResponse?.videoDetails ?? {} };
+  } catch {
+    return null;
+  }
+}
+
+// ─── Main handler ─────────────────────────────────────────────────────────────
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -140,6 +253,7 @@ export default async function handler(req: any, res: any) {
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
     const { url, preferredLanguage } = body;
+
     if (!url || typeof url !== 'string') {
       return res.status(400).json({ error: 'Missing YouTube URL' });
     }
@@ -150,56 +264,62 @@ export default async function handler(req: any, res: any) {
     }
 
     const canonicalUrl = `https://www.youtube.com/watch?v=${videoId}`;
-    const watchResponse = await fetch(canonicalUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0',
-        'Accept-Language': 'en-US,en;q=0.9',
-      },
-    });
 
-    if (!watchResponse.ok) {
-      return res.status(watchResponse.status).json({ error: `Unable to fetch YouTube page (${watchResponse.status})` });
+    // 1. Try InnerTube (reliable structured API)
+    let playerData = await fetchPlayerViaInnertube(videoId);
+
+    // 2. Fall back to HTML scraping if InnerTube returned nothing
+    if (!playerData) {
+      playerData = await fetchPlayerViaHtml(videoId);
     }
 
-    const html = await watchResponse.text();
-    const playerResponse = extractBalancedJson(html, 'ytInitialPlayerResponse');
-    const videoDetails = playerResponse?.videoDetails || {};
-    const captionTracks: CaptionTrack[] =
-      playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
+    if (!playerData) {
+      return res.status(502).json({ error: 'Could not retrieve video data from YouTube. The video may be unavailable or region-restricted.' });
+    }
+
+    const { tracks: captionTracks, videoDetails } = playerData;
 
     if (!captionTracks.length) {
-      return res.status(404).json({ error: 'No captions found for this YouTube video' });
+      return res.status(404).json({
+        error: 'No captions found for this video. The video may not have subtitles, or they may be disabled by the creator.',
+      });
     }
 
+    // Select preferred track
     const preferred = typeof preferredLanguage === 'string' ? preferredLanguage.toLowerCase() : '';
     const selectedTrack =
-      captionTracks.find((track) => preferred && track.languageCode?.toLowerCase().startsWith(preferred)) ||
-      captionTracks.find((track) => track.languageCode?.toLowerCase().startsWith('zh')) ||
-      captionTracks.find((track) => track.languageCode?.toLowerCase().startsWith('en')) ||
+      captionTracks.find((t) => preferred && t.languageCode?.toLowerCase().startsWith(preferred)) ||
+      captionTracks.find((t) => t.languageCode?.toLowerCase().startsWith('zh')) ||
+      captionTracks.find((t) => t.languageCode?.toLowerCase().startsWith('en')) ||
       captionTracks[0];
 
-    const captionsResponse = await fetch(withFormat(selectedTrack.baseUrl, 'json3'), {
+    // Fetch timed text
+    const captionsResp = await fetch(withFormat(selectedTrack.baseUrl, 'json3'), {
       headers: { 'User-Agent': 'Mozilla/5.0' },
     });
 
-    if (!captionsResponse.ok) {
-      return res.status(captionsResponse.status).json({ error: `Unable to fetch caption track (${captionsResponse.status})` });
+    if (!captionsResp.ok) {
+      return res.status(captionsResp.status).json({
+        error: `Unable to fetch caption track (${captionsResp.status})`,
+      });
     }
 
-    const captionText = await captionsResponse.text();
-    let segments = [];
+    const captionText = await captionsResp.text();
+    let segments: ReturnType<typeof parseJson3Captions> = [];
+
     try {
       segments = parseJson3Captions(JSON.parse(captionText));
     } catch {
       segments = parseXmlCaptions(captionText);
     }
 
+    // Try XML fallback if json3 returned nothing
     if (!segments.length) {
-      const xmlResponse = await fetch(withFormat(selectedTrack.baseUrl, 'srv3'), {
+      const xmlResp = await fetch(withFormat(selectedTrack.baseUrl, 'srv3'), {
         headers: { 'User-Agent': 'Mozilla/5.0' },
       });
-      if (xmlResponse.ok) {
-        segments = parseXmlCaptions(await xmlResponse.text());
+      if (xmlResp.ok) {
+        segments = parseXmlCaptions(await xmlResp.text());
       }
     }
 
@@ -218,10 +338,10 @@ export default async function handler(req: any, res: any) {
         name: getTrackName(selectedTrack),
         isAutoGenerated: selectedTrack.kind === 'asr',
       },
-      tracks: captionTracks.map((track) => ({
-        languageCode: track.languageCode || 'und',
-        name: getTrackName(track),
-        isAutoGenerated: track.kind === 'asr',
+      tracks: captionTracks.map((t) => ({
+        languageCode: t.languageCode || 'und',
+        name: getTrackName(t),
+        isAutoGenerated: t.kind === 'asr',
       })),
       segments,
     });

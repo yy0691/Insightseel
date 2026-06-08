@@ -137,7 +137,10 @@ export async function generateSubtitlesIntelligent(
   //   }
   // }
 
-  // Strategy 3: Fallback to Gemini (single file)
+  // Strategy 3: Fallback to Gemini direct (small files, or files without video metadata)
+  // For large files with video metadata, prefer segmented processing (Strategy 4).
+  // We also allow this path if file is large but we know Deepgram was the only option
+  // (i.e., no video metadata to use for segmentation).
   if (!video || fileSizeMB <= 50) {
     try {
       console.log('[Router] Falling back to Gemini direct processing...');
@@ -223,28 +226,45 @@ export async function generateSubtitlesIntelligent(
     } catch (error) {
       console.error('[Router] All strategies failed:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
-      
-      // Provide helpful error message based on what failed
-      if (!deepgramAvailable) {
+
+      // Surface the root-cause message (e.g. "FFmpeg required", quota error, etc.)
+      // so the user sees why segmented processing failed, not a generic message.
+      const isFFmpegRequired = errorMessage.includes('FFmpeg is required');
+      const isQuota = errorMessage.toLowerCase().includes('quota') || errorMessage.includes('429');
+
+      if (isFFmpegRequired) {
         throw new Error(
-          '所有字幕生成方法都失败了\n\n' +
-          `文件大小：${fileSizeMB.toFixed(1)}MB\n\n` +
-          '建议解决方案：\n' +
-          '1. 配置 Deepgram API Key（推荐，支持大文件）\n' +
-          '2. 配置 Gemini API Key 并使用较小的文件（< 50MB）\n' +
-          '3. 启用代理模式\n' +
-          '4. 使用更短的视频片段\n\n' +
-          'All subtitle generation methods failed\n\n' +
-          `File size: ${fileSizeMB.toFixed(1)}MB\n\n` +
-          'Suggested solutions:\n' +
-          '1. Configure Deepgram API Key (recommended, supports large files)\n' +
-          '2. Configure Gemini API Key and use smaller files (< 50MB)\n' +
-          '3. Enable Proxy Mode\n' +
-          '4. Use a shorter video segment'
+          `长视频分段处理失败：FFmpeg 未配置。\n\n` +
+          `文件大小：${fileSizeMB.toFixed(1)}MB。Deepgram 是处理该文件的最佳方案。\n\n` +
+          `解决方案：\n` +
+          `1. 配置 Deepgram API Key（推荐，直接支持大文件无需分段）\n` +
+          `2. 配置 VITE_FFMPEG_BASE_URL 以启用 FFmpeg 分段处理\n\n` +
+          `FFmpeg not configured for segmented processing.\n` +
+          `File: ${fileSizeMB.toFixed(1)}MB. Deepgram is the recommended solution for this file size.\n` +
+          `Solutions: 1) Configure Deepgram API Key  2) Set VITE_FFMPEG_BASE_URL`
         );
       }
-      
-      throw new Error(`All subtitle generation methods failed. Please check your API keys and try again.\n\nDetails: ${errorMessage}`);
+
+      if (isQuota) {
+        throw new Error(
+          `API 配额已用尽，字幕生成失败。请稍后重试或检查 API 用量。\n\n` +
+          `API quota exceeded. Please wait and retry, or check your usage limits.`
+        );
+      }
+
+      if (!deepgramAvailable) {
+        throw new Error(
+          `所有字幕生成方法都失败了\n文件大小：${fileSizeMB.toFixed(1)}MB\n\n` +
+          `建议：配置 Deepgram API Key（支持大文件），或使用 < 50MB 的视频文件。\n\n` +
+          `All subtitle generation methods failed (${fileSizeMB.toFixed(1)}MB). ` +
+          `Configure Deepgram API Key (recommended) or use a smaller file.`
+        );
+      }
+
+      throw new Error(
+        `字幕生成失败，请检查 API Key 与网络后重试。\n详情：${errorMessage}\n\n` +
+        `Subtitle generation failed. Check your API keys and network.\nDetails: ${errorMessage}`
+      );
     }
   }
 

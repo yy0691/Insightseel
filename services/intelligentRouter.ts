@@ -55,7 +55,10 @@ export async function generateSubtitlesIntelligent(
   // Strategy 1: Try Deepgram for files (Deepgram handles large files well)
   // Deepgram can process files up to 2GB directly via API
   const DEEPGRAM_SIZE_LIMIT_MB = 2000; // 2GB limit (Deepgram API maximum)
-  
+
+  // Saved Deepgram error — surfaced in the final error message when all strategies fail
+  let deepgramError: string | null = null;
+
   if (deepgramAvailable && fileSizeMB <= DEEPGRAM_SIZE_LIMIT_MB) {
     try {
       console.log('[Router] 🎯 Attempting Deepgram (high quality)...');
@@ -96,8 +99,8 @@ export async function generateSubtitlesIntelligent(
         processingTimeMs,
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error('[Router] ❌ Deepgram failed:', errorMessage);
+      deepgramError = error instanceof Error ? error.message : String(error);
+      console.error('[Router] ❌ Deepgram failed:', deepgramError);
       console.error('[Router] 📋 Full error details:', error);
       // Continue to next strategy
     }
@@ -231,6 +234,28 @@ export async function generateSubtitlesIntelligent(
       // so the user sees why segmented processing failed, not a generic message.
       const isFFmpegRequired = errorMessage.includes('FFmpeg is required');
       const isQuota = errorMessage.toLowerCase().includes('quota') || errorMessage.includes('429');
+
+      // When the user has Deepgram configured and it failed, surface THAT error — not FFmpeg.
+      // The FFmpeg error is a downstream side-effect of Deepgram failing.
+      if (deepgramError && deepgramAvailable) {
+        const isDgAuth = deepgramError.includes('401') || deepgramError.toLowerCase().includes('unauthorized') || deepgramError.toLowerCase().includes('invalid api key');
+        const isDgQuota = deepgramError.includes('402') || deepgramError.includes('429') || deepgramError.toLowerCase().includes('quota');
+        const isDgAudio = deepgramError.toLowerCase().includes('decode') || deepgramError.toLowerCase().includes('extract') || deepgramError.toLowerCase().includes('not supported');
+        const isDgTimeout = deepgramError.toLowerCase().includes('timeout') || deepgramError.toLowerCase().includes('abort');
+
+        let advice = '';
+        if (isDgAuth) advice = '请在设置中检查 Deepgram API Key 是否正确。\nCheck your Deepgram API Key in Settings.';
+        else if (isDgQuota) advice = '请检查 Deepgram 账户余额/配额。\nCheck your Deepgram account balance / quota.';
+        else if (isDgAudio) advice = '视频音频轨道无法提取，请尝试转换视频格式后重试。\nAudio extraction failed — try converting the video to MP4/H.264 first.';
+        else if (isDgTimeout) advice = '网络超时，请检查网络连接后重试。\nNetwork timeout — check your connection and retry.';
+        else advice = '请检查网络连接和 API Key 后重试。\nCheck network and API Key, then retry.';
+
+        throw new Error(
+          `Deepgram 转录失败（文件：${fileSizeMB.toFixed(1)}MB）\n\n` +
+          `错误详情 / Error: ${deepgramError}\n\n` +
+          `建议 / Suggestion: ${advice}`
+        );
+      }
 
       if (isFFmpegRequired) {
         throw new Error(

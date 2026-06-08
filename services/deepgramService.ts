@@ -277,6 +277,173 @@ function normalizeLanguageCode(language?: string): string | undefined {
   return language;
 }
 
+// ---------------------------------------------------------------------------
+// WAV chunking helpers (splits large WAV blobs into proxy-friendly pieces)
+// ---------------------------------------------------------------------------
+
+const WAV_HEADER_BYTES = 44; // standard PCM WAV header size
+/** Keep each chunk safely under Vercel's 4.5 MB body limit */
+const PROXY_CHUNK_MAX_BYTES = 3.5 * 1024 * 1024;
+
+interface WavInfo {
+  numChannels: number;
+  sampleRate: number;
+  bitsPerSample: number;
+  bytesPerSample: number;
+  bytesPerSecond: number;
+}
+
+function parseWavHeader(headerBuffer: ArrayBuffer): WavInfo {
+  const view = new DataView(headerBuffer);
+  const numChannels = view.getUint16(22, true);
+  const sampleRate = view.getUint32(24, true);
+  const bitsPerSample = view.getUint16(34, true);
+  const bytesPerSample = (bitsPerSample / 8) * numChannels;
+  const bytesPerSecond = sampleRate * bytesPerSample;
+  return { numChannels, sampleRate, bitsPerSample, bytesPerSample, bytesPerSecond };
+}
+
+function buildWavHeader(dataSize: number, info: WavInfo): ArrayBuffer {
+  const header = new ArrayBuffer(WAV_HEADER_BYTES);
+  const view = new DataView(header);
+  const w = (offset: number, str: string) => {
+    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+  };
+  w(0, 'RIFF');  view.setUint32(4,  36 + dataSize, true);
+  w(8, 'WAVE');  w(12, 'fmt ');
+  view.setUint32(16, 16, true);           // fmt chunk size
+  view.setUint16(20, 1, true);            // PCM
+  view.setUint16(22, info.numChannels, true);
+  view.setUint32(24, info.sampleRate, true);
+  view.setUint32(28, info.bytesPerSecond, true);
+  view.setUint16(32, info.bytesPerSample, true);
+  view.setUint16(34, info.bitsPerSample, true);
+  w(36, 'data'); view.setUint32(40, dataSize, true);
+  return header;
+}
+
+async function splitWavIntoChunks(
+  wavBlob: Blob,
+  maxChunkBytes: number = PROXY_CHUNK_MAX_BYTES
+): Promise<{ chunks: Blob[]; info: WavInfo }> {
+  const headerBuf = await wavBlob.slice(0, WAV_HEADER_BYTES).arrayBuffer();
+  const info = parseWavHeader(headerBuf);
+  const totalDataSize = wavBlob.size - WAV_HEADER_BYTES;
+  // Align chunk to sample-frame boundary
+  const maxDataPerChunk =
+    Math.floor((maxChunkBytes - WAV_HEADER_BYTES) / info.bytesPerSample) * info.bytesPerSample;
+
+  const chunks: Blob[] = [];
+  let dataOffset = 0;
+  while (dataOffset < totalDataSize) {
+    const chunkDataSize = Math.min(maxDataPerChunk, totalDataSize - dataOffset);
+    const chunkData = wavBlob.slice(WAV_HEADER_BYTES + dataOffset, WAV_HEADER_BYTES + dataOffset + chunkDataSize);
+    chunks.push(new Blob([buildWavHeader(chunkDataSize, info), chunkData], { type: 'audio/wav' }));
+    dataOffset += chunkDataSize;
+  }
+  return { chunks, info };
+}
+
+interface DeepgramWord {
+  word: string;
+  start: number;
+  end: number;
+  confidence: number;
+  punctuated_word?: string;
+  speaker?: number;
+}
+
+/**
+ * Transcribe an array of WAV chunks via the Vercel proxy, adjusting timestamps
+ * so that the result covers the full audio duration.
+ */
+async function transcribeChunksViaProxy(
+  chunks: Blob[],
+  info: WavInfo,
+  apiKey: string,
+  language: string | undefined,
+  enableKeywords: boolean,
+  onProgress?: (progress: number) => void,
+  abortSignal?: AbortSignal
+): Promise<DeepgramResponse> {
+  const chunkDurationSec = (PROXY_CHUNK_MAX_BYTES - WAV_HEADER_BYTES) / info.bytesPerSecond;
+  const mergedWords: DeepgramWord[] = [];
+  let mergedTranscript = '';
+
+  const params = new URLSearchParams({
+    model: 'nova-2',
+    smart_format: 'true',
+    punctuate: 'true',
+    diarize: 'true',
+    paragraphs: 'false',
+    utterances: 'false',
+  });
+  const langCode = normalizeLanguageCode(language);
+  if (langCode) params.append('language', langCode);
+  addKeywordsToParams(params, enableKeywords);
+  const proxyUrl = `/api/deepgram-proxy?${params.toString()}`;
+
+  for (let i = 0; i < chunks.length; i++) {
+    if (abortSignal?.aborted) throw new Error('Operation cancelled by user');
+    const timeOffset = i * chunkDurationSec;
+
+    console.log(`[Deepgram] Chunk ${i + 1}/${chunks.length}: ${(chunks[i].size / (1024 * 1024)).toFixed(2)}MB, offset ${timeOffset.toFixed(1)}s`);
+
+    const response = await fetchWithTimeout(
+      proxyUrl,
+      {
+        method: 'POST',
+        headers: { 'X-Deepgram-API-Key': apiKey, 'Content-Type': 'audio/wav' },
+        body: chunks[i],
+      },
+      120000 // 2 min per chunk (generous for proxy round-trip)
+    );
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Deepgram proxy error on chunk ${i + 1}/${chunks.length} (${response.status}): ${errText}`);
+    }
+
+    const result: DeepgramResponse = await response.json();
+    const alt = result.results?.channels?.[0]?.alternatives?.[0];
+    if (alt) {
+      if (mergedTranscript) mergedTranscript += ' ';
+      mergedTranscript += alt.transcript ?? '';
+      for (const w of (alt.words ?? []) as DeepgramWord[]) {
+        mergedWords.push({ ...w, start: w.start + timeOffset, end: w.end + timeOffset });
+      }
+    }
+
+    onProgress?.(((i + 1) / chunks.length) * 100);
+  }
+
+  const totalDuration = mergedWords.length
+    ? mergedWords[mergedWords.length - 1].end
+    : 0;
+
+  return {
+    metadata: {
+      transaction_key: '',
+      request_id: '',
+      sha256: '',
+      created: new Date().toISOString(),
+      duration: totalDuration,
+      channels: 1,
+    },
+    results: {
+      channels: [{
+        alternatives: [{
+          transcript: mergedTranscript,
+          confidence: 0.9,
+          words: mergedWords as DeepgramResponse['results']['channels'][0]['alternatives'][0]['words'],
+        }],
+      }],
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+
 /**
  * Estimate Deepgram processing time based on file size and audio duration
  * 
@@ -564,10 +731,33 @@ export async function generateSubtitlesWithDeepgram(
         }
       }
 
-      // Check if compressed audio is still too large for Vercel proxy
+      // Check if compressed audio is still too large for the Vercel proxy (4.5MB limit)
       if (compressedSizeMB > VERCEL_SIZE_LIMIT_MB) {
-        console.warn(`[Deepgram] Compressed audio still too large for Vercel proxy (${compressedSizeMB.toFixed(2)}MB > ${VERCEL_SIZE_LIMIT_MB}MB)`);
-        console.log('[Deepgram] 🚀 Will try direct API call first (bypassing Vercel)...');
+        console.warn(`[Deepgram] Compressed audio ${compressedSizeMB.toFixed(2)}MB > ${VERCEL_SIZE_LIMIT_MB}MB — using chunked proxy approach`);
+
+        // ── 🎯 Strategy A: Split WAV into ≤3.5MB chunks and send each via Vercel proxy ──
+        // This is the PRIMARY large-file path. It avoids CORS completely (no direct browser→Deepgram)
+        // and bypasses Vercel's body limit by chunking.
+        try {
+          console.log('[Deepgram] 🔀 Chunking WAV and transcribing via Vercel proxy...');
+          onProgress?.(52);
+          const { chunks, info } = await splitWavIntoChunks(audioBlob);
+          console.log(`[Deepgram] Split into ${chunks.length} chunks × ~${(PROXY_CHUNK_MAX_BYTES / (1024 * 1024)).toFixed(1)}MB`);
+          const result = await transcribeChunksViaProxy(
+            chunks, info, apiKey, language, enableKeywords,
+            (p) => { onProgress?.(52 + p * 0.43); }, // 52–95%
+            abortSignal
+          );
+          onProgress?.(100);
+          console.log('[Deepgram] ✅ Chunked proxy transcription succeeded!');
+          logDeepgramResponse(result, 'chunked proxy');
+          return result;
+        } catch (chunkError) {
+          const chunkErrMsg = chunkError instanceof Error ? chunkError.message : String(chunkError);
+          console.warn('[Deepgram] ⚠️ Chunked proxy failed, falling back to direct API call:', chunkErrMsg);
+        }
+
+        console.log('[Deepgram] 🚀 Trying direct Deepgram API call (bypassing Vercel)...');
 
         // 🎯 策略1：先尝试直接调用Deepgram API（绕过Vercel限制）
         // Deepgram API支持最大2GB，4.58MB完全没问题

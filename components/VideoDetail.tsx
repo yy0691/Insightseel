@@ -885,7 +885,12 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
         const hint = language === 'zh'
           ? '部分结果可能已保存，可尝试重新生成。'
           : 'Partial results may have been saved. You can try regenerating.';
-        toast.error({ title: d.title, description: `${d.description} ${hint}`, duration: d.toastDuration });
+        // For unknown errors, append the raw message so users can see the actual cause
+        // (e.g., Deepgram-specific errors with advice on fixing them)
+        const rawDetail = (classified.category === 'unknown' || classified.category === 'server') && classified.rawMessage
+          ? `\n\n${classified.rawMessage.substring(0, 400)}`
+          : '';
+        toast.error({ title: d.title, description: `${d.description}${rawDetail} ${hint}`, duration: Math.max(d.toastDuration, 12000) });
       } else {
         console.log('[VideoDetail] Subtitle generation was cancelled by user');
       }

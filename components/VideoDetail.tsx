@@ -1,5 +1,35 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Video, Subtitles, Analysis, AnalysisType, Note, SubtitleDisplayMode } from '../types';
+
+// ── Subtitle style customisation ─────────────────────────────────────────────
+interface SubtitleStyle {
+  fontSize: number;       // px, applied as-is (no clamp)
+  textColor: string;      // hex
+  bgOpacity: number;      // 0-100
+}
+const SUBTITLE_STYLE_KEY = 'subtitle-style-prefs';
+const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = { fontSize: 16, textColor: '#ffffff', bgOpacity: 75 };
+const loadSubtitleStyle = (): SubtitleStyle => {
+  try {
+    const raw = localStorage.getItem(SUBTITLE_STYLE_KEY);
+    if (raw) return { ...DEFAULT_SUBTITLE_STYLE, ...JSON.parse(raw) };
+  } catch { /* ignore */ }
+  return { ...DEFAULT_SUBTITLE_STYLE };
+};
+const SUBTITLE_FONT_SIZES = [13, 16, 20, 26] as const;
+const SUBTITLE_COLORS = [
+  { label: 'White',  value: '#ffffff' },
+  { label: 'Yellow', value: '#fde047' },
+  { label: 'Cyan',   value: '#67e8f9' },
+  { label: 'Lime',   value: '#86efac' },
+] as const;
+const SUBTITLE_BG_OPACITIES = [
+  { label: 'Off',  value: 0  },
+  { label: '30%',  value: 30 },
+  { label: '60%',  value: 60 },
+  { label: '90%',  value: 90 },
+] as const;
+// ─────────────────────────────────────────────────────────────────────────────
 import { parseSubtitleFile, formatTimestamp, parseSrt, segmentsToSrt, downloadFile, parseTimestampToSeconds } from '../utils/helpers';
 import { subtitleDB } from '../services/dbService';
 import { saveSubtitles } from '../services/subtitleService';
@@ -117,7 +147,27 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [screenshotDataUrl, setScreenshotDataUrl] = useState<string | null>(null);
   const [showSubtitleOverlay, setShowSubtitleOverlay] = useState(true);
+  const [showSubtitleSettings, setShowSubtitleSettings] = useState(false);
+  const [subtitleStyle, setSubtitleStyle] = useState<SubtitleStyle>(loadSubtitleStyle);
+  const subtitleSettingsRef = useRef<HTMLDivElement>(null);
   const { t, language } = useLanguage();
+
+  // Persist subtitle style changes
+  useEffect(() => {
+    localStorage.setItem(SUBTITLE_STYLE_KEY, JSON.stringify(subtitleStyle));
+  }, [subtitleStyle]);
+
+  // Close subtitle settings popover on outside click
+  useEffect(() => {
+    if (!showSubtitleSettings) return;
+    const handler = (e: MouseEvent) => {
+      if (subtitleSettingsRef.current && !subtitleSettingsRef.current.contains(e.target as Node)) {
+        setShowSubtitleSettings(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showSubtitleSettings]);
 
   // 🔍 调试：检查传入组件的字幕数据
   useEffect(() => {
@@ -1249,14 +1299,21 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
                     const showOriginal = displayMode === 'original' || displayMode === 'bilingual';
                     const showTranslated = (displayMode === 'translated' || displayMode === 'bilingual') && !!seg?.translatedText;
                     const fallbackToOriginal = displayMode === 'translated' && !seg?.translatedText;
+                    const bgRgba = `rgba(0,0,0,${subtitleStyle.bgOpacity / 100})`;
                     return (
                       <div className="subtitle-overlay absolute bottom-[4.5rem] left-0 right-0 flex justify-center pointer-events-none z-20 px-4">
-                        <div className="max-w-[90%] text-center px-3 py-1 rounded bg-black/75 text-white leading-snug"
-                          style={{ textShadow: '0 1px 3px rgba(0,0,0,0.9)', fontSize: 'clamp(13px, 1.8vw, 18px)' }}
+                        <div
+                          className="max-w-[90%] text-center px-3 py-1 rounded leading-snug"
+                          style={{
+                            fontSize: subtitleStyle.fontSize,
+                            color: subtitleStyle.textColor,
+                            backgroundColor: bgRgba,
+                            textShadow: '0 1px 3px rgba(0,0,0,0.9)',
+                          }}
                         >
                           {(showOriginal || fallbackToOriginal) && <p>{seg?.text}</p>}
                           {showTranslated && (
-                            <p className={displayMode === 'bilingual' ? 'text-yellow-300 mt-0.5' : ''}>
+                            <p style={{ color: displayMode === 'bilingual' ? '#fde047' : subtitleStyle.textColor, marginTop: displayMode === 'bilingual' ? 2 : 0 }}>
                               {seg?.translatedText}
                             </p>
                           )}
@@ -1318,18 +1375,96 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
                         )}
                       </button>
 
-                      {/* CC toggle */}
+                      {/* CC toggle + subtitle settings */}
                       {subtitles && subtitles.segments.length > 0 && (
-                        <button
-                          onClick={() => setShowSubtitleOverlay(v => !v)}
-                          className={`text-[11px] font-bold px-1.5 py-0.5 rounded border transition flex-shrink-0
-                            ${showSubtitleOverlay
-                              ? 'text-white border-white/60 bg-white/10'
-                              : 'text-white/40 border-white/20 hover:text-white/70'}`}
-                          title={showSubtitleOverlay ? 'Hide subtitles' : 'Show subtitles'}
-                        >
-                          CC
-                        </button>
+                        <div ref={subtitleSettingsRef} className="relative flex items-center gap-0.5 flex-shrink-0">
+                          {/* CC on/off */}
+                          <button
+                            onClick={() => setShowSubtitleOverlay(v => !v)}
+                            className={`text-[11px] font-bold px-1.5 py-0.5 rounded-l border-y border-l transition
+                              ${showSubtitleOverlay
+                                ? 'text-white border-white/60 bg-white/10'
+                                : 'text-white/40 border-white/20 hover:text-white/70'}`}
+                            title={showSubtitleOverlay ? 'Hide subtitles' : 'Show subtitles'}
+                          >
+                            CC
+                          </button>
+                          {/* Settings gear */}
+                          <button
+                            onClick={() => setShowSubtitleSettings(v => !v)}
+                            className={`p-0.5 rounded-r border-y border-r transition
+                              ${showSubtitleSettings
+                                ? 'text-white border-white/60 bg-white/10'
+                                : 'text-white/40 border-white/20 hover:text-white/70'}`}
+                            title="Subtitle style"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                            </svg>
+                          </button>
+
+                          {/* Settings popover */}
+                          {showSubtitleSettings && (
+                            <div className="absolute bottom-full right-0 mb-2 w-52 rounded-lg bg-gray-900/95 border border-white/10 shadow-xl p-3 text-xs text-white space-y-3 z-40">
+                              {/* Font size */}
+                              <div>
+                                <p className="text-white/50 mb-1.5 font-medium uppercase tracking-wide" style={{ fontSize: 10 }}>Size</p>
+                                <div className="flex gap-1">
+                                  {SUBTITLE_FONT_SIZES.map(sz => (
+                                    <button
+                                      key={sz}
+                                      onClick={() => setSubtitleStyle(s => ({ ...s, fontSize: sz }))}
+                                      className={`flex-1 py-1 rounded text-center transition font-semibold
+                                        ${subtitleStyle.fontSize === sz
+                                          ? 'bg-white text-gray-900'
+                                          : 'bg-white/10 hover:bg-white/20 text-white'}`}
+                                      style={{ fontSize: Math.min(sz, 14) }}
+                                    >
+                                      {sz === 13 ? 'S' : sz === 16 ? 'M' : sz === 20 ? 'L' : 'XL'}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+
+                              {/* Text color */}
+                              <div>
+                                <p className="text-white/50 mb-1.5 font-medium uppercase tracking-wide" style={{ fontSize: 10 }}>Color</p>
+                                <div className="flex gap-1.5">
+                                  {SUBTITLE_COLORS.map(c => (
+                                    <button
+                                      key={c.value}
+                                      onClick={() => setSubtitleStyle(s => ({ ...s, textColor: c.value }))}
+                                      className={`w-7 h-7 rounded-full border-2 transition
+                                        ${subtitleStyle.textColor === c.value ? 'border-white scale-110' : 'border-transparent hover:border-white/50'}`}
+                                      style={{ backgroundColor: c.value }}
+                                      title={c.label}
+                                    />
+                                  ))}
+                                </div>
+                              </div>
+
+                              {/* Background opacity */}
+                              <div>
+                                <p className="text-white/50 mb-1.5 font-medium uppercase tracking-wide" style={{ fontSize: 10 }}>Background</p>
+                                <div className="flex gap-1">
+                                  {SUBTITLE_BG_OPACITIES.map(o => (
+                                    <button
+                                      key={o.value}
+                                      onClick={() => setSubtitleStyle(s => ({ ...s, bgOpacity: o.value }))}
+                                      className={`flex-1 py-1 rounded text-center transition
+                                        ${subtitleStyle.bgOpacity === o.value
+                                          ? 'bg-white text-gray-900 font-semibold'
+                                          : 'bg-white/10 hover:bg-white/20 text-white'}`}
+                                    >
+                                      {o.label}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       )}
 
                       {/* Screenshot */}

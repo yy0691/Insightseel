@@ -1,6 +1,7 @@
 import { GoogleGenAI, Content } from '@google/genai';
 import { fileToBase64, extractAudioToBase64 } from '../utils/helpers';
 import { getEffectiveSettings } from './dbService';
+import { authService } from './authService';
 import { APISettings } from '../types';
 import { createAPIAdapter, PROVIDER_CONFIGS, APIRequest } from './apiProviders';
 
@@ -169,9 +170,7 @@ async function generateContentViaProxy(
 
     const response = await fetch('/api/proxy', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
+        headers: await authService.getProxyHeaders(),
         body: requestBody,
     });
 
@@ -230,9 +229,7 @@ async function generateContentStreamViaProxy(
 
     const response = await fetch('/api/proxy', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
+        headers: await authService.getProxyHeaders(),
         body: requestBody,
     });
 
@@ -808,7 +805,7 @@ export async function testConnection(settings: APISettings): Promise<{success: b
         if (settings.useProxy) {
             const response = await fetch('/api/proxy', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: await authService.getProxyHeaders(),
                 body: JSON.stringify({ 
                     provider: settings.provider || 'gemini',
                     contents: [{ parts: [{ text: "Hello" }] }] 

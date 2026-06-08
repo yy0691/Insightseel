@@ -1541,17 +1541,17 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
                 )}
               </div>
             )}
-            {activeTab === 'Chat' && (
-              <div className="flex-1 flex flex-col min-h-0">
-                <ChatPanel
-                  video={video}
-                  subtitles={subtitles}
-                  screenshotDataUrl={screenshotDataUrl}
-                  onClearScreenshot={() => setScreenshotDataUrl(null)}
-                  onSeekToTime={handleSeekTo}
-                />
-              </div>
-            )}
+            {/* ChatPanel is always mounted to prevent in-flight requests from being aborted on tab switch */}
+            <div className={`flex-1 flex flex-col min-h-0 ${activeTab === 'Chat' ? '' : 'hidden'}`}>
+              <ChatPanel
+                video={video}
+                subtitles={subtitles}
+                analyses={analyses}
+                screenshotDataUrl={screenshotDataUrl}
+                onClearScreenshot={() => setScreenshotDataUrl(null)}
+                onSeekToTime={handleSeekTo}
+              />
+            </div>
             {activeTab === 'Notes' && (
               <NotesPanel
                 video={video}

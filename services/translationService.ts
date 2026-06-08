@@ -1,4 +1,5 @@
 import { getEffectiveSettings } from './dbService';
+import { authService } from './authService';
 import { SubtitleSegment } from '../types';
 import { createAPIAdapter, APIRequest, PROVIDER_CONFIGS } from './apiProviders';
 
@@ -161,23 +162,25 @@ async function translateBatch(
     `${idx + 1}|${seg.text}`
   ).join('\n');
 
-  const prompt = `Translate the following subtitle lines to ${targetLanguage}.
+  const prompt = `You are a professional subtitle translator. Translate the following subtitle lines into ${targetLanguage}.
 
-IMPORTANT RULES:
-1. Keep the exact same format: "number|translated text"
-2. Translate ONLY the text after the "|" character
-3. Keep all line numbers unchanged
-4. Preserve all punctuation and formatting in translation
-5. If text is already in target language, keep it as is
-6. Output ONLY the translated lines, no explanations
+TRANSLATION GUIDELINES:
+1. **Natural expression**: Use idiomatic ${targetLanguage} phrasing. Avoid word-for-word literal translation — rewrite to sound natural to a native speaker.
+2. **Professional / technical terms**: Keep well-known proper nouns, brand names, technical acronyms, and industry jargon in their original form (or use the established ${targetLanguage} equivalent if one exists). Do NOT invent phonetic translations for technical terms.
+3. **Tone & register**: Match the speaker's tone — conversational, formal, or humorous.
+4. **Conciseness**: Subtitles should be concise. If the original is verbose, condense while preserving meaning.
+5. **Format**: Output ONLY lines in the exact format "number|translated text". No explanations, no extra lines.
+6. **Untranslated lines**: If a line is already in ${targetLanguage}, copy it unchanged.
+7. **Numbers unchanged**: Keep all line numbers exactly as given.
 
-Example format:
-1|Hello world
-2|How are you?
+Example:
+Input:
+1|We use React and TypeScript for our frontend stack.
+2|That's a pretty good ROI, right?
 
-Should output:
-1|你好世界
-2|你好吗？
+Output (Simplified Chinese):
+1|我们前端用的是 React 和 TypeScript。
+2|这个投资回报率还不错吧？
 
 Input to translate:
 ${textToTranslate}`;
@@ -193,7 +196,7 @@ ${textToTranslate}`;
 
     const response = await fetch('/api/proxy', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await authService.getProxyHeaders(),
       body: JSON.stringify(payload)
     });
 

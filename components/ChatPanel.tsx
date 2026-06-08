@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Video, Subtitles, ChatMessage, ChatHistory } from '../types';
+import { Video, Subtitles, Analysis, ChatMessage, ChatHistory } from '../types';
 import { generateChatResponse } from '../services/geminiService';
 import { Content } from '@google/genai';
 import MarkdownRenderer from './MarkdownRenderer';
@@ -11,12 +11,13 @@ import { saveChatHistory as persistChatHistory } from '../services/chatService';
 interface ChatPanelProps {
   video: Video;
   subtitles: Subtitles | null;
+  analyses?: Analysis[];
   screenshotDataUrl: string | null;
   onClearScreenshot: () => void;
   onSeekToTime: (timeInSeconds: number) => void;
 }
 
-const ChatPanel: React.FC<ChatPanelProps> = ({ video, subtitles, screenshotDataUrl, onClearScreenshot, onSeekToTime }) => {
+const ChatPanel: React.FC<ChatPanelProps> = ({ video, subtitles, analyses, screenshotDataUrl, onClearScreenshot, onSeekToTime }) => {
   const [history, setHistory] = useState<ChatMessage[]>([]);
   const [currentMessage, setCurrentMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -117,7 +118,22 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ video, subtitles, screenshotDataU
             parts: [{ text: msg.text }] // For simplicity, we don't re-send old images in history
         }));
         
+        // Build transcript context
         const subtitlesText = subtitles ? subtitles.segments.map(s => s.text).join(' ') : null;
+
+        // Build insights context from analyses (summary, key-info, topics)
+        const analysesContext = analyses && analyses.length > 0
+          ? analyses.map(a => {
+              const label = a.type === 'summary' ? 'Summary' : a.type === 'key-info' ? 'Key Information' : 'Topics';
+              return `[${label}]\n${a.result}`;
+            }).join('\n\n')
+          : null;
+
+        const contextParts: string[] = [];
+        if (subtitlesText) contextParts.push(`[Transcript]\n${subtitlesText}`);
+        if (analysesContext) contextParts.push(analysesContext);
+        const fullContext = contextParts.length > 0 ? contextParts.join('\n\n') : null;
+
         const targetLanguageName = language === 'zh' ? 'Chinese' : 'English';
         const systemInstruction = t('chatSystemInstruction', targetLanguageName);
 
@@ -125,7 +141,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ video, subtitles, screenshotDataU
             apiHistory,
             { text: userMessage.text, imageB64DataUrl: screenshotDataUrl || undefined },
             { frames },
-            subtitlesText,
+            fullContext,
             systemInstruction
         );
         

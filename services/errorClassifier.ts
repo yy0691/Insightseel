@@ -33,6 +33,11 @@ const PATTERNS: Array<{
     retryable: false,
   },
   {
+    test: (m) => m.includes('AUTH_REQUIRED') || m.includes('AUTH_INVALID'),
+    category: 'auth',
+    retryable: false,
+  },
+  {
     test: (m) =>
       m.includes('api key') ||
       m.includes('invalid_api_key') ||

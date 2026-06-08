@@ -149,6 +149,21 @@ export const authService = {
     return session;
   },
 
+  /** Returns the Supabase JWT access token for the current session, or null if not logged in. */
+  async getAccessToken(): Promise<string | null> {
+    if (!supabase) return null;
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.access_token ?? null;
+  },
+
+  /** Returns fetch headers with Authorization: Bearer <token> if logged in, otherwise just Content-Type. */
+  async getProxyHeaders(): Promise<Record<string, string>> {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const token = await this.getAccessToken();
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    return headers;
+  },
+
   async getProfile(userId: string): Promise<Profile | null> {
     if (!supabase) return null;
 

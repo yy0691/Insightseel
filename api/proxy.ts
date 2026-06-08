@@ -240,6 +240,36 @@ async function handlePoeRequest(
   });
 }
 
+// ---------------------------------------------------------------------------
+// Auth helpers — verify Supabase JWT server-side.
+// Only enforced when both SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are set.
+// Personal / dev deployments that omit Supabase remain open.
+// ---------------------------------------------------------------------------
+
+let _supabaseAuthClient: any = null;
+
+async function getSupabaseAuthClient() {
+  if (_supabaseAuthClient) return _supabaseAuthClient;
+  const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) return null;
+  const { createClient } = await import('@supabase/supabase-js');
+  _supabaseAuthClient = createClient(url, key, { auth: { persistSession: false } });
+  return _supabaseAuthClient;
+}
+
+async function verifyToken(token: string): Promise<boolean> {
+  const client = await getSupabaseAuthClient();
+  if (!client) return true; // Supabase not configured → open access
+  const { data, error } = await client.auth.getUser(token);
+  return !error && !!data?.user;
+}
+
+function isAuthRequired(): boolean {
+  return !!(process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL) &&
+         !!process.env.SUPABASE_SERVICE_ROLE_KEY;
+}
+
 /**
  * Main proxy handler
  */
@@ -248,6 +278,26 @@ export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
+
+  // ── Auth gate ────────────────────────────────────────────────────────────
+  if (isAuthRequired()) {
+    const authHeader: string = req.headers['authorization'] || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+
+    if (!token) {
+      return res.status(401).json({
+        error: 'AUTH_REQUIRED: Please log in to use the system API key, or configure your own API key in Settings.',
+      });
+    }
+
+    const valid = await verifyToken(token);
+    if (!valid) {
+      return res.status(401).json({
+        error: 'AUTH_INVALID: Session expired or invalid. Please log in again.',
+      });
+    }
+  }
+  // ────────────────────────────────────────────────────────────────────────
 
   try {
     const { provider = 'gemini', contents, systemInstruction, stream } = req.body;

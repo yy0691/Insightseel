@@ -9,8 +9,8 @@ export interface ErrorDisplay {
 
 const MESSAGES_EN: Record<ErrorCategory, [string, string]> = {
   auth: [
-    'Authentication Error',
-    'Invalid or missing API key. Open Settings to update it.',
+    'Authentication Required',
+    'Please log in to use the system API key, or configure your own key in Settings.',
   ],
   quota: [
     'Quota Exceeded',
@@ -60,8 +60,8 @@ const MESSAGES_EN: Record<ErrorCategory, [string, string]> = {
 
 const MESSAGES_ZH: Record<ErrorCategory, [string, string]> = {
   auth: [
-    '认证失败',
-    '无效或缺少 API Key，请在设置中检查。',
+    '需要登录',
+    '请登录后使用系统 API Key，或在设置中配置您自己的 API Key。',
   ],
   quota: [
     '配额已用尽',

@@ -31,16 +31,16 @@ const LEVEL_DOT: Record<LogLevel, string> = {
 
 export const GenerationLogPanel: React.FC<Props> = ({ logs, onClear }) => {
   const [expanded, setExpanded] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const prevCountRef = useRef(logs.length);
 
-  // Auto-expand when first log arrives, auto-scroll on new entries
+  // Auto-expand when first log arrives; scroll only the log container (not the page)
   useEffect(() => {
     if (logs.length > 0 && prevCountRef.current === 0) {
       setExpanded(true);
     }
-    if (logs.length > prevCountRef.current && expanded) {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (logs.length > prevCountRef.current && expanded && containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
     prevCountRef.current = logs.length;
   }, [logs.length, expanded]);
@@ -90,7 +90,7 @@ export const GenerationLogPanel: React.FC<Props> = ({ logs, onClear }) => {
 
       {/* Log entries */}
       {expanded && (
-        <div className="max-h-48 overflow-y-auto px-3 py-2 space-y-0.5 border-t border-gray-700">
+        <div ref={containerRef} className="max-h-48 overflow-y-auto px-3 py-2 space-y-0.5 border-t border-gray-700">
           {logs.map(entry => (
             <div key={entry.id} className="flex items-start gap-2 leading-relaxed">
               <span className="text-gray-600 shrink-0 w-[7ch]">{entry.ts}</span>
@@ -98,7 +98,6 @@ export const GenerationLogPanel: React.FC<Props> = ({ logs, onClear }) => {
               <span className={LEVEL_COLOR[entry.level]}>{entry.msg}</span>
             </div>
           ))}
-          <div ref={bottomRef} />
         </div>
       )}
     </div>

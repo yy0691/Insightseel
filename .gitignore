@@ -29,3 +29,6 @@ dist-ssr
 # Tempo-specific
 **/tempobook/dynamic/
 **/tempobook/storyboards/
+
+# FFmpeg WASM core files (copied from node_modules during postinstall)
+public/ffmpeg/

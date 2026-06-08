@@ -13,11 +13,10 @@ let ffmpegInstance: FFmpeg | null = null;
 let isFFmpegLoaded = false;
 let loadingPromise: Promise<FFmpeg> | null = null;
 
-const DEFAULT_FFMPEG_VERSION = '0.12.10';
+const DEFAULT_FFMPEG_VERSION = '0.12.6';
 const DEFAULT_BASE_URLS: string[] = [
-  // FFmpeg core files are not available on CDN for 0.12.x
-  // This is intentionally left empty - FFmpeg is optional
-  // The system will fall back to Deepgram/Gemini for transcription
+  // Self-hosted files copied to public/ffmpeg/ via scripts/copy-ffmpeg.mjs (postinstall)
+  '/ffmpeg',
 ];
 
 const DEFAULT_FETCH_TIMEOUT = 45_000;

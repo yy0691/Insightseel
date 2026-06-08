@@ -185,7 +185,7 @@ export async function processVideoInSegments(
     video,
     prompt,
     sourceLanguage,
-    maxParallelTasks = 3, // Process 3 segments at a time by default
+    maxParallelTasks = 5, // Process 5 segments at a time by default
     onProgress,
     onSegmentComplete,
     onPartialSubtitles,
@@ -292,7 +292,7 @@ export async function processVideoInSegments(
 export function estimateProcessingTime(
   durationSeconds: number,
   useSegments: boolean,
-  maxParallelTasks: number = 3
+  maxParallelTasks: number = 5
 ): number {
   const baseTimePerSecond = 0.5; // Gemini processing time per second
   

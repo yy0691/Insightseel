@@ -34,6 +34,26 @@ export interface TranslationOptions {
   ) => void;
   /** When true, batches whose every segment already has a non-empty `translatedText` are skipped. */
   skipAlreadyTranslated?: boolean;
+  /** Max number of batches to process simultaneously. Default: 4. Set to 1 for sequential (old behaviour). */
+  concurrency?: number;
+}
+
+/**
+ * Run async tasks with a fixed concurrency cap.
+ * Tasks are started as slots free up; order of completion is not guaranteed.
+ */
+async function runWithConcurrency(tasks: (() => Promise<void>)[], concurrency: number): Promise<void> {
+  const queue = [...tasks];
+
+  async function worker(): Promise<void> {
+    while (queue.length > 0) {
+      const task = queue.shift();
+      if (task) await task();
+    }
+  }
+
+  const workers = Array.from({ length: Math.min(concurrency, tasks.length) }, () => worker());
+  await Promise.all(workers);
 }
 
 export async function translateSubtitles(
@@ -42,7 +62,7 @@ export async function translateSubtitles(
   onProgress?: (progress: number, stage: string) => void,
   options: TranslationOptions = {}
 ): Promise<SubtitleSegment[]> {
-  const { onBatchComplete, skipAlreadyTranslated = false } = options;
+  const { onBatchComplete, skipAlreadyTranslated = false, concurrency = 4 } = options;
   const settings = await getEffectiveSettings();
 
   if (!settings.apiKey && !settings.useProxy) {
@@ -57,42 +77,48 @@ export async function translateSubtitles(
 
   const targetLangName = languageMap[targetLanguage];
 
-  console.log(`[Translation] Starting translation to ${targetLangName}, skipAlreadyTranslated=${skipAlreadyTranslated}`);
+  console.log(`[Translation] Starting translation to ${targetLangName} | concurrency=${concurrency} | skipAlreadyTranslated=${skipAlreadyTranslated}`);
   onProgress?.(0, `Translating to ${targetLangName}...`);
 
-  // Start result array from input so pre-translated segments are already in place
+  // Shared mutable state — safe because JS is single-threaded (no true data races)
   const result: SubtitleSegment[] = [...segments];
   const totalBatches = Math.ceil(segments.length / BATCH_SIZE);
   let completedBatches = 0;
 
+  // Build one task per batch; they run concurrently up to `concurrency` at a time
+  const tasks: (() => Promise<void>)[] = [];
+
   for (let i = 0; i < segments.length; i += BATCH_SIZE) {
-    const batch = segments.slice(i, i + BATCH_SIZE);
-    const batchIndex = Math.floor(i / BATCH_SIZE);
-    const progress = (completedBatches / totalBatches) * 100;
+    const startIndex = i;
+    const batch = segments.slice(startIndex, startIndex + BATCH_SIZE);
+    const batchIndex = Math.floor(startIndex / BATCH_SIZE);
 
-    onProgress?.(progress, `Translating batch ${batchIndex + 1}/${totalBatches}...`);
+    tasks.push(async () => {
+      // Skip fully-translated batches when resuming
+      if (skipAlreadyTranslated && batch.every(s => s.translatedText?.trim())) {
+        completedBatches++;
+        onProgress?.((completedBatches / totalBatches) * 100, `Skipped batch ${batchIndex + 1}/${totalBatches}`);
+        console.log(`[Translation] Batch ${batchIndex + 1}/${totalBatches} skipped (already translated)`);
+        return;
+      }
 
-    // Skip this batch if all segments already have translations
-    if (skipAlreadyTranslated && batch.every(s => s.translatedText?.trim())) {
-      console.log(`[Translation] Batch ${batchIndex + 1}/${totalBatches} skipped (already translated)`);
+      const translatedBatch = await translateBatchWithRetry(batch, targetLangName, settings.useProxy);
+
+      for (let j = 0; j < translatedBatch.length; j++) {
+        result[startIndex + j] = translatedBatch[j];
+      }
+
       completedBatches++;
-      onProgress?.((completedBatches / totalBatches) * 100, `Skipped batch ${batchIndex + 1}/${totalBatches}`);
-      continue;
-    }
+      const pct = Math.round((completedBatches / totalBatches) * 100);
+      onProgress?.(pct, `Translated ${completedBatches}/${totalBatches} batches...`);
+      console.log(`[Translation] Batch ${batchIndex + 1}/${totalBatches} complete (${pct}%)`);
 
-    const translatedBatch = await translateBatchWithRetry(batch, targetLangName, settings.useProxy);
-
-    // Write translated segments back into the result array at the correct indices
-    for (let j = 0; j < translatedBatch.length; j++) {
-      result[i + j] = translatedBatch[j];
-    }
-
-    completedBatches++;
-    console.log(`[Translation] Batch ${batchIndex + 1}/${totalBatches} complete`);
-
-    // Notify caller with a snapshot of all segments completed so far
-    onBatchComplete?.([...result], completedBatches, totalBatches);
+      // Deliver incremental snapshot — completedBatches may not be in order, but positions are correct
+      onBatchComplete?.([...result], completedBatches, totalBatches);
+    });
   }
+
+  await runWithConcurrency(tasks, concurrency);
 
   onProgress?.(100, 'Translation complete!');
   console.log('[Translation] All translations complete');

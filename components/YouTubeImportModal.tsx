@@ -36,8 +36,8 @@ const YouTubeImportModal: React.FC<YouTubeImportModalProps> = ({
   return (
     <BaseModal open={open} onOpenChange={onOpenChange} size="sm">
       <BaseModal.Header
-        title={isZh ? '导入 YouTube 视频' : 'Import YouTube Video'}
-        subtitle={isZh ? '粘贴 YouTube 视频链接以导入字幕' : 'Paste a YouTube link to import its captions'}
+        title={isZh ? '导入在线视频' : 'Import Online Video'}
+        subtitle={isZh ? '粘贴 YouTube 或 Bilibili 链接以导入字幕' : 'Paste a YouTube or Bilibili link to import its captions'}
       />
       <BaseModal.Body>
         <input
@@ -46,7 +46,7 @@ const YouTubeImportModal: React.FC<YouTubeImportModalProps> = ({
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-          placeholder="https://www.youtube.com/watch?v=..."
+          placeholder="https://www.youtube.com/watch?v=... / https://www.bilibili.com/video/BV..."
           className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
         />
       </BaseModal.Body>

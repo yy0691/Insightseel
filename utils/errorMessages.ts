@@ -42,7 +42,7 @@ const MESSAGES_EN: Record<ErrorCategory, [string, string]> = {
   ],
   noCaptions: [
     'No Captions Available',
-    'This video does not have available captions. You can upload a subtitle file manually.',
+    'This video does not have available captions. Try the Record option to capture and transcribe it, or upload a subtitle file manually.',
   ],
   invalidInput: [
     'Invalid Input',
@@ -93,7 +93,7 @@ const MESSAGES_ZH: Record<ErrorCategory, [string, string]> = {
   ],
   noCaptions: [
     '暂无字幕',
-    '该视频没有可用字幕，您可以手动上传字幕文件。',
+    '该视频没有可用字幕，可使用"录音 / 录屏"功能录制并转写，或手动上传字幕文件。',
   ],
   invalidInput: [
     '输入无效',

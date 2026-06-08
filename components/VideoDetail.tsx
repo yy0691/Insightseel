@@ -579,20 +579,11 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
           };
           await saveSubtitles(video.id, newSubtitles);
           onSubtitlesChange(video.id);
-
-          // 🎯 字幕导入完成后，如果没有见解则自动生成
-          if (analyses.length === 0) {
-            console.log('[VideoDetail] 📊 Subtitles imported, auto-generating insights...');
-            toast.info({
-              title: language === 'zh' ? '开始生成见解' : 'Generating Insights',
-              description: language === 'zh' ? '正在分析视频内容...' : 'Analyzing video content...',
-              duration: 3000
-            });
-            // 延迟一下让导入操作完成
-            setTimeout(() => {
-              handleGenerateInsights();
-            }, 500);
-          }
+          toast.success({
+            title: language === 'zh' ? '字幕导入成功' : 'Subtitles Imported',
+            description: language === 'zh' ? '可在右侧见解面板手动生成见解。' : 'You can generate insights from the Insights panel.',
+            duration: 4000,
+          });
         } catch (err) {
           const c = classifyError(err);
           const d = getErrorDisplay(c, language);
@@ -859,24 +850,9 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
         benchmarkStartRef.current = null;
       }
 
-      // 🎯 字幕生成完成后，自动生成见解
       setTimeout(() => {
         setGenerationStatus({ active: false, stage: '', progress: 0 });
         setSegmentStatus(null);
-
-        // 检查是否已有见解，如果没有则自动生成
-        if (analyses.length === 0) {
-          console.log('[VideoDetail] 📊 Subtitles generated, auto-generating insights...');
-          toast.info({
-            title: language === 'zh' ? '开始生成见解' : 'Generating Insights',
-            description: language === 'zh' ? '正在分析视频内容...' : 'Analyzing video content...',
-            duration: 3000
-          });
-          // 延迟一下让用户看到字幕完成的提示
-          setTimeout(() => {
-            handleGenerateInsights();
-          }, 1500);
-        }
       }, 1000);
 
       return; // 提前返回，避免执行下面的 finally
@@ -1504,6 +1480,20 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
                   </div>
                 ) : summaryAnalysis ? (
                   <div className="space-y-6">
+                    {/* Regenerate button — shown when insights exist */}
+                    <div className="flex justify-end">
+                      <button
+                        onClick={handleGenerateInsights}
+                        disabled={generationStatus.active}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-500 bg-slate-50 border border-slate-200 rounded-full hover:bg-slate-100 hover:text-slate-700 transition disabled:opacity-40"
+                        title={language === 'zh' ? '重新生成见解' : 'Regenerate insights'}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        {language === 'zh' ? '重新生成' : 'Regenerate'}
+                      </button>
+                    </div>
                     <div>
                       <h3 className="text-sm font-medium mb-3 text-slate-700">{t('summary')}</h3>
                       <div className="text-sm text-slate-700 leading-relaxed"><MarkdownRenderer content={summaryAnalysis.result} onTimestampClick={handleSeekTo} /></div>

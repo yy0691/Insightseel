@@ -17,6 +17,47 @@ export interface YouTubeCaptionResult {
   segments: SubtitleSegment[];
 }
 
+export type OnlinePlatform = 'youtube' | 'bilibili';
+
+// Re-export under a platform-neutral name; the response shape is shared.
+export type OnlineCaptionResult = YouTubeCaptionResult;
+
+export function detectPlatform(url: string): OnlinePlatform | null {
+  const value = url.trim().toLowerCase();
+  if (/youtube\.com|youtu\.be/.test(value)) return 'youtube';
+  if (/bilibili\.com|b23\.tv|\/video\/bv|\/video\/av/.test(value)) return 'bilibili';
+  return null;
+}
+
+const PLATFORM_ENDPOINTS: Record<OnlinePlatform, string> = {
+  youtube: '/api/youtube-captions',
+  bilibili: '/api/bilibili-captions',
+};
+
+export async function fetchOnlineCaptions(
+  url: string,
+  preferredLanguage?: string,
+): Promise<{ platform: OnlinePlatform; result: OnlineCaptionResult }> {
+  const platform = detectPlatform(url);
+  if (!platform) {
+    throw new Error('Unsupported link. Please paste a YouTube or Bilibili video URL.');
+  }
+
+  const response = await fetch(PLATFORM_ENDPOINTS[platform], {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url, preferredLanguage }),
+  });
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(data?.error || `Failed to fetch captions (${response.status})`);
+  }
+
+  return { platform, result: data as OnlineCaptionResult };
+}
+
 export async function fetchYouTubeCaptions(
   url: string,
   preferredLanguage?: string,

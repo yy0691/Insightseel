@@ -39,11 +39,13 @@ import { User } from "@supabase/supabase-js";
 import { authService, type Profile } from "./services/authService";
 import autoSyncService, { getSyncStatus } from "./services/autoSyncService";
 import { saveSubtitles } from "./services/subtitleService";
-import { fetchYouTubeCaptions } from "./services/onlineVideoService";
+import { fetchOnlineCaptions } from "./services/onlineVideoService";
 import { classifyError } from "./services/errorClassifier";
 import { getErrorDisplay } from "./utils/errorMessages";
 import { BaseModal } from "./components/ui/BaseModal";
 import YouTubeImportModal from "./components/YouTubeImportModal";
+import RecordModal from "./components/RecordModal";
+import type { RecordingResult } from "./services/recordingService";
 
 const SUPPORTED_SUBTITLE_EXTENSIONS = [".srt", ".vtt"];
 
@@ -192,6 +194,9 @@ const AppContent: React.FC<{
   // YouTube import modal
   const [showYouTubeModal, setShowYouTubeModal] = useState(false);
   const youtubeCallbackRef = React.useRef<((url: string) => void) | null>(null);
+
+  // Record (audio/screen) modal
+  const [showRecordModal, setShowRecordModal] = useState(false);
 
   // YouTube failure modal
   const [youtubeFailModal, setYoutubeFailModal] = useState<{
@@ -633,20 +638,23 @@ const AppContent: React.FC<{
 
     try {
       toast.info({
-        title: language === 'zh' ? '正在导入 YouTube 字幕' : 'Importing YouTube Captions',
+        title: language === 'zh' ? '正在导入在线字幕' : 'Importing Online Captions',
         description: trimmedUrl,
         duration: 3000,
       });
 
-      const captionResult = await fetchYouTubeCaptions(trimmedUrl, language === 'zh' ? 'zh' : 'en');
-      const videoId = await generateDeterministicUUID(`youtube:${captionResult.videoId}`);
+      const { platform, result: captionResult } = await fetchOnlineCaptions(
+        trimmedUrl,
+        language === 'zh' ? 'zh' : 'en',
+      );
+      const videoId = await generateDeterministicUUID(`${platform}:${captionResult.videoId}`);
 
       if (videos.some((v) => v.id === videoId)) {
         setSelectedVideoId(videoId);
         return;
       }
 
-      const placeholderFile = new File([], `${captionResult.title}.youtube`, { type: 'video/mp4' });
+      const placeholderFile = new File([], `${captionResult.title}.${platform}`, { type: 'video/mp4' });
       const newVideo: Video = {
         id: videoId,
         file: placeholderFile,
@@ -656,8 +664,8 @@ const AppContent: React.FC<{
         height: 720,
         size: 0,
         importedAt: new Date().toISOString(),
-        folderPath: 'YouTube',
-        sourceType: 'youtube',
+        folderPath: platform === 'bilibili' ? 'Bilibili' : 'YouTube',
+        sourceType: platform,
         sourceUrl: captionResult.canonicalUrl,
         thumbnailUrl: captionResult.thumbnailUrl,
         language: captionResult.selectedTrack.languageCode,
@@ -682,7 +690,7 @@ const AppContent: React.FC<{
       await loadDataForVideo(videoId);
 
       toast.success({
-        title: language === 'zh' ? 'YouTube 字幕已导入' : 'YouTube captions imported',
+        title: language === 'zh' ? '在线字幕已导入' : 'Online captions imported',
         description: `${captionResult.segments.length} subtitles`,
         duration: 3000,
       });
@@ -697,6 +705,72 @@ const AppContent: React.FC<{
   const openYouTubeModal = () => {
     youtubeCallbackRef.current = handleImportOnlineVideo;
     setShowYouTubeModal(true);
+  };
+
+  const handleImportRecording = async (result: RecordingResult) => {
+    try {
+      const ext = result.mimeType.includes('mp4') ? 'mp4' : 'webm';
+      const stamp = new Date();
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const baseName =
+        (language === 'zh' ? '录制' : 'Recording') +
+        ` ${stamp.getFullYear()}-${pad(stamp.getMonth() + 1)}-${pad(stamp.getDate())} ` +
+        `${pad(stamp.getHours())}${pad(stamp.getMinutes())}${pad(stamp.getSeconds())}`;
+      const file = new File([result.blob], `${baseName}.${ext}`, { type: result.mimeType });
+
+      const videoId = await generateDeterministicUUID(`recording:${baseName}-${result.blob.size}`);
+      if (videos.some((v) => v.id === videoId)) {
+        setSelectedVideoId(videoId);
+        return;
+      }
+
+      // Recorded WebM often reports an unreliable duration; fall back to the
+      // measured recording time and best-effort dimensions.
+      let duration = result.durationMs / 1000;
+      let width = result.hasVideo ? 1280 : 0;
+      let height = result.hasVideo ? 720 : 0;
+      try {
+        const meta = await getVideoMetadata(file);
+        if (Number.isFinite(meta.duration) && meta.duration > 0) duration = meta.duration;
+        if (meta.width) width = meta.width;
+        if (meta.height) height = meta.height;
+      } catch {
+        /* keep fallback metadata */
+      }
+
+      const newVideo: Video = {
+        id: videoId,
+        file,
+        name: file.name,
+        duration,
+        width,
+        height,
+        size: file.size,
+        importedAt: new Date().toISOString(),
+        folderPath: language === 'zh' ? '录音录屏' : 'Recordings',
+        sourceType: 'recording',
+      };
+
+      await videoDB.put(newVideo);
+      setVideos((prev) => {
+        const updated = [newVideo, ...prev];
+        updated.sort(
+          (a, b) =>
+            new Date(b.importedAt).getTime() - new Date(a.importedAt).getTime(),
+        );
+        return updated;
+      });
+      setSelectedVideoId(videoId);
+      await loadDataForVideo(videoId);
+
+      toast.success({
+        title: language === 'zh' ? '录制已导入' : 'Recording imported',
+        description: language === 'zh' ? '可在详情页生成字幕' : 'Generate subtitles in the detail view',
+        duration: 3000,
+      });
+    } catch (err) {
+      handleError(err, 'Failed to import recording.');
+    }
   };
 
   // Import folder
@@ -892,6 +966,7 @@ const AppContent: React.FC<{
               onImportFolderSelection={handleImportFolderSelection}
               onImportUrl={handleImportOnlineVideo}
               onOpenYouTubeModal={openYouTubeModal}
+              onOpenRecordModal={() => setShowRecordModal(true)}
               isCollapsed={isSidebarCollapsed}
               onToggle={() => setIsSidebarCollapsed((prev) => !prev)}
               onOpenSettings={() => setIsSettingsModalOpen(true)}
@@ -938,6 +1013,10 @@ const AppContent: React.FC<{
                   onOpenYouTubeModal={() => {
                     setIsMobileSidebarOpen(false);
                     openYouTubeModal();
+                  }}
+                  onOpenRecordModal={() => {
+                    setIsMobileSidebarOpen(false);
+                    setShowRecordModal(true);
                   }}
                   isCollapsed={false}
                   onToggle={() => setIsMobileSidebarOpen(false)}
@@ -1023,6 +1102,7 @@ const AppContent: React.FC<{
               onImportFolderSelection={handleImportFolderSelection}
               onImportUrl={handleImportOnlineVideo}
               onOpenYouTubeModal={openYouTubeModal}
+              onOpenRecordModal={() => setShowRecordModal(true)}
               onLogin={() => openAuthModal("signin")}
               onRegister={() => openAuthModal("signup")}
               onOpenAccount={() => setShowAccountPanel(true)}
@@ -1082,6 +1162,14 @@ const AppContent: React.FC<{
           youtubeCallbackRef.current?.(url);
           youtubeCallbackRef.current = null;
         }}
+      />
+
+      {/* Record (audio/screen) modal */}
+      <RecordModal
+        open={showRecordModal}
+        onOpenChange={setShowRecordModal}
+        language={language}
+        onComplete={handleImportRecording}
       />
 
       {/* YouTube failure modal — reason + retry + dismiss */}

@@ -53,6 +53,7 @@ interface SidebarProps {
   onImportFolderSelection: (files: FileList) => void;
   onImportUrl?: (url: string) => void;
   onOpenYouTubeModal?: () => void;
+  onOpenRecordModal?: () => void;
   isCollapsed: boolean;
   onToggle: () => void;
   onOpenSettings: () => void;
@@ -348,6 +349,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onImportFolderSelection,
   onImportUrl,
   onOpenYouTubeModal,
+  onOpenRecordModal,
   isCollapsed,
   onToggle,
   onOpenSettings,
@@ -367,7 +369,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isHovered, setIsHovered] = useState(false);
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
 
   // Configure drag sensors
   const sensors = useSensors(
@@ -457,6 +459,11 @@ const Sidebar: React.FC<SidebarProps> = ({
       const url = window.prompt('Paste a YouTube video link');
       if (url?.trim()) onImportUrl?.(url.trim());
     }
+  };
+
+  const handleRecordClick = () => {
+    setShowImportMenu(false);
+    onOpenRecordModal?.();
   };
 
   const toggleFolder = (folderPath: string, e?: React.MouseEvent) => {
@@ -855,7 +862,15 @@ const Sidebar: React.FC<SidebarProps> = ({
                     onClick={handleImportUrlClick}
                     className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-100 transition-colors text-slate-600"
                   >
-                    YouTube Link
+                    {language === 'zh' ? '在线链接' : 'Video Link'}
+                  </button>
+                )}
+                {onOpenRecordModal && (
+                  <button
+                    onClick={handleRecordClick}
+                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-100 transition-colors text-slate-600"
+                  >
+                    {language === 'zh' ? '录音 / 录屏' : 'Record'}
                   </button>
                 )}
               </div>

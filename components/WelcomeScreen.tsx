@@ -46,6 +46,7 @@ interface WelcomeScreenProps {
   onImportFolderSelection: (files: FileList) => void;
   onImportUrl: (url: string) => void;
   onOpenYouTubeModal?: () => void;
+  onOpenRecordModal?: () => void;
   onLogin: () => void;
   onRegister: () => void;
   onOpenAccount?: () => void;
@@ -82,6 +83,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   onImportFolderSelection,
   onImportUrl,
   onOpenYouTubeModal,
+  onOpenRecordModal,
   onLogin,
   onRegister,
   onOpenAccount,
@@ -115,6 +117,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       if (url?.trim()) onImportUrl(url.trim());
     }
   };
+  const triggerRecord = () => onOpenRecordModal?.();
 
   return (
     <div className="min-h-screen w-full bg-slate-50 flex flex-col">
@@ -130,6 +133,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           onPrimaryClick={triggerFileUpload}
           onSecondaryClick={triggerFolderUpload}
           onUrlClick={triggerUrlImport}
+          onRecordClick={triggerRecord}
         />
 
         <MagicDemo />
@@ -230,10 +234,11 @@ interface HeroProps {
   onPrimaryClick: () => void;
   onSecondaryClick: () => void;
   onUrlClick: () => void;
+  onRecordClick: () => void;
 }
 
-const Hero: React.FC<HeroProps> = ({ onPrimaryClick, onSecondaryClick, onUrlClick }) => {
-  const { t } = useLanguage();
+const Hero: React.FC<HeroProps> = ({ onPrimaryClick, onSecondaryClick, onUrlClick, onRecordClick }) => {
+  const { t, language } = useLanguage();
   const rotatingWords = ["数据", "语音", "内容", "场景", "情绪", "洞察"];
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
 
@@ -296,7 +301,13 @@ const Hero: React.FC<HeroProps> = ({ onPrimaryClick, onSecondaryClick, onUrlClic
               onClick={onUrlClick}
               className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-6 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
             >
-              YouTube Link
+              {language === 'zh' ? '在线链接' : 'Video Link'}
+            </button>
+            <button
+              onClick={onRecordClick}
+              className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-6 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              {language === 'zh' ? '录音 / 录屏' : 'Record'}
             </button>
           </div>
         </div>

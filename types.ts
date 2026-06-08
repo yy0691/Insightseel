@@ -11,7 +11,7 @@ export interface Video {
   importedAt: string;
   folderPath?: string;
   order?: number; // Custom order for drag and drop sorting
-  sourceType?: 'file' | 'youtube';
+  sourceType?: 'file' | 'youtube' | 'bilibili' | 'recording';
   sourceUrl?: string;
   thumbnailUrl?: string;
 }

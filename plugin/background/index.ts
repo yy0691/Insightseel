@@ -3,6 +3,8 @@
  * Handles video processing and API requests
  */
 
+import type { PluginSettings } from '../shared/types';
+
 interface ProcessingTask {
   id: string;
   videoUrl: string;
@@ -131,8 +133,8 @@ function getPromptForAnalysisType(type: string, videoUrl: string): string {
   return prompts[type as keyof typeof prompts] || `Analyze the video at ${videoUrl}.`;
 }
 
-async function getPluginSettings() {
-  return new Promise((resolve) => {
+async function getPluginSettings(): Promise<PluginSettings> {
+  return new Promise<PluginSettings>((resolve) => {
     chrome.storage.local.get('pluginSettings', (result) => {
       resolve(
         result.pluginSettings || {

@@ -106,6 +106,9 @@ export const noteDB = {
   async put(note: Note) {
     return (await dbPromise).put('notes', note);
   },
+  async delete(id: string) {
+    return (await dbPromise).delete('notes', id);
+  },
 };
 
 export const chatDB = {

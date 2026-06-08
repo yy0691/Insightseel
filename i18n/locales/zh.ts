@@ -171,6 +171,9 @@ export const zh: Translations = {
   
   deleteVideoConfirmation: (videoName: string) => `您确定要删除视频 “${videoName}” 及其所有关联数据吗？此操作无法撤销。`,
   deleteFolderConfirmation: (folderName: string, count: number) => `您确定要删除文件夹 “${folderName}” 及其中的全部 ${count} 个视频吗？此操作无法撤销。`,
+  batchSelect: "批量选择",
+  cancelSelection: "取消选择",
+  batchDeleteConfirmation: (count: number) => `确定要删除选中的 ${count} 个视频及其所有关联数据吗？此操作无法撤销。`,
   collapseSidebar: "收起",
   expandSidebar: "展开",
   tooltipCollapseSidebar: "收起侧边栏",

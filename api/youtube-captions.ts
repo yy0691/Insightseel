@@ -5,7 +5,7 @@ type CaptionTrack = {
   name?: { simpleText?: string; runs?: Array<{ text: string }> };
 };
 
-function extractVideoId(input: string): string | null {
+export function extractVideoId(input: string): string | null {
   try {
     const url = new URL(input);
     if (url.hostname.includes('youtu.be')) {
@@ -24,7 +24,7 @@ function extractVideoId(input: string): string | null {
   return null;
 }
 
-function getTrackName(track: CaptionTrack): string {
+export function getTrackName(track: CaptionTrack): string {
   if (track.name?.simpleText) {
     return track.name.simpleText;
   }
@@ -34,7 +34,7 @@ function getTrackName(track: CaptionTrack): string {
   return track.languageCode || 'Subtitle';
 }
 
-function extractBalancedJson(html: string, marker: string): any | null {
+export function extractBalancedJson(html: string, marker: string): any | null {
   const markerIndex = html.indexOf(marker);
   if (markerIndex < 0) {
     return null;
@@ -78,7 +78,7 @@ function extractBalancedJson(html: string, marker: string): any | null {
   return null;
 }
 
-function decodeEntities(value: string): string {
+export function decodeEntities(value: string): string {
   return value
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
@@ -87,7 +87,7 @@ function decodeEntities(value: string): string {
     .replace(/&#39;/g, "'");
 }
 
-function parseJson3Captions(data: any) {
+export function parseJson3Captions(data: any) {
   const events = Array.isArray(data?.events) ? data.events : [];
   return events
     .filter((event: any) => Array.isArray(event.segs) && Number.isFinite(event.tStartMs))
@@ -108,7 +108,7 @@ function parseJson3Captions(data: any) {
     .filter((segment: any) => segment.text.length > 0);
 }
 
-function parseXmlCaptions(xml: string) {
+export function parseXmlCaptions(xml: string) {
   const matches = [...xml.matchAll(/<text[^>]*start="([^"]+)"[^>]*(?:dur="([^"]+)")?[^>]*>([\s\S]*?)<\/text>/g)];
   return matches
     .map((match) => {
@@ -126,7 +126,7 @@ function parseXmlCaptions(xml: string) {
     .filter((segment) => Number.isFinite(segment.startTime) && segment.text.length > 0);
 }
 
-function withFormat(url: string, format: string): string {
+export function withFormat(url: string, format: string): string {
   const parsed = new URL(url);
   parsed.searchParams.set('fmt', format);
   return parsed.toString();

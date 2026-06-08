@@ -125,6 +125,7 @@ export async function analyzeVideoMetadata(
     // 🎯 暂时不在这里检测hasAudioTrack，因为音频数据还没加载
     // 将在音频数据加载后再检测
     let hasAudioTrack = false;
+    const amplitudeSamples: number[] = [];
 
     try {
       const AudioContextCls = (window.AudioContext || (window as any).webkitAudioContext) as typeof AudioContext | undefined;
@@ -232,7 +233,6 @@ export async function analyzeVideoMetadata(
       console.log('[Audio Analysis] 🔌 Audio pipeline connected: video -> source -> analyser -> gain -> destination');
 
       const dataArray = new Uint8Array(analyser.fftSize);
-      const amplitudeSamples: number[] = [];
       
       // 🎯 关键修复：立即resume AudioContext，不要等到循环内部
       await audioContext.resume();

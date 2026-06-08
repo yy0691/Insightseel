@@ -45,6 +45,7 @@ interface WelcomeScreenProps {
   onImportFiles: (files: FileList) => void;
   onImportFolderSelection: (files: FileList) => void;
   onImportUrl: (url: string) => void;
+  onOpenYouTubeModal?: () => void;
   onLogin: () => void;
   onRegister: () => void;
   onOpenAccount?: () => void;
@@ -80,6 +81,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   onImportFiles,
   onImportFolderSelection,
   onImportUrl,
+  onOpenYouTubeModal,
   onLogin,
   onRegister,
   onOpenAccount,
@@ -106,9 +108,11 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   const triggerFileUpload = () => fileInputRef.current?.click();
   const triggerFolderUpload = () => folderInputRef.current?.click();
   const triggerUrlImport = () => {
-    const url = window.prompt('Paste a YouTube video link');
-    if (url?.trim()) {
-      onImportUrl(url.trim());
+    if (onOpenYouTubeModal) {
+      onOpenYouTubeModal();
+    } else {
+      const url = window.prompt('Paste a YouTube video link');
+      if (url?.trim()) onImportUrl(url.trim());
     }
   };
 

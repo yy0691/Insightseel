@@ -49,6 +49,7 @@ interface SubtitleGenerationOptions {
   onStatus?: (status: StatusUpdate) => void;
   onStreamText?: (text: string) => void;
   onPartialSubtitles?: (segments: SubtitleSegment[]) => Promise<void> | void;
+  onSegmentComplete?: (completed: number, total: number) => void;
 }
 
 interface SubtitleGenerationResult {
@@ -331,7 +332,7 @@ async function runVisualSubtitleGeneration(
 export async function generateResilientSubtitles(
   options: SubtitleGenerationOptions & { skipCache?: boolean },
 ): Promise<SubtitleGenerationResult> {
-  const { video, videoHash, onStatus, onPartialSubtitles, skipCache = false, abortSignal } = options;
+  const { video, videoHash, onStatus, onPartialSubtitles, onSegmentComplete, skipCache = false, abortSignal } = options;
 
   onStatus?.({ stage: 'Checking cache...', progress: 5 });
   if (videoHash && !skipCache) {
@@ -502,6 +503,7 @@ export async function generateResilientSubtitles(
       },
       onSegmentComplete: (segmentIndex, totalSegments, segments) => {
         console.log(`[Router] Segment ${segmentIndex + 1}/${totalSegments} completed with ${segments.length} subtitles`);
+        onSegmentComplete?.(segmentIndex + 1, totalSegments);
         if (onPartialSubtitles) {
           const result = onPartialSubtitles(segments);
           if (result instanceof Promise) {

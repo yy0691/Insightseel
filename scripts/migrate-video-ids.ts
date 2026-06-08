@@ -51,7 +51,7 @@ export async function migrateVideoIds(): Promise<MigrationResult> {
       const oldId = video.id;
       
       // 生成新的 UUID（使用相同的逻辑确保一致性）
-      const newId = generateDeterministicUUID(oldId);
+      const newId = await generateDeterministicUUID(oldId);
       
       try {
         // 2. 获取关联数据

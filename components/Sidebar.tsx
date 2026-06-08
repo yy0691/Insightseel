@@ -52,6 +52,7 @@ interface SidebarProps {
   onImportFiles: (files: FileList) => void;
   onImportFolderSelection: (files: FileList) => void;
   onImportUrl?: (url: string) => void;
+  onOpenYouTubeModal?: () => void;
   isCollapsed: boolean;
   onToggle: () => void;
   onOpenSettings: () => void;
@@ -346,6 +347,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onImportFiles,
   onImportFolderSelection,
   onImportUrl,
+  onOpenYouTubeModal,
   isCollapsed,
   onToggle,
   onOpenSettings,
@@ -447,11 +449,14 @@ const Sidebar: React.FC<SidebarProps> = ({
   };
 
   const handleImportUrlClick = () => {
-    const url = window.prompt('Paste a YouTube video link');
-    if (url?.trim()) {
-      onImportUrl?.(url.trim());
-    }
     setShowImportMenu(false);
+    if (onOpenYouTubeModal) {
+      onOpenYouTubeModal();
+    } else {
+      // fallback for environments without the modal
+      const url = window.prompt('Paste a YouTube video link');
+      if (url?.trim()) onImportUrl?.(url.trim());
+    }
   };
 
   const toggleFolder = (folderPath: string, e?: React.MouseEvent) => {

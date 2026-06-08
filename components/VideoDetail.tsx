@@ -10,6 +10,20 @@ import { generateResilientSubtitles, generateResilientInsights } from '../servic
 import { isSegmentedProcessingAvailable } from '../services/segmentedProcessor';
 import { isDeepgramAvailable, estimateDeepgramProcessingTime } from '../services/deepgramService';
 import { toast } from '../hooks/useToastStore';
+import { BaseModal } from './ui/BaseModal';
+import { classifyError } from '../services/errorClassifier';
+import { getErrorDisplay } from '../utils/errorMessages';
+import {
+  recordGenerationStart,
+  recordSegmentComplete,
+  clearGenerationProgress,
+  getGenerationProgress,
+} from '../services/generationProgressStore';
+import {
+  saveBenchmarkRecord,
+  readPeakMemoryMB,
+  type BenchmarkRecord,
+} from '../services/benchmarkService';
 
 import ChatPanel from './ChatPanel';
 import NotesPanel from './NotesPanel';
@@ -125,14 +139,61 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
   const [selectedVideoLanguage, setSelectedVideoLanguage] = useState<string | null>(null);
 
   const [generationStatus, setGenerationStatus] = useState({ active: false, stage: '', progress: 0 });
+  const [segmentStatus, setSegmentStatus] = useState<{ completed: number; total: number } | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const benchmarkStartRef = useRef<{ startedAt: number; peakMemoryMB: number | null } | null>(null);
   const [streamingSubtitles, setStreamingSubtitles] = useState(''); // For real-time subtitle display
   const [videoHash, setVideoHash] = useState<string>(''); // Video hash for caching
   const [segmentedAvailable, setSegmentedAvailable] = useState(false);
+
+  // Confirm-modal state (async await pattern)
+  const [confirmModal, setConfirmModal] = useState<{
+    title: string;
+    message: string;
+    confirmLabel?: string;
+    resolve: (ok: boolean) => void;
+  } | null>(null);
+
+  // Recovery prompt for interrupted long-video generation
+  const [recoveryModal, setRecoveryModal] = useState<{
+    open: boolean;
+    completedSegments: number;
+    totalSegments: number;
+    language: string;
+  } | null>(null);
   const summaryAnalysis = analyses.find(a => a.type === 'summary');
   const topicsAnalysis = analyses.find(a => a.type === 'topics');
   const keyInfoAnalysis = analyses.find(a => a.type === 'key-info');
   const [activeTopic, setActiveTopic] = useState<string | null>(null);
+
+  // Promise-based confirm dialog — replaces window.confirm inside async handlers
+  const showConfirmAsync = (
+    title: string,
+    message: string,
+    confirmLabel?: string,
+  ): Promise<boolean> =>
+    new Promise((resolve) => {
+      setConfirmModal({ title, message, confirmLabel, resolve });
+    });
+
+  // Recovery prompt: show when a prior generation was interrupted for this video
+  useEffect(() => {
+    if (!video?.id || isGeneratingSubtitles) return;
+    const pending = getGenerationProgress(video.id);
+    if (!pending) return;
+    // Only surface if partial subtitles already exist
+    if (!subtitles || subtitles.segments.length === 0) {
+      clearGenerationProgress(video.id);
+      return;
+    }
+    setRecoveryModal({
+      open: true,
+      completedSegments: pending.completedSegments,
+      totalSegments: pending.totalSegments,
+      language: pending.language,
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [video?.id]);
 
   // 🎯 语言映射函数：将语言代码映射到全称
   const mapLanguageCodeToName = useCallback((langCode: string | null): string => {
@@ -517,15 +578,22 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
             }, 500);
           }
         } catch (err) {
-          alert(err instanceof Error ? err.message : 'Failed to parse subtitle file.');
+          const c = classifyError(err);
+          const d = getErrorDisplay(c, language);
+          toast.error({ title: d.title, description: d.description, duration: d.toastDuration });
         }
       };
       reader.onerror = () => {
-        alert('Failed to read the subtitle file.');
+        toast.error({
+          title: language === 'zh' ? '读取字幕文件失败' : 'Failed to Read Subtitle File',
+          description: language === 'zh' ? '无法读取所选文件，请重试。' : 'The file could not be read. Please try again.',
+        });
       };
       reader.readAsText(file);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'An error occurred during import.');
+      const c = classifyError(err);
+      const d = getErrorDisplay(c, language);
+      toast.error({ title: d.title, description: d.description, duration: d.toastDuration });
     }
   };
 
@@ -537,9 +605,13 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
     }
 
     if (video.sourceType === 'youtube') {
-      alert(language === 'zh'
-        ? 'YouTube 视频会优先导入平台字幕。当前不支持对在线 YouTube 视频重新转写，请重新导入链接以刷新字幕。'
-        : 'YouTube videos use imported platform captions. Online retranscription is not supported yet; re-import the link to refresh captions.');
+      toast.info({
+        title: language === 'zh' ? '无法重新转写' : 'Retranscription Not Supported',
+        description: language === 'zh'
+          ? 'YouTube 视频优先使用平台字幕，不支持重新转写。请重新导入链接以刷新字幕。'
+          : 'YouTube videos use imported platform captions. Re-import the link to refresh captions.',
+        duration: 5000,
+      });
       return;
     }
 
@@ -571,7 +643,13 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
     const fileSizeMB = video.file.size / (1024 * 1024);
 
     if (fileSizeGB > 2) {
-      alert(`Video file is ${fileSizeGB.toFixed(2)}GB, which exceeds the 2GB limit for subtitle generation. Please use a smaller video file.`);
+      toast.error({
+        title: language === 'zh' ? '文件过大' : 'File Too Large',
+        description: language === 'zh'
+          ? `视频文件为 ${fileSizeGB.toFixed(2)}GB，超过 2GB 上限，请使用较小的文件。`
+          : `Video is ${fileSizeGB.toFixed(2)}GB, which exceeds the 2GB limit. Please use a smaller file.`,
+        duration: 6000,
+      });
       return;
     }
 
@@ -668,14 +746,14 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
       }
 
       if (!canHandleFullVideo && durationMin > MAX_SUBTITLE_DURATION_MIN) {
-        const proceed = confirm(
-          `This video is ${durationMin.toFixed(1)} minutes long.\n\n` +
-          `To avoid proxy timeout, only the first ${MAX_SUBTITLE_DURATION_MIN} minutes will be used for subtitle generation.\n\n` +
-          `Estimated processing time: ${estimateText}.\n\n` +
-          `Continue?`
+        const proceed = await showConfirmAsync(
+          language === 'zh' ? '长视频检测' : 'Long Video Detected',
+          language === 'zh'
+            ? `视频时长 ${durationMin.toFixed(1)} 分钟。\n\n为避免代理超时，仅处理前 ${MAX_SUBTITLE_DURATION_MIN} 分钟。\n\n预计处理时间：${estimateText}。`
+            : `This video is ${durationMin.toFixed(1)} minutes long.\n\nTo avoid proxy timeout, only the first ${MAX_SUBTITLE_DURATION_MIN} minutes will be processed.\n\nEstimated time: ${estimateText}.`,
+          language === 'zh' ? '继续' : 'Continue',
         );
         if (!proceed) {
-          // User cancelled, reset state
           setIsGeneratingSubtitles(false);
           setGenerationStatus({ active: false, stage: '', progress: 0 });
           return;
@@ -691,7 +769,12 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
 
     // Update status (initial state already set above)
     setStreamingSubtitles('');
+    setSegmentStatus(null);
     setGenerationStatus({ active: true, stage: 'Checking cache...', progress: 5 });
+
+    // Record generation start for recovery detection + benchmark
+    recordGenerationStart(video.id, langToUse ?? 'auto');
+    benchmarkStartRef.current = { startedAt: Date.now(), peakMemoryMB: readPeakMemoryMB() };
 
     // 🎯 重要：直接使用当前选择的语言，而不是依赖 sourceLanguage state
     // 因为 setState 是异步的，sourceLanguage 可能还没有更新
@@ -715,6 +798,10 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
         abortSignal: abortControllerRef.current?.signal,
         onStatus: ({ stage, progress }) => setGenerationStatus({ active: true, stage, progress }),
         onStreamText: (text) => setStreamingSubtitles(text),
+        onSegmentComplete: (completed, total) => {
+          setSegmentStatus({ completed, total });
+          recordSegmentComplete(video.id, completed, total);
+        },
         onPartialSubtitles: async (segments) => {
           const partialSubtitles: Subtitles = {
             id: video.id,
@@ -734,10 +821,31 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
       onSubtitlesChange(video.id);
 
       setGenerationStatus({ active: true, stage: 'Complete!', progress: 100 });
+      clearGenerationProgress(video.id);
+
+      // Save benchmark record
+      if (benchmarkStartRef.current) {
+        const bm: BenchmarkRecord = {
+          videoId: video.id,
+          videoName: video.name,
+          durationSeconds: video.duration ?? 0,
+          fileSizeMB: video.file.size / (1024 * 1024),
+          provider: 'auto',
+          startedAt: benchmarkStartRef.current.startedAt,
+          completedAt: Date.now(),
+          success: true,
+          segmentCount: result.segments.length,
+          coveredSeconds: result.segments.reduce((s, seg) => Math.max(s, seg.endTime), 0),
+          peakMemoryMB: readPeakMemoryMB(),
+        };
+        saveBenchmarkRecord(bm);
+        benchmarkStartRef.current = null;
+      }
 
       // 🎯 字幕生成完成后，自动生成见解
       setTimeout(() => {
         setGenerationStatus({ active: false, stage: '', progress: 0 });
+        setSegmentStatus(null);
 
         // 检查是否已有见解，如果没有则自动生成
         if (analyses.length === 0) {
@@ -756,32 +864,47 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
 
       return; // 提前返回，避免执行下面的 finally
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to generate subtitles.';
       console.error('Subtitle generation error:', err);
+      const classified = classifyError(err);
 
-      let userMessage = errorMessage;
-      if (errorMessage.includes('unable to generate valid subtitles')) {
-        userMessage += '\n\nPossible causes:\n' +
-          '1. Video audio quality is too low\n' +
-          '2. Selected language does not match video language\n' +
-          '3. Video contains mostly music/noise instead of speech\n' +
-          '4. API quota exceeded or network issue\n\n' +
-          'Check browser console (F12) for detailed logs.';
+      // Save failed benchmark record
+      if (benchmarkStartRef.current) {
+        const bm: BenchmarkRecord = {
+          videoId: video.id,
+          videoName: video.name,
+          durationSeconds: video.duration ?? 0,
+          fileSizeMB: video.file.size / (1024 * 1024),
+          provider: 'auto',
+          startedAt: benchmarkStartRef.current.startedAt,
+          completedAt: Date.now(),
+          success: false,
+          failureCategory: classified.category,
+          segmentCount: 0,
+          coveredSeconds: 0,
+          peakMemoryMB: readPeakMemoryMB(),
+        };
+        saveBenchmarkRecord(bm);
+        benchmarkStartRef.current = null;
       }
 
-      // Check if error was due to cancellation
-      if (errorMessage.includes('aborted') || errorMessage.includes('cancelled')) {
-        console.log('[VideoDetail] Subtitle generation was cancelled by user');
+      if (classified.category !== 'cancelled') {
+        const d = getErrorDisplay(classified, language);
+        const hint = language === 'zh'
+          ? '部分结果可能已保存，可尝试重新生成。'
+          : 'Partial results may have been saved. You can try regenerating.';
+        toast.error({ title: d.title, description: `${d.description} ${hint}`, duration: d.toastDuration });
       } else {
-        alert(`${userMessage}\n\nPartial results may have been saved. Try reloading the page.`);
+        console.log('[VideoDetail] Subtitle generation was cancelled by user');
       }
     } finally {
       // 只有在错误情况下才执行 finally（成功时已经 return 了）
       abortControllerRef.current = null;
       setIsGeneratingSubtitles(false);
       setStreamingSubtitles('');
+      benchmarkStartRef.current = null;
       setTimeout(() => {
         setGenerationStatus({ active: false, stage: '', progress: 0 });
+        setSegmentStatus(null);
       }, 1000);
     }
   };
@@ -790,7 +913,10 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
     if (!subtitles || !subtitles.segments || subtitles.segments.length === 0) return;
 
     if (subtitles.segments.some(seg => seg.translatedText)) {
-      alert(t('subtitlesAlreadyTranslated') || 'Subtitles are already translated!');
+      toast.info({
+        title: language === 'zh' ? '字幕已翻译' : 'Already Translated',
+        description: t('subtitlesAlreadyTranslated') || (language === 'zh' ? '字幕已经翻译过了。' : 'Subtitles are already translated.'),
+      });
       return;
     }
 
@@ -845,7 +971,9 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
       }, 1000);
     } catch (err) {
       console.error('[Translation] Error:', err);
-      alert(err instanceof Error ? err.message : 'Failed to translate subtitles.');
+      const c = classifyError(err);
+      const d = getErrorDisplay(c, language);
+      toast.error({ title: d.title, description: d.description, duration: d.toastDuration });
       setGenerationStatus({ active: false, stage: '', progress: 0 });
       setIsTranslationFromUser(false);
     } finally {
@@ -1030,6 +1158,13 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
               {isGeneratingSubtitles || isTranslating ? (
                 <div className="flex flex-col items-center justify-center min-h-full text-center px-6">
                   <p className="mt-4 text-sm text-slate-700">{isTranslating ? t('translatingSubtitles') : generationStatus.stage || t('generatingSubtitles')}</p>
+                  {segmentStatus && segmentStatus.total > 1 && (
+                    <p className="text-xs text-slate-500 mt-1">
+                      {language === 'zh'
+                        ? `片段 ${segmentStatus.completed}/${segmentStatus.total}`
+                        : `Segment ${segmentStatus.completed}/${segmentStatus.total}`}
+                    </p>
+                  )}
                   {generationStatus.progress > 0 && (
                     <div className="w-full max-w-xs bg-slate-200 rounded-full mt-3">
                       <div className="bg-slate-500 h-1.5 rounded-full transition-all" style={{ width: `${generationStatus.progress}%` }}></div>
@@ -1192,7 +1327,7 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
                       {t('importSubtitles')}
                     </button>
                     <button
-                      onClick={handleGenerateSubtitles}
+                      onClick={() => handleGenerateSubtitles()}
                       disabled={isGeneratingSubtitles}
                       className="inline-flex items-center px-4 py-2 text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-full hover:bg-slate-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
                     >
@@ -1587,41 +1722,105 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
       )}
 
       {/* 重新生成字幕确认对话框 */}
-      {showRegenerateConfirmModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
-            <div className="px-6 py-5 border-b border-slate-200">
-              <h3 className="text-lg font-semibold text-slate-900">
-                {language === 'zh' ? '重新生成字幕' : 'Regenerate Subtitles'}
-              </h3>
-            </div>
-            <div className="px-6 py-5">
-              <p className="text-sm text-slate-600 mb-4">
-                {language === 'zh'
-                  ? '确定要重新生成字幕吗？这将清除当前字幕并重新生成，可能需要一些时间。'
-                  : 'Are you sure you want to regenerate subtitles? This will clear the current subtitles and regenerate them, which may take some time.'}
-              </p>
-              <div className="flex gap-3 justify-end">
-                <button
-                  onClick={() => setShowRegenerateConfirmModal(false)}
-                  className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 transition"
-                >
-                  {language === 'zh' ? '取消' : 'Cancel'}
-                </button>
-                <button
-                  onClick={async () => {
-                    setShowRegenerateConfirmModal(false);
-                    // 使用之前选择的语言重新生成
-                    await handleGenerateSubtitles(true, selectedVideoLanguage || undefined);
-                  }}
-                  className="px-4 py-2 text-sm font-medium text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition"
-                >
-                  {language === 'zh' ? '确认重新生成' : 'Confirm Regenerate'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+      <BaseModal
+        open={showRegenerateConfirmModal}
+        onOpenChange={setShowRegenerateConfirmModal}
+        size="sm"
+      >
+        <BaseModal.Header
+          title={language === 'zh' ? '重新生成字幕' : 'Regenerate Subtitles'}
+          subtitle={
+            language === 'zh'
+              ? '这将清除当前字幕并重新生成，可能需要一些时间。'
+              : 'This will clear the current subtitles and regenerate them, which may take some time.'
+          }
+        />
+        <BaseModal.Footer>
+          <button
+            onClick={() => setShowRegenerateConfirmModal(false)}
+            className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 transition"
+          >
+            {language === 'zh' ? '取消' : 'Cancel'}
+          </button>
+          <button
+            onClick={async () => {
+              setShowRegenerateConfirmModal(false);
+              await handleGenerateSubtitles(true, selectedVideoLanguage || undefined);
+            }}
+            className="px-5 py-2 text-sm font-medium text-white bg-slate-900 rounded-xl hover:bg-slate-800 transition"
+          >
+            {language === 'zh' ? '确认重新生成' : 'Confirm Regenerate'}
+          </button>
+        </BaseModal.Footer>
+      </BaseModal>
+
+      {/* Generic async confirm dialog */}
+      {confirmModal && (
+        <BaseModal
+          open={true}
+          onOpenChange={(open) => { if (!open) { confirmModal.resolve(false); setConfirmModal(null); } }}
+          size="sm"
+          closeOnOverlayClick={false}
+        >
+          <BaseModal.Header title={confirmModal.title} />
+          <BaseModal.Body>
+            <p className="text-sm text-slate-600 whitespace-pre-line">{confirmModal.message}</p>
+          </BaseModal.Body>
+          <BaseModal.Footer>
+            <button
+              onClick={() => { confirmModal.resolve(false); setConfirmModal(null); }}
+              className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 transition"
+            >
+              {language === 'zh' ? '取消' : 'Cancel'}
+            </button>
+            <button
+              onClick={() => { confirmModal.resolve(true); setConfirmModal(null); }}
+              className="px-5 py-2 text-sm font-medium text-white bg-slate-900 rounded-xl hover:bg-slate-800 transition"
+            >
+              {confirmModal.confirmLabel ?? (language === 'zh' ? '确认' : 'Confirm')}
+            </button>
+          </BaseModal.Footer>
+        </BaseModal>
+      )}
+
+      {/* Recovery prompt for interrupted generation */}
+      {recoveryModal?.open && (
+        <BaseModal
+          open={true}
+          onOpenChange={() => setRecoveryModal(null)}
+          size="sm"
+        >
+          <BaseModal.Header
+            title={language === 'zh' ? '上次生成未完成' : 'Previous Generation Incomplete'}
+            subtitle={
+              recoveryModal.totalSegments > 1
+                ? (language === 'zh'
+                  ? `已完成 ${recoveryModal.completedSegments}/${recoveryModal.totalSegments} 片段，部分字幕已保存。`
+                  : `Completed ${recoveryModal.completedSegments}/${recoveryModal.totalSegments} segments. Partial subtitles are saved.`)
+                : (language === 'zh'
+                  ? '字幕生成被中断，部分字幕已保存。'
+                  : 'Subtitle generation was interrupted. Partial subtitles are saved.')
+            }
+          />
+          <BaseModal.Footer>
+            <button
+              onClick={() => setRecoveryModal(null)}
+              className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 transition"
+            >
+              {language === 'zh' ? '忽略' : 'Dismiss'}
+            </button>
+            <button
+              onClick={() => {
+                setRecoveryModal(null);
+                clearGenerationProgress(video.id);
+                handleGenerateSubtitles(true, recoveryModal.language || undefined);
+              }}
+              className="px-5 py-2 text-sm font-medium text-white bg-slate-900 rounded-xl hover:bg-slate-800 transition"
+            >
+              {language === 'zh' ? '重新生成' : 'Regenerate'}
+            </button>
+          </BaseModal.Footer>
+        </BaseModal>
       )}
     </div>
   );

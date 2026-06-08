@@ -40,6 +40,10 @@ import { authService, type Profile } from "./services/authService";
 import autoSyncService, { getSyncStatus } from "./services/autoSyncService";
 import { saveSubtitles } from "./services/subtitleService";
 import { fetchYouTubeCaptions } from "./services/onlineVideoService";
+import { classifyError } from "./services/errorClassifier";
+import { getErrorDisplay } from "./utils/errorMessages";
+import { BaseModal } from "./components/ui/BaseModal";
+import YouTubeImportModal from "./components/YouTubeImportModal";
 
 const SUPPORTED_SUBTITLE_EXTENSIONS = [".srt", ".vtt"];
 
@@ -184,6 +188,25 @@ const AppContent: React.FC<{
   const [syncStatusSnapshot, setSyncStatusSnapshot] = useState(() =>
     getSyncStatus(),
   );
+
+  // YouTube import modal
+  const [showYouTubeModal, setShowYouTubeModal] = useState(false);
+  const youtubeCallbackRef = React.useRef<((url: string) => void) | null>(null);
+
+  // YouTube failure modal
+  const [youtubeFailModal, setYoutubeFailModal] = useState<{
+    url: string;
+    title: string;
+    description: string;
+    retryable: boolean;
+  } | null>(null);
+
+  // Generic delete confirm modal
+  const [deleteConfirmModal, setDeleteConfirmModal] = useState<{
+    title: string;
+    message: string;
+    onConfirm: () => Promise<void>;
+  } | null>(null);
 
   const { t, language } = useLanguage();
 
@@ -664,8 +687,16 @@ const AppContent: React.FC<{
         duration: 3000,
       });
     } catch (err) {
-      handleError(err, language === 'zh' ? 'YouTube 字幕导入失败' : 'Failed to import YouTube captions');
+      const classified = classifyError(err, { operation: 'youtube' });
+      const d = getErrorDisplay(classified, language);
+      setYoutubeFailModal({ url: trimmedUrl, title: d.title, description: d.description, retryable: classified.retryable });
+    
     }
+  };
+
+  const openYouTubeModal = () => {
+    youtubeCallbackRef.current = handleImportOnlineVideo;
+    setShowYouTubeModal(true);
   };
 
   // Import folder
@@ -692,78 +723,69 @@ const AppContent: React.FC<{
   };
 
   // Delete video
-  const handleDeleteVideo = async (videoId: string) => {
+  const handleDeleteVideo = (videoId: string) => {
     const videoToDelete = videos.find((v) => v.id === videoId);
     if (!videoToDelete) return;
-    if (window.confirm(t("deleteVideoConfirmation", videoToDelete.name))) {
-      try {
-        await appDB.deleteVideo(videoId);
-        const remainingVideos = videos.filter((v) => v.id !== videoId);
-        setVideos(remainingVideos);
-        if (selectedVideoId === videoId) {
-          setSelectedVideoId(
-            remainingVideos.length > 0 ? remainingVideos[0].id : null,
-          );
+    setDeleteConfirmModal({
+      title: language === 'zh' ? '删除视频' : 'Delete Video',
+      message: t("deleteVideoConfirmation", videoToDelete.name),
+      onConfirm: async () => {
+        try {
+          await appDB.deleteVideo(videoId);
+          const remainingVideos = videos.filter((v) => v.id !== videoId);
+          setVideos(remainingVideos);
+          if (selectedVideoId === videoId) {
+            setSelectedVideoId(remainingVideos.length > 0 ? remainingVideos[0].id : null);
+          }
+        } catch (err) {
+          handleError(err, "Failed to delete video.");
         }
-      } catch (err) {
-        handleError(err, "Failed to delete video.");
-      }
-    }
+      },
+    });
   };
 
   // Delete folder
-  const handleDeleteFolder = async (folderPath: string) => {
+  const handleDeleteFolder = (folderPath: string) => {
     const videosInFolder = videos.filter((v) => v.folderPath === folderPath);
     if (videosInFolder.length === 0) return;
-    if (
-      window.confirm(
-        t("deleteFolderConfirmation", folderPath, videosInFolder.length),
-      )
-    ) {
-      try {
-        await Promise.all(videosInFolder.map((v) => appDB.deleteVideo(v.id)));
-        const remainingVideos = videos.filter(
-          (v) => v.folderPath !== folderPath,
-        );
-        setVideos(remainingVideos);
-        const isSelectedVideoDeleted = videosInFolder.some(
-          (v) => v.id === selectedVideoId,
-        );
-        if (isSelectedVideoDeleted) {
-          setSelectedVideoId(
-            remainingVideos.length > 0 ? remainingVideos[0].id : null,
-          );
+    setDeleteConfirmModal({
+      title: language === 'zh' ? '删除文件夹' : 'Delete Folder',
+      message: t("deleteFolderConfirmation", folderPath, videosInFolder.length),
+      onConfirm: async () => {
+        try {
+          await Promise.all(videosInFolder.map((v) => appDB.deleteVideo(v.id)));
+          const remainingVideos = videos.filter((v) => v.folderPath !== folderPath);
+          setVideos(remainingVideos);
+          const isSelectedVideoDeleted = videosInFolder.some((v) => v.id === selectedVideoId);
+          if (isSelectedVideoDeleted) {
+            setSelectedVideoId(remainingVideos.length > 0 ? remainingVideos[0].id : null);
+          }
+        } catch (err) {
+          handleError(err, "Failed to delete folder.");
         }
-      } catch (err) {
-        handleError(err, "Failed to delete folder.");
-      }
-    }
+      },
+    });
   };
 
   // Batch delete videos
-  const handleBatchDelete = async (videoIds: string[]) => {
+  const handleBatchDelete = (videoIds: string[]) => {
     if (videoIds.length === 0) return;
-
-    if (
-      window.confirm(
-        t("batchDeleteConfirmation", videoIds.length),
-      )
-    ) {
-      try {
-        await Promise.all(videoIds.map(id => appDB.deleteVideo(id)));
-        const remainingVideos = videos.filter(v => !videoIds.includes(v.id));
-        setVideos(remainingVideos);
-
-        // If selected video was deleted, select another one
-        if (selectedVideoId && videoIds.includes(selectedVideoId)) {
-          setSelectedVideoId(
-            remainingVideos.length > 0 ? remainingVideos[0].id : null,
-          );
+    setDeleteConfirmModal({
+      title: language === 'zh' ? '批量删除' : 'Delete Videos',
+      message: t("batchDeleteConfirmation", videoIds.length),
+      onConfirm: async () => {
+        try {
+          await Promise.all(videoIds.map((id) => appDB.deleteVideo(id)));
+          const remainingVideos = videos.filter((v) => !videoIds.includes(v.id));
+          setVideos(remainingVideos);
+          if (selectedVideoId && videoIds.includes(selectedVideoId)) {
+            setSelectedVideoId(remainingVideos.length > 0 ? remainingVideos[0].id : null);
+          }
+        } catch (err) {
+          handleError(err, "Failed to delete selected videos.");
         }
-      } catch (err) {
-        handleError(err, "Failed to delete selected videos.");
-      }
-    }
+      },
+    });
   };
 
   // Save settings
@@ -869,6 +891,7 @@ const AppContent: React.FC<{
               onImportFiles={handleFileImports}
               onImportFolderSelection={handleImportFolderSelection}
               onImportUrl={handleImportOnlineVideo}
+              onOpenYouTubeModal={openYouTubeModal}
               isCollapsed={isSidebarCollapsed}
               onToggle={() => setIsSidebarCollapsed((prev) => !prev)}
               onOpenSettings={() => setIsSettingsModalOpen(true)}
@@ -911,6 +934,10 @@ const AppContent: React.FC<{
                   onImportUrl={(url) => {
                     handleImportOnlineVideo(url);
                     setIsMobileSidebarOpen(false);
+                  }}
+                  onOpenYouTubeModal={() => {
+                    setIsMobileSidebarOpen(false);
+                    openYouTubeModal();
                   }}
                   isCollapsed={false}
                   onToggle={() => setIsMobileSidebarOpen(false)}
@@ -995,6 +1022,7 @@ const AppContent: React.FC<{
               onImportFiles={handleFileImports}
               onImportFolderSelection={handleImportFolderSelection}
               onImportUrl={handleImportOnlineVideo}
+              onOpenYouTubeModal={openYouTubeModal}
               onLogin={() => openAuthModal("signin")}
               onRegister={() => openAuthModal("signup")}
               onOpenAccount={() => setShowAccountPanel(true)}
@@ -1044,6 +1072,84 @@ const AppContent: React.FC<{
       }
       {/* Task Queue Panel - Floating task status indicator */}
       <TaskQueuePanel />
+
+      {/* YouTube import modal */}
+      <YouTubeImportModal
+        open={showYouTubeModal}
+        onOpenChange={setShowYouTubeModal}
+        language={language}
+        onImport={(url) => {
+          youtubeCallbackRef.current?.(url);
+          youtubeCallbackRef.current = null;
+        }}
+      />
+
+      {/* YouTube failure modal — reason + retry + dismiss */}
+      {youtubeFailModal && (
+        <BaseModal
+          open={true}
+          onOpenChange={() => setYoutubeFailModal(null)}
+          size="sm"
+        >
+          <BaseModal.Header
+            title={youtubeFailModal.title}
+            subtitle={youtubeFailModal.description}
+          />
+          <BaseModal.Footer>
+            <button
+              onClick={() => setYoutubeFailModal(null)}
+              className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 transition"
+            >
+              {language === 'zh' ? '关闭' : 'Dismiss'}
+            </button>
+            {youtubeFailModal.retryable && (
+              <button
+                onClick={() => {
+                  const url = youtubeFailModal.url;
+                  setYoutubeFailModal(null);
+                  handleImportOnlineVideo(url);
+                }}
+                className="px-5 py-2 text-sm font-medium text-white bg-slate-900 rounded-xl hover:bg-slate-800 transition"
+              >
+                {language === 'zh' ? '重试' : 'Retry'}
+              </button>
+            )}
+          </BaseModal.Footer>
+        </BaseModal>
+      )}
+
+      {/* Generic delete confirmation modal */}
+      {deleteConfirmModal && (
+        <BaseModal
+          open={true}
+          onOpenChange={(open) => { if (!open) setDeleteConfirmModal(null); }}
+          size="sm"
+          closeOnOverlayClick={false}
+        >
+          <BaseModal.Header title={deleteConfirmModal.title} />
+          <BaseModal.Body>
+            <p className="text-sm text-slate-600">{deleteConfirmModal.message}</p>
+          </BaseModal.Body>
+          <BaseModal.Footer>
+            <button
+              onClick={() => setDeleteConfirmModal(null)}
+              className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 transition"
+            >
+              {language === 'zh' ? '取消' : 'Cancel'}
+            </button>
+            <button
+              onClick={async () => {
+                const action = deleteConfirmModal.onConfirm;
+                setDeleteConfirmModal(null);
+                await action();
+              }}
+              className="px-5 py-2 text-sm font-medium text-white bg-red-600 rounded-xl hover:bg-red-700 transition"
+            >
+              {language === 'zh' ? '删除' : 'Delete'}
+            </button>
+          </BaseModal.Footer>
+        </BaseModal>
+      )}
     </div >
   );
 };

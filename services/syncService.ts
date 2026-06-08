@@ -207,9 +207,8 @@ async function syncFromCloud(userId: string): Promise<SyncResult> {
         await subtitleDB.put({
           id: subtitleData.id,
           videoId: metadata.id,
-          content: subtitleData.content,
-          language: subtitleData.language,
-          segments: subtitleData.segments,
+          segments: subtitleData.segments ?? [],
+          translatedLanguage: subtitleData.language ?? undefined,
         });
         result.synced.subtitles++;
       }
@@ -225,9 +224,10 @@ async function syncFromCloud(userId: string): Promise<SyncResult> {
           await analysisDB.put({
             id: analysis.id,
             videoId: metadata.id,
-            type: analysis.type as 'summary' | 'key-info' | 'topics',
-            title: analysis.title,
-            content: analysis.content,
+            type: analysis.type as Analysis['type'],
+            prompt: analysis.title ?? '',
+            result: analysis.content ?? '',
+            createdAt: analysis.created_at ?? new Date().toISOString(),
           });
           result.synced.analyses++;
         }
@@ -245,6 +245,7 @@ async function syncFromCloud(userId: string): Promise<SyncResult> {
           id: noteData.id,
           videoId: metadata.id,
           content: noteData.content,
+          updatedAt: noteData.updated_at ?? new Date().toISOString(),
         });
         result.synced.notes++;
       }

@@ -159,7 +159,7 @@ function detectHTML5Videos(): VideoSource[] {
       if (videoSrc) {
         videos.push({
           url: videoSrc,
-          type: videoEl.type || 'video/mp4',
+          type: videoEl.getAttribute('type') || 'video/mp4',
           provider: 'html5',
           title: videoEl.title || document.title,
           duration: videoEl.duration || undefined,
@@ -360,10 +360,9 @@ window.addEventListener('load', () => {
     { action: 'pageVideoDetected', data: videoInfo },
     () => {
       // Suppress errors when popup is not open
+      void chrome.runtime.lastError;
     }
-  ).catch(() => {
-    // Popup not open, ignore
-  });
+  );
 
   // Auto-inject sidebar for any video page
   const hasVideo = 

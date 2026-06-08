@@ -10,8 +10,48 @@ interface ProxyConfig {
   xTitle?: string;
 }
 
+// ---------------------------------------------------------------------------
+// Unified LLM config — single source of truth for Vercel deployments.
+// Set these three vars and everything works regardless of which "provider"
+// the frontend selects.
+//
+//   LLM_API_KEY   — your API key (Gemini, OpenAI, or any compatible endpoint)
+//   LLM_BASE_URL  — base URL (defaults to Google Gemini if omitted)
+//   LLM_MODEL     — model name (defaults to gemini-2.5-flash if omitted)
+//
+// Falls back to the legacy provider-specific vars for backward compatibility.
+// ---------------------------------------------------------------------------
+function getUnifiedLLMConfig(): ProxyConfig {
+  const apiKey =
+    process.env.LLM_API_KEY ||
+    process.env.GEMINI_API_KEY ||
+    process.env.OPENAI_API_KEY ||
+    process.env.CUSTOM_API_KEY ||
+    '';
+  const baseUrl =
+    process.env.LLM_BASE_URL ||
+    process.env.GEMINI_BASE_URL ||
+    process.env.CUSTOM_BASE_URL ||
+    'https://generativelanguage.googleapis.com';
+  const model =
+    process.env.LLM_MODEL ||
+    process.env.GEMINI_MODEL ||
+    process.env.CUSTOM_MODEL ||
+    'gemini-2.5-flash';
+  return { apiKey, baseUrl, model };
+}
+
+/** True when the base URL targets Google's Generative Language API */
+function isGeminiUrl(baseUrl: string): boolean {
+  return (
+    baseUrl.includes('generativelanguage.googleapis.com') ||
+    baseUrl.includes('aiplatform.googleapis.com')
+  );
+}
+
 /**
- * Get provider configuration from environment variables
+ * Get provider-specific configuration from environment variables.
+ * Returns provider-specific overrides; unified config is applied as fallback in the handler.
  */
 function getProviderConfig(provider: APIProvider): ProxyConfig | null {
   switch (provider) {
@@ -228,16 +268,28 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ error: 'Missing required field: contents' });
     }
 
-    // Get provider configuration
-    const config = getProviderConfig(provider as APIProvider);
-    
+    // Get provider-specific config, then fill missing fields from unified config
+    let config = getProviderConfig(provider as APIProvider);
     if (!config) {
-      return res.status(400).json({ error: `Unsupported provider: ${provider}` });
+      // Unknown provider label → treat as custom, use unified config
+      config = getUnifiedLLMConfig();
+    } else if (!config.apiKey) {
+      // Provider recognized but key not set → fall back to unified config
+      const unified = getUnifiedLLMConfig();
+      config = {
+        ...config,
+        apiKey: unified.apiKey,
+        baseUrl: config.baseUrl || unified.baseUrl,
+        model: (!config.model || config.model === 'default') ? unified.model : config.model,
+      };
     }
 
     if (!config.apiKey) {
-      return res.status(500).json({ 
-        error: `Server configuration error: ${provider.toUpperCase()}_API_KEY not set in environment variables.` 
+      return res.status(500).json({
+        error:
+          `LLM API key not configured. ` +
+          `Set LLM_API_KEY in Vercel environment variables ` +
+          `(or the legacy ${(provider as string).toUpperCase()}_API_KEY).`,
       });
     }
 
@@ -250,24 +302,17 @@ export default async function handler(req: any, res: any) {
       stream: stream || false,
     });
 
-    // Route to appropriate handler
+    // Route to the correct request format based on the endpoint URL, not the provider label.
+    // This means setting LLM_BASE_URL is enough to switch between Gemini and OpenAI-compatible APIs.
     let response: Response;
-    
-    switch (provider as APIProvider) {
-      case 'gemini':
-      case 'custom':
-        response = await handleGeminiRequest(config, contents, systemInstruction, stream);
-        break;
-      case 'openai':
-      case 'openai_compatible':
-      case 'xiaomi_mimo':
-        response = await handleOpenAIRequest(config, contents, systemInstruction, stream);
-        break;
-      case 'poe':
-        response = await handlePoeRequest(config, contents, systemInstruction);
-        break;
-      default:
-        return res.status(400).json({ error: `Unsupported provider: ${provider}` });
+    const useGeminiFormat = isGeminiUrl(config.baseUrl) || provider === 'gemini';
+
+    if (provider === 'poe') {
+      response = await handlePoeRequest(config, contents, systemInstruction);
+    } else if (useGeminiFormat) {
+      response = await handleGeminiRequest(config, contents, systemInstruction, stream);
+    } else {
+      response = await handleOpenAIRequest(config, contents, systemInstruction, stream);
     }
 
     if (!response.ok) {
@@ -315,28 +360,24 @@ export default async function handler(req: any, res: any) {
     
     // Normalize response format for different providers
     let normalizedData = data;
-    
-    if (provider === 'openai' || provider === 'openai_compatible' || provider === 'xiaomi_mimo') {
-      // Convert OpenAI format to Gemini-like format for consistency
+
+    if (!useGeminiFormat && provider !== 'poe') {
+      // OpenAI-compatible response → normalize to Gemini-like format for the frontend
       const text = data.choices?.[0]?.message?.content || '';
       normalizedData = {
         candidates: [{
-          content: {
-            parts: [{ text }]
-          },
-          finishReason: data.choices?.[0]?.finish_reason?.toUpperCase() || 'STOP'
-        }]
+          content: { parts: [{ text }] },
+          finishReason: data.choices?.[0]?.finish_reason?.toUpperCase() || 'STOP',
+        }],
       };
     } else if (provider === 'poe') {
-      // Convert Poe format to Gemini-like format
+      // Poe response → normalize to Gemini-like format
       const text = data.text || '';
       normalizedData = {
         candidates: [{
-          content: {
-            parts: [{ text }]
-          },
-          finishReason: 'STOP'
-        }]
+          content: { parts: [{ text }] },
+          finishReason: 'STOP',
+        }],
       };
     }
     

@@ -3,12 +3,17 @@ import { Video, Subtitles, Analysis, AnalysisType, Note, SubtitleDisplayMode } f
 
 // ── Subtitle style customisation ─────────────────────────────────────────────
 interface SubtitleStyle {
-  fontSize: number;       // px, applied as-is (no clamp)
+  fontSize: number;       // px
   textColor: string;      // hex
   bgOpacity: number;      // 0-100
+  posX: number;           // % from left of container (0-100)
+  posY: number;           // % from top of container (0-100)
 }
 const SUBTITLE_STYLE_KEY = 'subtitle-style-prefs';
-const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = { fontSize: 16, textColor: '#ffffff', bgOpacity: 75 };
+const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
+  fontSize: 16, textColor: '#ffffff', bgOpacity: 75,
+  posX: 50, posY: 85,
+};
 const loadSubtitleStyle = (): SubtitleStyle => {
   try {
     const raw = localStorage.getItem(SUBTITLE_STYLE_KEY);
@@ -150,9 +155,10 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
   const [showSubtitleSettings, setShowSubtitleSettings] = useState(false);
   const [subtitleStyle, setSubtitleStyle] = useState<SubtitleStyle>(loadSubtitleStyle);
   const subtitleSettingsRef = useRef<HTMLDivElement>(null);
+  const isDraggingSubtitle = useRef(false);
   const { t, language } = useLanguage();
 
-  // Persist subtitle style changes
+  // Persist subtitle style (including position) changes
   useEffect(() => {
     localStorage.setItem(SUBTITLE_STYLE_KEY, JSON.stringify(subtitleStyle));
   }, [subtitleStyle]);
@@ -168,6 +174,30 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [showSubtitleSettings]);
+
+  // Subtitle drag: mousemove/mouseup on document while dragging
+  useEffect(() => {
+    const onMove = (e: MouseEvent | TouchEvent) => {
+      if (!isDraggingSubtitle.current || !videoContainerRef.current) return;
+      const rect = videoContainerRef.current.getBoundingClientRect();
+      const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+      const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+      const newX = Math.max(5, Math.min(95, ((clientX - rect.left) / rect.width) * 100));
+      const newY = Math.max(5, Math.min(88, ((clientY - rect.top) / rect.height) * 100));
+      setSubtitleStyle(s => ({ ...s, posX: newX, posY: newY }));
+    };
+    const onUp = () => { isDraggingSubtitle.current = false; };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    document.addEventListener('touchmove', onMove);
+    document.addEventListener('touchend', onUp);
+    return () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onUp);
+    };
+  }, []);
 
   // 🔍 调试：检查传入组件的字幕数据
   useEffect(() => {
@@ -1293,7 +1323,7 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
                     className="w-full h-full cursor-pointer"
                   />
 
-                  {/* Subtitle overlay */}
+                  {/* Subtitle overlay — draggable */}
                   {showSubtitleOverlay && subtitles && activeSegmentIndex >= 0 && (() => {
                     const seg = subtitles.segments[activeSegmentIndex];
                     const showOriginal = displayMode === 'original' || displayMode === 'bilingual';
@@ -1301,9 +1331,21 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
                     const fallbackToOriginal = displayMode === 'translated' && !seg?.translatedText;
                     const bgRgba = `rgba(0,0,0,${subtitleStyle.bgOpacity / 100})`;
                     return (
-                      <div className="subtitle-overlay absolute bottom-[4.5rem] left-0 right-0 flex justify-center pointer-events-none z-20 px-4">
+                      <div
+                        className="subtitle-overlay absolute z-20"
+                        style={{
+                          left: `${subtitleStyle.posX}%`,
+                          top: `${subtitleStyle.posY}%`,
+                          transform: 'translate(-50%, -50%)',
+                          maxWidth: '90%',
+                          cursor: isDraggingSubtitle.current ? 'grabbing' : 'grab',
+                        }}
+                        onMouseDown={(e) => { e.preventDefault(); isDraggingSubtitle.current = true; }}
+                        onTouchStart={() => { isDraggingSubtitle.current = true; }}
+                        title="Drag to reposition"
+                      >
                         <div
-                          className="max-w-[90%] text-center px-3 py-1 rounded leading-snug"
+                          className="text-center px-3 py-1 rounded leading-snug select-none"
                           style={{
                             fontSize: subtitleStyle.fontSize,
                             color: subtitleStyle.textColor,
@@ -1461,6 +1503,17 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
                                     </button>
                                   ))}
                                 </div>
+                              </div>
+
+                              {/* Position reset */}
+                              <div className="pt-1 border-t border-white/10">
+                                <p className="text-white/50 mb-1.5 font-medium uppercase tracking-wide" style={{ fontSize: 10 }}>Position — drag subtitle to move</p>
+                                <button
+                                  onClick={() => setSubtitleStyle(s => ({ ...s, posX: DEFAULT_SUBTITLE_STYLE.posX, posY: DEFAULT_SUBTITLE_STYLE.posY }))}
+                                  className="w-full py-1 rounded text-center bg-white/10 hover:bg-white/20 text-white transition"
+                                >
+                                  Reset to default
+                                </button>
                               </div>
                             </div>
                           )}

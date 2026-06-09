@@ -511,34 +511,28 @@ export async function generateChatResponse(
             }
         } as any);
     }
-    
+
     const newUserMessage: Content = { role: 'user', parts: userParts };
 
-    let contents: Content[];
-    
-    // If it's the first user message, prepend context
-    if (history.length === 0) {
-        let contextText = "This is the context for our conversation. I have a video for you to analyze.";
-        const contextParts: any[] = [];
-        
-        if (videoContext.frames && videoContext.frames.length > 0) {
-             contextParts.push(...videoContext.frames.map(frame => ({
-                inlineData: {
-                  mimeType: 'image/jpeg',
-                  data: frame,
-                },
-            })));
-        }
+    // Always inject video context (subtitles + analyses) into the system instruction so
+    // it is present for every message, not just the first turn.
+    let effectiveInstruction = systemInstruction;
+    if (subtitlesText) {
+        effectiveInstruction += `\n\n--- VIDEO CONTEXT (use this to answer questions) ---\n${subtitlesText}`;
+    }
 
-        if (subtitlesText) {
-            contextText += `\n\nHere is the full transcript of the video:\n${subtitlesText}`;
-        }
-        
-        contextParts.push({ text: contextText });
+    let contents: Content[];
+
+    // On the first user message also send video frames for visual context.
+    if (history.length === 0 && videoContext.frames && videoContext.frames.length > 0) {
+        const frameParts: any[] = videoContext.frames.map(frame => ({
+            inlineData: { mimeType: 'image/jpeg', data: frame },
+        }));
+        frameParts.push({ text: 'Video frames above are from the video. Please use them along with the transcript to answer questions.' });
 
         contents = [
-            { role: 'user', parts: contextParts },
-            { role: 'model', parts: [{ text: 'Great! I have the video context. What would you like to know?' }]},
+            { role: 'user', parts: frameParts },
+            { role: 'model', parts: [{ text: 'Understood. I have the video frames and will use the transcript context to answer your questions.' }] },
             ...history,
             newUserMessage,
         ];
@@ -547,9 +541,9 @@ export async function generateChatResponse(
     }
 
     if (settings.useProxy) {
-        return await generateContentViaProxy(contents, systemInstruction);
+        return await generateContentViaProxy(contents, effectiveInstruction);
     }
-    
+
     if (settings.baseUrl) {
         // Check if custom API requires proxy
         const provider = settings.provider || 'custom';
@@ -562,13 +556,13 @@ export async function generateChatResponse(
                 `Please enable Proxy Mode in settings to avoid this issue.`
             );
         }
-        return await generateContentWithCustomAPI(settings, apiKey, contents, systemInstruction);
+        return await generateContentWithCustomAPI(settings, apiKey, contents, effectiveInstruction);
     }
 
     const response = await ai.models.generateContent({
         model: settings.model,
         contents: contents,
-        config: { systemInstruction }
+        config: { systemInstruction: effectiveInstruction }
     });
 
     return response.text;

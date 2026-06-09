@@ -51,6 +51,8 @@ interface WelcomeScreenProps {
   onRegister: () => void;
   onOpenAccount?: () => void;
   currentUser?: User | null;
+  hasVideos?: boolean;
+  onGoToWorkspace?: () => void;
 }
 
 // 用于动效 Demo 的文件卡片配置
@@ -88,82 +90,112 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   onRegister,
   onOpenAccount,
   currentUser,
+  hasVideos = false,
+  onGoToWorkspace,
 }) => {
-  const { t } = useLanguage();
+  const { language } = useLanguage();
+  const isZh = language === 'zh';
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files && event.target.files.length > 0) {
-      onImportFiles(event.target.files);
-      event.target.value = "";
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      onImportFiles(e.target.files);
+      e.target.value = '';
     }
   };
-
-  const handleFolderChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files) {
-      onImportFolderSelection(event.target.files);
-      event.target.value = "";
-    }
+  const handleFolderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) { onImportFolderSelection(e.target.files); e.target.value = ''; }
   };
-
-  const triggerFileUpload = () => fileInputRef.current?.click();
-  const triggerFolderUpload = () => folderInputRef.current?.click();
-  const triggerUrlImport = () => {
-    if (onOpenYouTubeModal) {
-      onOpenYouTubeModal();
-    } else {
-      const url = window.prompt('Paste a YouTube video link');
-      if (url?.trim()) onImportUrl(url.trim());
-    }
-  };
-  const triggerRecord = () => onOpenRecordModal?.();
+  const triggerFile = () => fileInputRef.current?.click();
+  const triggerFolder = () => folderInputRef.current?.click();
+  const triggerUrl = () => onOpenYouTubeModal ? onOpenYouTubeModal() : (() => {
+    const url = window.prompt('Paste a video URL');
+    if (url?.trim()) onImportUrl(url.trim());
+  })();
 
   return (
-    <div className="min-h-screen w-full bg-slate-50 flex flex-col">
-      <Navbar
-        currentUser={currentUser}
-        onLogin={onLogin}
-        onRegister={onRegister}
-        onOpenAccount={onOpenAccount}
-      />
+    <div className="min-h-screen w-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-50 to-slate-200 px-6">
+      {/* Auth row */}
+      <div className="absolute top-5 right-6 flex items-center gap-2">
+        {currentUser ? (
+          <button onClick={onOpenAccount} className="text-sm text-slate-500 hover:text-slate-800 transition px-3 py-1.5 rounded-lg hover:bg-white/60">
+            {currentUser.email}
+          </button>
+        ) : (
+          <>
+            <button onClick={onLogin} className="text-sm text-slate-500 hover:text-slate-800 transition px-3 py-1.5 rounded-lg hover:bg-white/60">
+              {isZh ? '登录' : 'Sign in'}
+            </button>
+            <button onClick={onRegister} className="text-sm font-medium text-white bg-slate-900 hover:bg-slate-700 transition px-4 py-1.5 rounded-lg">
+              {isZh ? '注册' : 'Get started'}
+            </button>
+          </>
+        )}
+      </div>
 
-      <main className="flex-1">
-        <Hero
-          onPrimaryClick={triggerFileUpload}
-          onSecondaryClick={triggerFolderUpload}
-          onUrlClick={triggerUrlImport}
-          onRecordClick={triggerRecord}
-        />
+      <div className="flex flex-col items-center gap-8 max-w-sm w-full text-center">
+        {/* Logo + name */}
+        <div className="flex flex-col items-center gap-3">
+          <div className="flex h-14 w-14 items-center justify-center rounded-3xl bg-slate-900 shadow-lg">
+            <VideoIcon className="h-7 w-7 text-white" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Insightseel</h1>
+            <p className="mt-1 text-sm text-slate-500">
+              {isZh ? '让每个视频都变得有价值' : 'Turn any video into actionable insight'}
+            </p>
+          </div>
+        </div>
 
-        <MagicDemo />
+        {/* Primary CTA */}
+        {hasVideos ? (
+          <button
+            onClick={onGoToWorkspace}
+            className="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 transition shadow-md"
+          >
+            {isZh ? '继续工作区 →' : 'Continue to workspace →'}
+          </button>
+        ) : (
+          <button
+            onClick={triggerFile}
+            className="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 transition shadow-md"
+          >
+            {isZh ? '试用 Insightseel' : 'Try Insightseel'}
+          </button>
+        )}
 
-        <FeatureSectionOne />
-        <FeatureSectionTwo />
+        {/* Secondary options */}
+        <div className="flex items-center gap-1 flex-wrap justify-center">
+          {hasVideos && (
+            <button onClick={triggerFile} className="text-xs text-slate-500 hover:text-slate-800 px-2.5 py-1.5 rounded-lg hover:bg-white/60 transition">
+              {isZh ? '导入视频' : 'Import video'}
+            </button>
+          )}
+          <button onClick={triggerFolder} className="text-xs text-slate-500 hover:text-slate-800 px-2.5 py-1.5 rounded-lg hover:bg-white/60 transition">
+            {isZh ? '导入文件夹' : 'Import folder'}
+          </button>
+          <span className="text-slate-300 text-xs">·</span>
+          <button onClick={triggerUrl} className="text-xs text-slate-500 hover:text-slate-800 px-2.5 py-1.5 rounded-lg hover:bg-white/60 transition">
+            {isZh ? '在线链接' : 'Video URL'}
+          </button>
+          {onOpenRecordModal && (
+            <>
+              <span className="text-slate-300 text-xs">·</span>
+              <button onClick={onOpenRecordModal} className="text-xs text-slate-500 hover:text-slate-800 px-2.5 py-1.5 rounded-lg hover:bg-white/60 transition">
+                {isZh ? '录音 / 录屏' : 'Record'}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
 
-
-
-        <FinalCTA onPrimaryClick={triggerFileUpload} />
-      </main>
-
-      {/* 隐藏的上传输入 */}
-      <input
-        type="file"
-        ref={fileInputRef}
-        onChange={handleFileChange}
-        className="hidden"
-        accept="video/mp4,video/webm,video/ogg,video/quicktime,.srt,.vtt"
-        multiple
-      />
-      <input
-        type="file"
-        ref={folderInputRef}
-        onChange={handleFolderChange}
-        className="hidden"
+      {/* Hidden file inputs */}
+      <input ref={fileInputRef} type="file" onChange={handleFileChange} className="hidden"
+        accept="video/mp4,video/webm,video/ogg,video/quicktime,.srt,.vtt" multiple />
+      <input ref={folderInputRef} type="file" onChange={handleFolderChange} className="hidden"
         // @ts-ignore
-        webkitdirectory=""
-        multiple
-      />
+        webkitdirectory="" multiple />
     </div>
   );
 };

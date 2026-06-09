@@ -1,51 +1,190 @@
 <div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+<img width="1200" height="475" alt="Insightseel Banner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+
+# Insightseel
+
+**Turn any video into actionable insight** — AI-powered subtitles, translation, summaries, and chat for any video source.
+
 </div>
 
-# Run and deploy your AI Studio app
+---
 
-This contains everything you need to run your app locally.
+## Features
 
-View your app in AI Studio: https://ai.studio/apps/drive/10umFyhQTrYignX_evH9sRpDh8Ty5t8qP
+- **Subtitle generation** — Deepgram speech-to-text or Gemini/OpenAI vision for any language
+- **Translation** — Translate subtitles to Simplified Chinese, Traditional Chinese, or English with natural phrasing
+- **AI Insights** — One-click summary, key information extraction, topic analysis
+- **Chat with video** — Ask anything about the video; AI uses transcript + insights as context
+- **Subtitle overlay** — Draggable, customisable overlay on the video player with fullscreen support
+- **Picture-in-Picture** — Float video over other apps with subtitle overlay (Document PiP, Chrome 116+)
+- **Recording** — Capture screen audio, microphone, or both and auto-transcribe
+- **YouTube / Bilibili import** — Paste a URL to import captions directly
+- **Cloud sync** — Optional Supabase backend for multi-device sync
 
-## Run Locally
+---
 
-**Prerequisites:**  Node.js
+## Quick Start (Local Dev)
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+**Prerequisites:** Node.js 18+, pnpm (or npm)
 
-## Multi-Provider Support
+```bash
+# 1. Install dependencies
+pnpm install
 
-This app supports multiple AI providers:
-- **Gemini** (Google Generative AI) - Default, supports vision & audio
-- **OpenAI** (GPT models) - Supports vision
-- **Poe** (Poe API) - Requires proxy due to CORS
-- **Custom** - Any Gemini-compatible API
+# 2. Copy the example env file
+cp .env.example .env.local
 
-See [PROXY_SETUP.md](./PROXY_SETUP.md) for detailed configuration guide.
+# 3. Fill in at minimum:
+#   LLM_API_KEY=your_gemini_or_openai_key
+#   VITE_DEEPGRAM_API_KEY=your_deepgram_key
+
+# 4. Start dev server
+pnpm dev
+```
+
+Open http://localhost:5173 and drag a video file onto the page.
+
+---
+
+## Environment Variables
+
+All variables are set in `.env.local` (local dev) or **Vercel → Project Settings → Environment Variables** (production).
+
+### LLM — AI text generation (summaries, insights, translation, chat)
+
+| Variable | Required | Description |
+|---|---|---|
+| `LLM_API_KEY` | **Yes** | API key for your LLM provider (Gemini, OpenAI, or compatible) |
+| `LLM_BASE_URL` | No | Base URL of the LLM API. Defaults to Gemini if omitted. |
+| `LLM_MODEL` | No | Model name. Defaults to `gemini-2.5-flash`. |
+| `VITE_USE_PROXY` | **Yes** (Vercel) | Set to `true` to route all LLM calls through `/api/proxy` (keeps your key server-side) |
+
+**How to get an API key:**
+
+- **Gemini (recommended):** https://aistudio.google.com/app/apikey — free tier available, no credit card required
+- **OpenAI:** https://platform.openai.com/api-keys — pay-as-you-go pricing
+- **OpenRouter (multi-model gateway):** https://openrouter.ai/keys — set `LLM_BASE_URL=https://openrouter.ai/api/v1`
+
+**Common `LLM_BASE_URL` values:**
+
+```
+# Gemini (default — omit LLM_BASE_URL or set to):
+https://generativelanguage.googleapis.com
+
+# OpenAI:
+https://api.openai.com/v1
+
+# OpenRouter:
+https://openrouter.ai/api/v1
+
+# Local Ollama:
+http://localhost:11434/v1
+```
+
+---
+
+### Speech-to-Text — subtitle generation
+
+| Variable | Required | Description |
+|---|---|---|
+| `VITE_DEEPGRAM_API_KEY` | **Yes** | Deepgram API key for audio transcription |
+
+**How to get a Deepgram key:**  
+1. Sign up at https://deepgram.com — **$200 free credit** on sign-up, no credit card required initially  
+2. Go to **Console → API Keys → Create Key**  
+3. Copy the key and set `VITE_DEEPGRAM_API_KEY`
+
+Deepgram handles large audio files automatically. For very long videos (>60 min), audio is split into ≤3.5 MB chunks and transcribed in parallel.
+
+---
+
+### Cloud Sync — Supabase (optional)
+
+Enables cross-device sync of subtitles, analyses, and chat history.
+
+| Variable | Required | Description |
+|---|---|---|
+| `VITE_SUPABASE_URL` | No | Supabase project URL (`https://xxxxx.supabase.co`) |
+| `VITE_SUPABASE_ANON_KEY` | No | Supabase anonymous/public key |
+| `SUPABASE_SERVICE_ROLE_KEY` | No | Service role key — if set, enforces JWT auth on `/api/proxy` (recommended for shared deployments) |
+
+**How to set up Supabase:**  
+1. Create a free project at https://supabase.com  
+2. Go to **Project Settings → API** and copy **Project URL** and **anon/public key**  
+3. For auth gating, also copy the **service_role key** (keep this server-side only — never expose it to the browser)  
+4. Run the database migrations in `/supabase/migrations/` (if any)
+
+When `SUPABASE_SERVICE_ROLE_KEY` is set, the proxy requires a valid Supabase JWT. Users must log in to use the system API key; otherwise they configure their own key in Settings.
+
+---
+
+### Advanced / Optional
+
+| Variable | Description |
+|---|---|
+| `VITE_MODEL` | Model name shown in the Settings UI (cosmetic only) |
+| `VITE_FFMPEG_BASE_URL` | CDN URL for FFmpeg WASM (used for video segmentation). Self-hosted at `/ffmpeg` by default via `postinstall` script. |
+| `GEMINI_API_KEY` | Legacy — falls back from `LLM_API_KEY` |
+| `OPENAI_API_KEY` | Legacy — falls back from `LLM_API_KEY`; also used for OpenAI Whisper transcription |
+| `CUSTOM_API_KEY` | Legacy — falls back from `LLM_API_KEY` |
+
+---
 
 ## Deploy to Vercel
 
-For secure deployment with API key protection, see the detailed guide in [VERCEL_DEPLOYMENT.md](./VERCEL_DEPLOYMENT.md).
+1. Push the repo to GitHub  
+2. Import into Vercel: https://vercel.com/new  
+3. Set environment variables in **Project Settings → Environment Variables**:
 
-**Quick Summary:**
-- Set provider API keys (e.g., `GEMINI_API_KEY`, `OPENAI_API_KEY`) in Vercel environment variables
-- Set `VITE_DEEPGRAM_API_KEY` for system-wide subtitle generation (optional)
-- Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` for cloud sync (optional)
-- Your API keys stay secure on the backend
-- Users can try the app without configuring their own key
-- Users who set their own key use direct API calls (not your quota)
-- Multiple providers can be configured simultaneously
+```
+LLM_API_KEY          = your_gemini_or_openai_key
+LLM_BASE_URL         = https://generativelanguage.googleapis.com   # or your provider
+LLM_MODEL            = gemini-2.5-flash
+VITE_USE_PROXY       = true
+VITE_DEEPGRAM_API_KEY = your_deepgram_key
 
-**Environment Variables:**
-- `VITE_DEEPGRAM_API_KEY` - System default Deepgram key for subtitle generation
-- `VITE_SUPABASE_URL` - Supabase project URL for cloud sync
-- `VITE_SUPABASE_ANON_KEY` - Supabase anonymous key for cloud sync
-- `VITE_FFMPEG_BASE_URL` - FFmpeg CDN URL for browser-based video splitting (optional, recommended: `https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd`)
+# Optional (cloud sync):
+VITE_SUPABASE_URL       = https://xxxxx.supabase.co
+VITE_SUPABASE_ANON_KEY  = eyJ...
+SUPABASE_SERVICE_ROLE_KEY = eyJ...  # enables auth gating
+```
 
-See [DEEPGRAM_SETUP.md](./docs/DEEPGRAM_SETUP.md) for Deepgram configuration details.
-See [@docs/FFMPEG_CDN_SETUP.md](./@docs/FFMPEG_CDN_SETUP.md) for FFmpeg CDN configuration details.
+4. Deploy — Vercel auto-detects Vite and deploys the serverless functions in `/api/`
+
+---
+
+## Multi-Provider LLM
+
+The app auto-routes requests based on `LLM_BASE_URL`:
+
+| URL contains | Format used |
+|---|---|
+| `generativelanguage.googleapis.com` | Gemini API |
+| anything else | OpenAI-compatible API |
+
+This means you can use **OpenRouter, Azure OpenAI, Ollama, Together AI, Groq**, or any OpenAI-compatible API by setting `LLM_BASE_URL` accordingly.
+
+---
+
+## Architecture
+
+```
+Browser (React + Vite)
+  ├── IndexedDB — videos, subtitles, analyses, notes, chat history
+  ├── /api/proxy (Vercel serverless) — LLM calls (Gemini / OpenAI format)
+  ├── /api/deepgram-proxy — Deepgram transcription
+  ├── /api/youtube-captions — YouTube caption import (InnerTube API)
+  └── Supabase (optional) — auth + cloud sync
+```
+
+---
+
+## Development
+
+```bash
+pnpm dev          # start dev server with API proxy
+pnpm build        # production build
+pnpm typecheck    # TypeScript check
+pnpm lint         # ESLint
+pnpm test         # Vitest unit tests
+```

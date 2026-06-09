@@ -639,6 +639,35 @@ const Sidebar: React.FC<SidebarProps> = ({
         )}
       </div>
 
+      {/* Record button — prominent shortcut */}
+      {onOpenRecordModal && (
+        <div className={`px-3 pb-2 ${isCollapsed ? 'flex justify-center' : ''}`}>
+          {isCollapsed ? (
+            <button
+              onClick={handleRecordClick}
+              className="flex items-center justify-center w-9 h-9 rounded-full bg-red-500/10 text-red-600 hover:bg-red-500/20 transition-colors"
+              title={language === 'zh' ? '录音 / 录屏' : 'Record'}
+            >
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500" />
+              </span>
+            </button>
+          ) : (
+            <button
+              onClick={handleRecordClick}
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 transition-colors text-[13px] font-medium"
+            >
+              <span className="relative flex h-2 w-2 flex-shrink-0">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500" />
+              </span>
+              {language === 'zh' ? '录音 / 录屏' : 'Record Audio / Screen'}
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Video List */}
       <nav className="flex-1 px-2 pt-1 pb-3 overflow-y-auto overflow-x-visible custom-scrollbar">
         {!isCollapsed && (

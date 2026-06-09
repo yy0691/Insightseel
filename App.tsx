@@ -1107,6 +1107,11 @@ const AppContent: React.FC<{
               onRegister={() => openAuthModal("signup")}
               onOpenAccount={() => setShowAccountPanel(true)}
               currentUser={currentUser}
+              hasVideos={videos.length > 0}
+              onGoToWorkspace={() => {
+                const first = videos[0];
+                if (first) setSelectedVideoId(first.id);
+              }}
             />
           </div>
           <Footer />

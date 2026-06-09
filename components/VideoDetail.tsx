@@ -756,6 +756,38 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
         pipContainer.appendChild(subEl);
         pipSubtitleRef.current = subEl;
 
+        // Audio-only toggle button
+        let audioOnlyMode = false;
+        const audioBtn = pipWin.document.createElement('button');
+        audioBtn.title = 'Audio only';
+        audioBtn.style.cssText = [
+          'position:absolute;top:8px;right:8px;z-index:30;',
+          'display:flex;align-items:center;gap:4px;',
+          'background:rgba(15,23,42,0.65);backdrop-filter:blur(6px);',
+          'color:rgba(255,255,255,0.85);border:1px solid rgba(255,255,255,0.15);',
+          'border-radius:8px;padding:4px 10px;font-size:11px;font-weight:500;',
+          'cursor:pointer;transition:background 0.12s;',
+        ].join('');
+        audioBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>Audio only`;
+        audioBtn.addEventListener('mouseenter', () => { audioBtn.style.background = 'rgba(15,23,42,0.85)'; });
+        audioBtn.addEventListener('mouseleave', () => { audioBtn.style.background = 'rgba(15,23,42,0.65)'; });
+        audioBtn.addEventListener('click', () => {
+          audioOnlyMode = !audioOnlyMode;
+          const vid = videoRef.current as HTMLVideoElement | null;
+          if (audioOnlyMode) {
+            if (vid) vid.style.visibility = 'hidden';
+            subEl.style.display = 'none';
+            audioBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 24 24"><path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg>Show video`;
+            try { pipWin.resizeTo(380, 80); } catch { /* some browsers block this */ }
+          } else {
+            if (vid) vid.style.visibility = '';
+            subEl.style.display = '';
+            audioBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>Audio only`;
+            try { pipWin.resizeTo(480, 270); } catch { /* ignore */ }
+          }
+        });
+        pipContainer.appendChild(audioBtn);
+
         pipWin.addEventListener('pagehide', () => {
           // Return <video> to its original container
           if (videoRef.current && videoContainerRef.current && !videoContainerRef.current.contains(videoRef.current)) {

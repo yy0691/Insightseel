@@ -44,6 +44,30 @@
   -ms-overflow-style: none !important;
 }
 
+/* ── Video player control button ── */
+.ctrl-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  color: rgba(255,255,255,0.65);
+  transition: color 0.12s, background-color 0.12s;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  padding: 0;
+}
+.ctrl-btn:hover {
+  color: rgba(255,255,255,0.95);
+  background-color: rgba(255,255,255,0.1);
+}
+.ctrl-btn:active {
+  background-color: rgba(255,255,255,0.18);
+}
+
 /* Subtitle overlay: scale up text in fullscreen (position is handled via inline style) */
 :fullscreen .subtitle-overlay > div,
 :-webkit-full-screen .subtitle-overlay > div {

@@ -153,110 +153,123 @@ async function translateBatchWithRetry(
   }));
 }
 
+// ── Translation internals ────────────────────────────────────────────────────
+
+function buildTranslationPrompt(segments: SubtitleSegment[], targetLanguage: string): string {
+  const lines = segments.map((seg, idx) => `${idx + 1}|${seg.text}`).join('\n');
+  return `Translate the following subtitle lines into ${targetLanguage}.
+
+STRICT OUTPUT FORMAT — NO EXCEPTIONS:
+- Start output immediately with line 1. No preamble, no headers, no summary.
+- Each line MUST be exactly: NUMBER|TRANSLATED_TEXT
+- Use plain ASCII pipe | as separator (no spaces around it)
+- No code fences (\`\`\`), no markdown, no bullet points, no blank lines between entries
+- Output ONLY the translated lines — nothing else
+
+TRANSLATION RULES:
+- Write natural, idiomatic ${targetLanguage}. No word-for-word literal translation.
+- Preserve proper nouns, brand names, product names, and technical acronyms exactly as-is.
+- If a line is already in ${targetLanguage}, copy it unchanged.
+- Match the speaker's tone (conversational, formal, or humorous).
+- Keep subtitles concise and readable.
+
+Lines to translate:
+${lines}`;
+}
+
+/** Call the LLM (proxy or direct) and return raw text. */
+async function callTranslationLLM(prompt: string, useProxy: boolean): Promise<string> {
+  if (useProxy) {
+    const settings = await getEffectiveSettings();
+    const payload: any = {
+      provider: settings.provider || 'gemini',
+      contents: [{ parts: [{ text: prompt }] }],
+    };
+    const response = await fetch('/api/proxy', {
+      method: 'POST',
+      headers: await authService.getProxyHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+      throw new Error(`Translation API error: ${errorData.error || response.status}`);
+    }
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join('') ?? data.content ?? '';
+    if (!text) throw new Error('Translation API returned empty response');
+    return text;
+  }
+
+  const settings = await getEffectiveSettings();
+  const provider = settings.provider || 'gemini';
+  const config = PROVIDER_CONFIGS[provider];
+  const apiKey = settings.apiKey;
+  if (!apiKey) throw new Error('API Key not configured');
+  const baseUrl = settings.baseUrl || config.defaultBaseUrl;
+  const model = settings.model || config.defaultModel;
+  const adapter = createAPIAdapter(provider, apiKey, baseUrl, model, getProviderExtraHeaders(settings));
+  const response = await adapter.generateContent({ prompt, temperature: 0.3, maxTokens: 8000 });
+  return response.text;
+}
+
+/**
+ * Parse LLM response into a Map<segmentIndex, translatedText>.
+ * Handles code fences, fullwidth pipes, and leading list markers.
+ */
+function parseTranslationResponse(raw: string, segmentCount: number): Map<number, string> {
+  // Strip any code fences the model may have wrapped the output in
+  const cleaned = raw.replace(/```[^\n]*\n([\s\S]*?)```/g, '$1').trim();
+
+  const map = new Map<number, string>();
+  for (const line of cleaned.split('\n')) {
+    const trimmed = line.trim().replace(/^[-*•]\s*/, '');
+    if (!trimmed) continue;
+    // Accept ASCII | and fullwidth ｜, with optional surrounding whitespace
+    const match = trimmed.match(/^(\d+)\s*[|｜]\s*([\s\S]*)$/);
+    if (!match) continue;
+    const idx = parseInt(match[1], 10) - 1;
+    const text = match[2].trim();
+    if (idx >= 0 && idx < segmentCount && text) {
+      map.set(idx, text);
+    }
+  }
+  return map;
+}
+
 async function translateBatch(
   segments: SubtitleSegment[],
   targetLanguage: string,
   useProxy: boolean = false
 ): Promise<SubtitleSegment[]> {
-  const textToTranslate = segments.map((seg, idx) =>
-    `${idx + 1}|${seg.text}`
-  ).join('\n');
+  // First pass
+  const raw = await callTranslationLLM(buildTranslationPrompt(segments, targetLanguage), useProxy);
+  const map = parseTranslationResponse(raw, segments.length);
 
-  const prompt = `You are a professional subtitle translator. Translate the following subtitle lines into ${targetLanguage}.
-
-TRANSLATION GUIDELINES:
-1. **Natural expression**: Use idiomatic ${targetLanguage} phrasing. Avoid word-for-word literal translation — rewrite to sound natural to a native speaker.
-2. **Professional / technical terms**: Keep well-known proper nouns, brand names, technical acronyms, and industry jargon in their original form (or use the established ${targetLanguage} equivalent if one exists). Do NOT invent phonetic translations for technical terms.
-3. **Tone & register**: Match the speaker's tone — conversational, formal, or humorous.
-4. **Conciseness**: Subtitles should be concise. If the original is verbose, condense while preserving meaning.
-5. **Format**: Output ONLY lines in the exact format "number|translated text". No explanations, no extra lines.
-6. **Untranslated lines**: If a line is already in ${targetLanguage}, copy it unchanged.
-7. **Numbers unchanged**: Keep all line numbers exactly as given.
-
-Example:
-Input:
-1|We use React and TypeScript for our frontend stack.
-2|That's a pretty good ROI, right?
-
-Output (Simplified Chinese):
-1|我们前端用的是 React 和 TypeScript。
-2|这个投资回报率还不错吧？
-
-Input to translate:
-${textToTranslate}`;
-
-  let translatedText: string;
-
-  if (useProxy) {
-    const settings = await getEffectiveSettings();
-    const payload: any = {
-      provider: settings.provider || 'gemini',
-      contents: [{ parts: [{ text: prompt }] }]
-    };
-
-    const response = await fetch('/api/proxy', {
-      method: 'POST',
-      headers: await authService.getProxyHeaders(),
-      body: JSON.stringify(payload)
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
-      throw new Error(`Translation API error: ${errorData.error || response.status}`);
-    }
-
-    const data = await response.json();
-    // Extract text from Gemini response format
-    translatedText = data.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join('') ?? data.content ?? '';
-    
-    if (!translatedText) {
-      throw new Error('Translation API returned empty response');
-    }
-  } else {
-    const settings = await getEffectiveSettings();
-    const provider = settings.provider || 'gemini';
-    const config = PROVIDER_CONFIGS[provider];
-    const apiKey = settings.apiKey;
-
-    if (!apiKey) {
-      throw new Error('API Key not configured');
-    }
-
-    const baseUrl = settings.baseUrl || config.defaultBaseUrl;
-    const model = settings.model || config.defaultModel;
-    const adapter = createAPIAdapter(provider, apiKey, baseUrl, model, getProviderExtraHeaders(settings));
-
-    const request: APIRequest = {
-      prompt,
-      temperature: 0.3,
-      maxTokens: 8000
-    };
-
-    const response = await adapter.generateContent(request);
-    translatedText = response.text;
+  const matchRate = segments.length > 0 ? map.size / segments.length : 1;
+  if (matchRate < 0.5) {
+    throw new Error(
+      `Translation parse failed: matched ${map.size}/${segments.length} lines (${Math.round(matchRate * 100)}%). ` +
+      `Response preview: ${raw.slice(0, 300)}`
+    );
   }
 
-  const translatedLines = translatedText.trim().split('\n');
-  const translatedMap = new Map<number, string>();
-
-  for (const line of translatedLines) {
-    const cleanedLine = line.trim().replace(/^[-*]\s*/, '');
-    const match = cleanedLine.match(/^(\d+)\|(.*)$/);
-    if (match) {
-      const index = parseInt(match[1]) - 1;
-      const text = match[2].trim();
-      translatedMap.set(index, text);
+  // Mop-up pass: retry any segments that weren't matched (up to half the batch)
+  const missed = segments.map((_, i) => i).filter(i => !map.has(i));
+  if (missed.length > 0 && missed.length <= Math.ceil(segments.length * 0.5)) {
+    try {
+      const missedSegs = missed.map(i => segments[i]);
+      const raw2 = await callTranslationLLM(buildTranslationPrompt(missedSegs, targetLanguage), useProxy);
+      const map2 = parseTranslationResponse(raw2, missedSegs.length);
+      map2.forEach((text, localIdx) => map.set(missed[localIdx], text));
+      console.log(`[Translation] Mop-up recovered ${map2.size}/${missed.length} missed segments`);
+    } catch (e) {
+      console.warn('[Translation] Mop-up pass failed (non-fatal):', e);
     }
-  }
-
-  const matchedRatio = segments.length > 0 ? translatedMap.size / segments.length : 1;
-  if (matchedRatio < 0.7) {
-    throw new Error(`Translation response format invalid: only ${translatedMap.size}/${segments.length} lines matched`);
   }
 
   return segments.map((seg, idx) => ({
     ...seg,
-    translatedText: translatedMap.get(idx) || seg.text
+    translatedText: map.has(idx) ? map.get(idx)! : (seg.translatedText || seg.text),
   }));
 }
 

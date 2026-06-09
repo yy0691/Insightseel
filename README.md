@@ -1,9 +1,10 @@
 <div align="center">
-<img width="1200" height="475" alt="Insightseel Banner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
 
 # Insightseel
 
 **Turn any video into actionable insight** — AI-powered subtitles, translation, summaries, and chat for any video source.
+
+English | [简体中文](./README.zh-CN.md)
 
 </div>
 

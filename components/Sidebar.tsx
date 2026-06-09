@@ -690,6 +690,12 @@ const Sidebar: React.FC<SidebarProps> = ({
             <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
               {t('myLibrary')}
             </span>
+          </div>
+        )}
+
+        {/* Media Library Toolbar - Sort, Expand/Collapse, Multi-select */}
+        {!isCollapsed && (
+          <div className="flex items-center justify-between px-4 pb-2 gap-2">
             <div className="relative" ref={sortMenuRef}>
               <button
                 type="button"
@@ -710,7 +716,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               </button>
 
               {showSortMenu && (
-                <div className="absolute right-0 top-full mt-1 z-50 w-44 bg-white border border-slate-200/60 rounded-2xl py-1 shadow-lg">
+                <div className="absolute left-0 top-full mt-1 z-50 w-44 bg-white border border-slate-200/60 rounded-2xl py-1 shadow-lg">
                   <button
                     onClick={() => { setSortMode('nameAsc'); setShowSortMenu(false); }}
                     className={`w-full text-left px-3 py-1.5 text-xs hover:bg-slate-100 transition-colors ${sortMode === 'nameAsc' ? 'bg-slate-50 text-slate-900 font-medium' : 'text-slate-600'}`}
@@ -752,30 +758,9 @@ const Sidebar: React.FC<SidebarProps> = ({
                 </div>
               )}
             </div>
-          </div>
-        )}
-
-        {/* Batch Selection Controls - Only when not collapsed */}
-        {!isCollapsed && (
-          <div className="flex items-center justify-between px-4 pb-2">
             <div className="flex items-center gap-1">
-              <button
-                onClick={() => {
-                  if (isSelectionMode) {
-                    setIsSelectionMode(false);
-                    setSelectedIds(new Set());
-                  } else {
-                    setIsSelectionMode(true);
-                  }
-                }}
-                className={`p-1.5 rounded-lg transition-colors ${isSelectionMode ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-100'}`}
-                title={isSelectionMode ? t('cancelSelection') : t('batchSelect')}
-              >
-                <ListChecks className="w-3.5 h-3.5" />
-              </button>
-              {(isSelectionMode || Object.keys(expandedFolders).length > 0 || Object.keys(groupedVideos).some(k => k !== '__root__')) && (
+              {(Object.keys(expandedFolders).length > 0 || Object.keys(groupedVideos).some(k => k !== '__root__')) && (
                 <>
-                  <div className="h-3 w-[1px] bg-slate-200 mx-1"></div>
                   <button
                     onClick={handleExpandAll}
                     className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors"
@@ -790,8 +775,23 @@ const Sidebar: React.FC<SidebarProps> = ({
                   >
                     <ChevronsUp className="w-3.5 h-3.5" />
                   </button>
+                  <div className="h-3 w-[1px] bg-slate-200 mx-1"></div>
                 </>
               )}
+              <button
+                onClick={() => {
+                  if (isSelectionMode) {
+                    setIsSelectionMode(false);
+                    setSelectedIds(new Set());
+                  } else {
+                    setIsSelectionMode(true);
+                  }
+                }}
+                className={`p-1.5 rounded-lg transition-colors ${isSelectionMode ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-100'}`}
+                title={isSelectionMode ? t('cancelSelection') : t('batchSelect')}
+              >
+                <ListChecks className="w-3.5 h-3.5" />
+              </button>
             </div>
             {isSelectionMode && (
               <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">

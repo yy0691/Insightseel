@@ -1952,7 +1952,7 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
                         >
                           <div className="flex items-center justify-between gap-3">
                             <span className="font-mono text-xs text-slate-500">{formatTimestamp(info.timestamp)}</span>
-                            <span className={`text-[10px] uppercase tracking-wider font-medium ${info.color.replace('bg-', 'text-')}`}>●</span>
+                            <span className={`inline-block w-2 h-2 rounded-full ${info.color}`}></span>
                           </div>
                           <p className="mt-1.5 text-sm text-slate-700">{info.text}</p>
                         </button>
@@ -1984,22 +1984,21 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, subtitles, analyses, n
                   </div>
                 ) : summaryAnalysis ? (
                   <div className="space-y-6">
-                    {/* Regenerate button — shown when insights exist */}
-                    <div className="flex justify-end">
-                      <button
-                        onClick={handleGenerateInsights}
-                        disabled={generationStatus.active}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-500 bg-slate-50 border border-slate-200 rounded-full hover:bg-slate-100 hover:text-slate-700 transition disabled:opacity-40"
-                        title={language === 'zh' ? '重新生成见解' : 'Regenerate insights'}
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                        {language === 'zh' ? '重新生成' : 'Regenerate'}
-                      </button>
-                    </div>
                     <div>
-                      <h3 className="text-sm font-medium mb-3 text-slate-700">{t('summary')}</h3>
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-sm font-medium text-slate-700">{t('summary')}</h3>
+                        <button
+                          onClick={handleGenerateInsights}
+                          disabled={generationStatus.active}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-500 bg-slate-50 border border-slate-200 rounded-full hover:bg-slate-100 hover:text-slate-700 transition disabled:opacity-40"
+                          title={language === 'zh' ? '重新生成见解' : 'Regenerate insights'}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                          {language === 'zh' ? '重新生成' : 'Regenerate'}
+                        </button>
+                      </div>
                       <div className="text-sm text-slate-700 leading-relaxed"><MarkdownRenderer content={summaryAnalysis.result} onTimestampClick={handleSeekTo} /></div>
                     </div>
                     {topicsAnalysis && (

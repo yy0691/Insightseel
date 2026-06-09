@@ -3,7 +3,6 @@ import type { User } from "@supabase/supabase-js";
 import { authService, type Profile } from "../services/authService";
 import { syncService } from "../services/syncService";
 import { exportService } from "../services/exportService";
-import { buildLinuxDoAuthUrl } from "../services/linuxDoAuthService";
 import { useLanguage } from "../contexts/LanguageContext";
 import { toast } from "../hooks/useToastStore";
 
@@ -19,11 +18,6 @@ const AccountPanel: React.FC<AccountPanelProps> = ({ user, onSignOut }) => {
   const [exporting, setExporting] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
 
-  // Linux.do 相关状态（纯前端，负责 UI + 跳转）
-  const [linuxDoStatus, setLinuxDoStatus] = useState<
-    "disconnected" | "connecting" | "connected"
-  >("disconnected");
-
   useEffect(() => {
     loadProfile();
     setLastSyncTime(syncService.getLastSyncTime());
@@ -32,11 +26,6 @@ const AccountPanel: React.FC<AccountPanelProps> = ({ user, onSignOut }) => {
   const loadProfile = async () => {
     const profileData = await authService.getProfile(user.id);
     setProfile(profileData);
-    
-    // Update Linux.do status based on profile
-    if (profileData?.linuxdo_user_id) {
-      setLinuxDoStatus("connected");
-    }
 
     // Sync avatar from OAuth provider if profile doesn't have one
     if (!profileData?.avatar_url && user) {
@@ -86,80 +75,12 @@ const AccountPanel: React.FC<AccountPanelProps> = ({ user, onSignOut }) => {
       await exportService.exportAllDataAndDownload(includeVideos);
       toast.success({ title: t("exportSuccess") });
     } catch (error) {
-      toast.error({ 
-        title: t("exportFailed"), 
+      toast.error({
+        title: t("exportFailed"),
         description: error instanceof Error ? error.message : t("anErrorOccurred")
       });
     } finally {
       setExporting(false);
-    }
-  };
-
-  const handleLinuxDoLogin = async () => {
-    if (linuxDoStatus === "connected") return;
-
-    setLinuxDoStatus("connecting");
-
-    try {
-      const authUrl = await buildLinuxDoAuthUrl();
-      
-      // 在当前窗口跳转到授权页面（OAuth 标准流程）
-      window.location.href = authUrl;
-      
-      // 注意：这里不会执行到，因为页面会跳转
-    } catch (e) {
-      setLinuxDoStatus("disconnected");
-      console.error('Linux.do login error:', e);
-      
-      // 自动运行诊断
-      try {
-        const { diagnoseLinuxDoConfig } = await import('../services/linuxDoAuthService');
-        const diagnosis = await diagnoseLinuxDoConfig();
-        
-        console.group('🔍 Linux.do 配置诊断结果');
-        console.log('配置状态:', {
-          hasClientId: diagnosis.hasClientId,
-          hasRedirectUri: diagnosis.hasRedirectUri,
-          redirectUri: diagnosis.redirectUriValue,
-          clientIdSource: diagnosis.clientIdSource,
-        });
-        console.log('数据库读取详情:', diagnosis.databaseReadDetails);
-        console.log('建议:', diagnosis.recommendations);
-        console.groupEnd();
-        
-        // 构建详细的错误信息
-        let errorMessage = '';
-        if (e instanceof Error) {
-          errorMessage = e.message;
-        }
-        
-        // 添加诊断建议
-        if (diagnosis.recommendations.length > 0) {
-          errorMessage += '\n\n诊断建议：\n' + diagnosis.recommendations.join('\n');
-        }
-        
-        // 如果是数据库读取问题，提供具体信息
-        if (diagnosis.databaseReadDetails.oauthConfigTable.error) {
-          errorMessage += `\n\n数据库错误：${diagnosis.databaseReadDetails.oauthConfigTable.error}`;
-        }
-        
-        toast.error({ 
-          title: 'Linux.do 登录失败', 
-          description: errorMessage,
-          duration: 10000, // 显示更长时间
-        });
-      } catch (diagError) {
-        // 如果诊断也失败，至少显示原始错误
-        let errorMessage = '未知错误';
-        if (e instanceof Error) {
-          errorMessage = e.message;
-        }
-        toast.error({ 
-          title: 'Linux.do 登录失败', 
-          description: errorMessage + '\n\n请查看浏览器控制台（F12）了解详细错误信息',
-          duration: 10000,
-        });
-      }
     }
   };
 
@@ -223,71 +144,6 @@ const AccountPanel: React.FC<AccountPanelProps> = ({ user, onSignOut }) => {
           {t("signOut")}
         </button>
       </div>
-
-
-      {/* Linux.do 登录区 */}
-      <section className="rounded-2xl bg-slate-50 px-4 py-3.5 space-y-2">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            {/* Linux.do 头像/Logo */}
-            {profile?.linuxdo_avatar_url ? (
-              <img 
-                src={profile.linuxdo_avatar_url} 
-                alt="Linux.do" 
-                className="h-8 w-8 rounded-full object-cover border border-slate-200"
-                onError={(e) => {
-                  // 如果图片加载失败，隐藏图片元素
-                  (e.target as HTMLImageElement).style.display = 'none';
-                }}
-              />
-            ) : (
-              <div className="h-8 w-8 rounded-full bg-slate-200 flex items-center justify-center border border-slate-300">
-                <svg className="h-4 w-4 text-slate-600" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M2 4h20v16H2V4zm2 2v12h16V6H4zm2 2h12v2H6V8zm0 4h8v2H6v-2z"/>
-                  <circle cx="18" cy="10" r="1" fill="currentColor"/>
-                  <circle cx="18" cy="14" r="1" fill="currentColor"/>
-                </svg>
-              </div>
-            )}
-            <div>
-              <h3 className="text-xs font-semibold text-slate-800">
-                Linux.do 登录 / 绑定
-              </h3>
-              <p className="text-[11px] text-slate-500 mt-0.5">
-                {profile?.linuxdo_username 
-                  ? `已绑定：${profile.linuxdo_username}`
-                  : "用 Linux.do 账号登录，后续可以做账号打通、积分同步等扩展。"}
-              </p>
-            </div>
-          </div>
-          <span
-            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${
-              linuxDoStatus === "connected" || profile?.linuxdo_user_id
-                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                : "bg-slate-100 text-slate-600 border border-slate-200"
-            }`}
-          >
-            <span className="mr-1 h-1.5 w-1.5 rounded-full bg-emerald-500" />
-            {linuxDoStatus === "connected" || profile?.linuxdo_user_id ? "已连接" : "未连接"}
-          </span>
-        </div>
-        <div className="flex items-center justify-between gap-2 pt-1">
-          <button
-            onClick={handleLinuxDoLogin}
-            disabled={linuxDoStatus === "connecting"}
-            className="inline-flex items-center justify-center rounded-full bg-slate-900 px-3.5 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:bg-slate-400 transition"
-          >
-            {linuxDoStatus === "connected"
-              ? "重新打开 Linux.do"
-              : linuxDoStatus === "connecting"
-              ? "跳转中…"
-              : "用 Linux.do 登录"}
-          </button>
-          <p className="text-[10px] text-slate-500">
-            登录链接会在新窗口打开，不会影响当前页面。
-          </p>
-        </div>
-      </section>
 
       {/* 云同步 */}
       <section className="rounded-2xl bg-slate-50 px-4 py-3.5 space-y-2">

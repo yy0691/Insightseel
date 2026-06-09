@@ -36,13 +36,13 @@ const Footer: React.FC = () => {
 
         {/* Links */}
         <div className="flex gap-6 text-xs text-slate-500">
+          <a className="hover:text-slate-700" href="https://github.com/yy0691/Insightseel" target="_blank" rel="noopener noreferrer">
+            GitHub
+          </a>
           <a className="hover:text-slate-700" href="https://github.com/SamuelZ12/TLDW" target="_blank" rel="noopener noreferrer">
             {t('footerInspiredBy')}
           </a>
-          <a className="hover:text-slate-700" href="https://luoyuanai.cn/about" target="_blank" rel="noopener noreferrer">
-            {t('footerAbout')}
-          </a>
-          <a className="hover:text-slate-700" href="https://n1ddxc0sfaq.feishu.cn/share/base/form/shrcnf7gC1S58t8Av4x4eNxWSlh" target="_blank" rel="noopener noreferrer">
+          <a className="hover:text-slate-700" href="https://github.com/yy0691/Insightseel/issues" target="_blank" rel="noopener noreferrer">
             {t('footerFeedback')}
           </a>
         </div>

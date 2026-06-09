@@ -923,7 +923,7 @@ const AppContent: React.FC<{
         <React.Suspense fallback={null}>
           <FeedbackModal
             onClose={() => setIsFeedbackModalOpen(false)}
-            feedbackUrl="https://n1ddxc0sfaq.feishu.cn/share/base/form/shrcnf7gC1S58t8Av4x4eNxWSlh"
+            feedbackUrl="https://github.com/yy0691/Insightseel/issues"
           />
         </React.Suspense>
       )}

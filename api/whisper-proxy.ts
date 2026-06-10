@@ -1,6 +1,9 @@
 /**
  * Vercel serverless function to proxy Whisper API requests
  * This protects the OpenAI API key from exposure to the frontend
+ *
+ * GET  – check if Whisper API is available
+ * POST – proxy transcription request to OpenAI
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
@@ -15,7 +18,16 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ) {
-  // Only allow POST requests
+  // GET: check Whisper availability
+  if (req.method === 'GET') {
+    const hasOpenAIKey = !!process.env.OPENAI_API_KEY;
+    return res.status(200).json({
+      available: hasOpenAIKey,
+      provider: hasOpenAIKey ? 'openai' : 'none',
+    });
+  }
+
+  // Only allow GET and POST requests
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }

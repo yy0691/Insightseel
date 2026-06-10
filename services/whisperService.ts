@@ -40,7 +40,7 @@ export async function isWhisperAvailable(): Promise<boolean> {
   if (settings.useProxy) {
     // Check if proxy supports Whisper
     try {
-      const response = await fetch('/api/check-whisper', {
+      const response = await fetch('/api/whisper-proxy', {
         method: 'GET',
       });
       return response.ok;

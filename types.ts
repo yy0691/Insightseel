@@ -21,6 +21,9 @@ export interface SubtitleSegment {
   endTime: number;
   text: string;
   translatedText?: string;
+  translation?: string; // 兼容新的翻译字段
+  originalText?: string; // 保存原文
+  confidence?: number; // 转写置信度
 }
 
 export interface Subtitles {

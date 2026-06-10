@@ -34,4 +34,14 @@ tmp
 **/tempobook/storyboards/
 
 # FFmpeg WASM core files (copied from node_modules during postinstall)
-public/ffmpeg/
+public/ffmpeg/# Railway 部署忽略
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
